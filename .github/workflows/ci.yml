@@ -1,0 +1,145 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validation:
+    runs-on: ubuntu-24.04
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          submodules: recursive
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang-format cmake ninja-build libasound2-dev libfontconfig1-dev \
+            libfreetype6-dev libgl1-mesa-dev libx11-dev libxcomposite-dev \
+            libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev \
+            libxrender-dev
+      - name: Validate source and schema
+        run: |
+          git diff --check
+          python3 scripts/check-format.py
+          python3 scripts/verify-realtime-code.py
+          python3 scripts/verify-project-schema.py
+      - name: Configure, build, and test Debug
+        run: |
+          cmake --preset tests-debug --fresh
+          cmake --build --preset tests-debug
+          ctest --preset tests-debug --output-on-failure
+          ./build/tests-debug/bin/padflow_smoke
+          ./build/tests-debug/bin/PadFlow --headless-smoke-test --no-audio-device
+      - name: Configure, build, and test Release
+        run: |
+          cmake --preset tests-release --fresh
+          cmake --build --preset tests-release
+          ctest --preset tests-release --output-on-failure
+      # actions/upload-artifact v7.0.1
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: validation-test-logs
+          path: build/**/Testing/Temporary/**
+
+  windows-x64:
+    runs-on: windows-2025
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          submodules: recursive
+      - name: Configure and build Release
+        run: |
+          cmake --preset windows-release --fresh
+          cmake --build --preset windows-release
+      - name: Test and smoke
+        run: |
+          ctest --preset windows-release --output-on-failure
+          .\build\windows-release\bin\padflow_smoke.exe
+          .\build\windows-release\bin\PadFlow.exe --headless-smoke-test --no-audio-device
+      - name: Create unsigned development archive
+        shell: powershell
+        run: scripts\package-windows.ps1 -DevelopmentArchive
+      - name: Verify archive
+        run: python scripts/verify-artifacts.py --mode milestone0 --platform windows
+      # actions/upload-artifact v7.0.1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: windows-development
+          path: artifacts/windows/*
+
+  macos-universal:
+    runs-on: macos-15
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          submodules: recursive
+      - name: Configure and build universal Release
+        run: |
+          cmake --preset macos-universal-release --fresh
+          cmake --build --preset macos-universal-release
+      - name: Test, smoke, and inspect architectures
+        run: |
+          ctest --preset macos-universal-release --output-on-failure
+          ./build/macos-universal-release/bin/padflow_smoke
+          ./build/macos-universal-release/bin/PadFlow.app/Contents/MacOS/PadFlow --headless-smoke-test --no-audio-device
+          lipo -archs build/macos-universal-release/bin/PadFlow.app/Contents/MacOS/PadFlow | grep arm64 | grep x86_64
+      - name: Create unsigned development archive
+        run: bash scripts/package-macos.sh --development-archive
+      - name: Verify archive
+        run: python3 scripts/verify-artifacts.py --mode milestone0 --platform macos
+      # actions/upload-artifact v7.0.1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: macos-development
+          path: artifacts/macos/*
+
+  macos-intel-smoke:
+    runs-on: macos-15-intel
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          submodules: recursive
+      - name: Configure, build, and test Intel Release
+        run: |
+          cmake --preset macos-intel-release --fresh
+          cmake --build --preset macos-intel-release
+          ctest --preset macos-intel-release --output-on-failure
+          ./build/macos-intel-release/bin/padflow_smoke
+          ./build/macos-intel-release/bin/PadFlow.app/Contents/MacOS/PadFlow --headless-smoke-test --no-audio-device
+          lipo -archs build/macos-intel-release/bin/PadFlow.app/Contents/MacOS/PadFlow | grep x86_64
+
+  artifact-verification:
+    runs-on: ubuntu-24.04
+    needs: [windows-x64, macos-universal, macos-intel-smoke]
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      # actions/download-artifact v8.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: windows-development
+          path: artifacts/windows
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: macos-development
+          path: artifacts/macos
+      - name: Verify all development artifacts
+        run: python3 scripts/verify-artifacts.py --mode milestone0 --platform all

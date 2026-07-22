@@ -1,0 +1,30 @@
+name: Release Baseline
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to validate
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  full-ci:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  milestone-zero-boundary:
+    needs: full-ci
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Confirm non-publishing Milestone 0 behavior
+        run: |
+          echo "Milestone 0 release workflow validates CI only."
+          echo "Publishing, installers, DMG, signing, notarization, and contents:write are deferred to Milestone 10."
+

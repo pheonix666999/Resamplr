@@ -1,0 +1,99 @@
+{
+  "version": 7,
+  "cmakeMinimumRequired": { "major": 3, "minor": 28, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_CXX_STANDARD": "20",
+        "PADFLOW_BUILD_APP": "ON",
+        "PADFLOW_BUILD_TESTS": "ON",
+        "PADFLOW_ENABLE_ASIO": "OFF",
+        "PADFLOW_ENABLE_FFMPEG": "OFF"
+      }
+    },
+    {
+      "name": "windows-debug",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build/windows-debug",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+    {
+      "name": "windows-release",
+      "inherits": "windows-debug",
+      "binaryDir": "${sourceDir}/build/windows-release",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "macos-debug",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build/macos-debug",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Darwin" },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "12.0",
+        "CMAKE_OSX_ARCHITECTURES": "arm64"
+      }
+    },
+    {
+      "name": "macos-release",
+      "inherits": "macos-debug",
+      "binaryDir": "${sourceDir}/build/macos-release",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "macos-universal-release",
+      "inherits": "macos-release",
+      "binaryDir": "${sourceDir}/build/macos-universal-release",
+      "cacheVariables": { "CMAKE_OSX_ARCHITECTURES": "arm64;x86_64" }
+    },
+    {
+      "name": "macos-intel-release",
+      "inherits": "macos-release",
+      "binaryDir": "${sourceDir}/build/macos-intel-release",
+      "cacheVariables": { "CMAKE_OSX_ARCHITECTURES": "x86_64" }
+    },
+    {
+      "name": "tests-debug",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build/tests-debug",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" },
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+    {
+      "name": "tests-release",
+      "inherits": "tests-debug",
+      "binaryDir": "${sourceDir}/build/tests-release",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "windows-debug", "configurePreset": "windows-debug" },
+    { "name": "windows-release", "configurePreset": "windows-release" },
+    { "name": "macos-debug", "configurePreset": "macos-debug" },
+    { "name": "macos-release", "configurePreset": "macos-release" },
+    { "name": "macos-universal-release", "configurePreset": "macos-universal-release" },
+    { "name": "macos-intel-release", "configurePreset": "macos-intel-release" },
+    { "name": "tests-debug", "configurePreset": "tests-debug" },
+    { "name": "tests-release", "configurePreset": "tests-release" }
+  ],
+  "testPresets": [
+    {
+      "name": "test-base",
+      "hidden": true,
+      "output": { "outputOnFailure": true },
+      "execution": { "noTestsAction": "error" }
+    },
+    { "name": "windows-debug", "inherits": "test-base", "configurePreset": "windows-debug" },
+    { "name": "windows-release", "inherits": "test-base", "configurePreset": "windows-release" },
+    { "name": "macos-debug", "inherits": "test-base", "configurePreset": "macos-debug" },
+    { "name": "macos-release", "inherits": "test-base", "configurePreset": "macos-release" },
+    { "name": "macos-universal-release", "inherits": "test-base", "configurePreset": "macos-universal-release" },
+    { "name": "macos-intel-release", "inherits": "test-base", "configurePreset": "macos-intel-release" },
+    { "name": "tests-debug", "inherits": "test-base", "configurePreset": "tests-debug" },
+    { "name": "tests-release", "inherits": "test-base", "configurePreset": "tests-release" }
+  ]
+}
