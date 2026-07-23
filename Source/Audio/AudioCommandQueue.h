@@ -7,6 +7,12 @@
 #include <type_traits>
 
 namespace padflow {
+#if defined(_MSC_VER)
+#pragma warning(push)
+// Cache-line separation is intentional; MSVC C4324 reports the resulting class padding.
+#pragma warning(disable : 4324)
+#endif
+
 template <typename Value, std::size_t Capacity> class SpscQueue final {
     static_assert(Capacity > 0);
     static_assert(std::is_trivially_copyable_v<Value>);
@@ -50,6 +56,10 @@ template <typename Value, std::size_t Capacity> class SpscQueue final {
     alignas(64) std::atomic<std::size_t> writePosition_{0U};
     alignas(64) std::atomic<std::size_t> readPosition_{0U};
 };
+
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 
 enum class AudioCommandType : std::uint8_t {
     none,

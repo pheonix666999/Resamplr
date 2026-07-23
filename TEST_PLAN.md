@@ -42,6 +42,7 @@ bit-stable platform/compiler or proven integer-only path.
 | REGRESSION-CI-002 | Third-party warning boundary | JUCE includes are system headers; PadFlow sources retain warnings as errors. |
 | REGRESSION-CI-003 | Headless UTF-8 diagnostics | GUI headless smoke compiles on Apple Clang and prints the JUCE UTF-8 pointer directly. |
 | REGRESSION-CI-004 | Pre-GUI argument parsing | Linux/macOS parse raw process arguments before JUCE startup, so headless smoke never initializes a display. |
+| REGRESSION-CI-005 | Intentional queue alignment | MSVC `/WX` accepts documented cache-line padding while all other project warnings remain errors. |
 
 ## Project model — Milestone 1 unless noted
 

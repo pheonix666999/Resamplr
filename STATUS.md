@@ -33,6 +33,14 @@ diagnostic uses the returned UTF-8 pointer directly. Regression coverage is trac
 before JUCE startup so GUI headless smoke does not initialize a display. Hosted validation is
 pending.
 
+MSVC warning C4324 is narrowly disabled around the SPSC queue template because its cache-line
+separation intentionally pads the class. This exception is tracked by `REGRESSION-CI-005`; `/WX`
+remains enabled for all other project diagnostics.
+
+[Run 30031942176](https://github.com/pheonix666999/Resamplr/actions/runs/30031942176)
+passed Linux Debug/Release validation and both macOS jobs. Windows reached the MSVC build and failed
+only on C4324 before the narrow suppression above; artifact verification was consequently skipped.
+
 [Follow-up run 30031473884](https://github.com/pheonix666999/Resamplr/actions/runs/30031473884)
 confirmed clean Linux and macOS universal compilation. It exposed two masked infrastructure issues:
 the Windows 2025 runner carries Visual Studio 2026 rather than 2022, and pre-startup JUCE argument
