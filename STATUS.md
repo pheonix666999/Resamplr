@@ -2,15 +2,15 @@
 
 ## Current milestone
 
-Milestone 0 — foundation: **implemented; CI remediation awaiting hosted validation**.
+Milestone 0 — foundation: **implemented, hosted-CI validated, and ready for review**.
 
 The repository, documentation, pinned dependency, CMake targets/presets, empty application,
 foundation interfaces, schema-v1 bundle skeleton, tests, smoke paths, scripts, and baseline workflows
 are present. No Milestone 1 application feature has been started.
 
-Milestone 0 is not marked complete because this host has no supported native compiler. The first
-hosted CI run exposed cross-platform build configuration defects; focused repairs are implemented
-and must pass a replacement hosted run.
+This Windows host still has no supported native compiler, so local native builds remain blocked.
+That host limitation does not block review: GitHub Actions now validates the complete Milestone 0
+matrix on Linux, Windows, and macOS.
 
 ## Reference
 
@@ -29,9 +29,9 @@ failed on commit `166de0f130d7eeaf84d0f6e75158db835e3f8abc`:
 The Windows presets now require `cl`, and CI initializes the installed MSVC x64 toolchain through
 `vswhere`; JUCE targets are added with CMake's `SYSTEM` third-party boundary; and the GUI smoke
 diagnostic uses the returned UTF-8 pointer directly. Regression coverage is tracked by
-`REGRESSION-CI-001` through `REGRESSION-CI-004`. Linux/macOS process arguments are also parsed
+`REGRESSION-CI-001` through `REGRESSION-CI-006`. Linux/macOS process arguments are also parsed
 before JUCE startup so GUI headless smoke does not initialize a display. Hosted validation is
-pending.
+complete.
 
 MSVC warning C4324 is narrowly disabled around the SPSC queue template because its cache-line
 separation intentionally pads the class. This exception is tracked by `REGRESSION-CI-005`; `/WX`
@@ -45,6 +45,12 @@ only on C4324 before the narrow suppression above; artifact verification was con
 passed Linux Debug/Release, both macOS jobs, the Windows MSVC build, all Windows tests/smokes, and
 Windows packaging. Windows artifact verification alone rejected the PowerShell 5.1 UTF-8 BOM in the
 manifest. Packaging now writes explicit BOM-free UTF-8, tracked by `REGRESSION-CI-006`.
+
+[Run 30033326030](https://github.com/pheonix666999/Resamplr/actions/runs/30033326030)
+completed successfully on commit `5dc209317c2087a04ce8063b28e954a96cbce1ec`. All five jobs passed:
+Linux Debug/Release validation, Windows x64 build/tests/smokes/package, macOS universal
+build/tests/smokes/package, macOS Intel build/tests/smokes, and cross-platform artifact
+verification. The `windows-development` and `macos-development` artifacts were uploaded.
 
 [Follow-up run 30031473884](https://github.com/pheonix666999/Resamplr/actions/runs/30031473884)
 confirmed clean Linux and macOS universal compilation. It exposed two masked infrastructure issues:
