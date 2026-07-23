@@ -19,9 +19,9 @@ cd PadFlow
 git submodule update --init --recursive
 ```
 
-Install CMake 3.28+, Python 3.11+, and a supported compiler: Visual Studio 2022 with MSVC on Windows,
-or Xcode on macOS. Ninja is required by the macOS and Linux presets. The JUCE submodule is pinned;
-dependency upgrades happen only at milestone boundaries.
+Install CMake 3.28+, Ninja, Python 3.11+, and a supported compiler: a current Visual Studio with MSVC
+on Windows, or Xcode on macOS. Run Windows presets from a Visual Studio developer shell. The JUCE
+submodule is pinned; dependency upgrades happen only at milestone boundaries.
 
 ## Configure, build, and test
 

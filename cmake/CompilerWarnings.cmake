@@ -28,16 +28,4 @@ function(padflow_set_output_directory target)
         PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
                    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
                    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
-
-    if(CMAKE_CONFIGURATION_TYPES)
-        foreach(configuration IN LISTS CMAKE_CONFIGURATION_TYPES)
-            string(TOUPPER "${configuration}" configuration_upper)
-            set_target_properties(
-                ${target}
-                PROPERTIES
-                    "RUNTIME_OUTPUT_DIRECTORY_${configuration_upper}" "${CMAKE_BINARY_DIR}/bin"
-                    "LIBRARY_OUTPUT_DIRECTORY_${configuration_upper}" "${CMAKE_BINARY_DIR}/lib"
-                    "ARCHIVE_OUTPUT_DIRECTORY_${configuration_upper}" "${CMAKE_BINARY_DIR}/lib")
-        endforeach()
-    endif()
 endfunction()

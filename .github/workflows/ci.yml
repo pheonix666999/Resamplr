@@ -64,9 +64,19 @@ jobs:
         with:
           submodules: recursive
       - name: Configure and build Release
+        shell: cmd
         run: |
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "PADFLOW_VS_PATH=%%i"
+          if not defined PADFLOW_VS_PATH (
+            echo No Visual Studio installation with the MSVC x64 tools was found.
+            exit /b 1
+          )
+          call "%PADFLOW_VS_PATH%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
+          if errorlevel 1 exit /b %errorlevel%
           cmake --preset windows-release --fresh
+          if errorlevel 1 exit /b %errorlevel%
           cmake --build --preset windows-release
+          if errorlevel 1 exit /b %errorlevel%
       - name: Test and smoke
         run: |
           ctest --preset windows-release --output-on-failure

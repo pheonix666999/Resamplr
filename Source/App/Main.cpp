@@ -11,7 +11,15 @@ juce::JUCEApplicationBase* juce_CreateApplication() {
 }
 
 JUCE_MAIN_FUNCTION {
-    const auto arguments = juce::JUCEApplicationBase::getCommandLineParameterArray();
+    juce::StringArray arguments;
+#if JUCE_WINDOWS && !defined(_CONSOLE)
+    arguments = juce::JUCEApplicationBase::getCommandLineParameterArray();
+#else
+    for (int index = 1; index < argc; ++index) {
+        arguments.add(juce::String::fromUTF8(argv[index]));
+    }
+#endif
+
     if (arguments.contains("--headless-smoke-test")) {
         if (!arguments.contains("--no-audio-device")) {
             std::fputs("SMOKE failure: --no-audio-device is required\n", stderr);

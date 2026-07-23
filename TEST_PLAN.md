@@ -38,9 +38,10 @@ bit-stable platform/compiler or proven integer-only path.
 
 | ID | Test | Acceptance |
 |---|---|---|
-| REGRESSION-CI-001 | Windows toolchain selection | Windows presets configure Visual Studio 2022 x64/MSVC, never unsupported MinGW. |
+| REGRESSION-CI-001 | Windows toolchain selection | Windows presets require `cl`; CI initializes the installed MSVC x64 toolchain, never unsupported MinGW. |
 | REGRESSION-CI-002 | Third-party warning boundary | JUCE includes are system headers; PadFlow sources retain warnings as errors. |
 | REGRESSION-CI-003 | Headless UTF-8 diagnostics | GUI headless smoke compiles on Apple Clang and prints the JUCE UTF-8 pointer directly. |
+| REGRESSION-CI-004 | Pre-GUI argument parsing | Linux/macOS parse raw process arguments before JUCE startup, so headless smoke never initializes a display. |
 
 ## Project model — Milestone 1 unless noted
 

@@ -7,14 +7,16 @@ work must not smuggle in partially implemented product features.
 
 - Git with submodule support
 - CMake 3.28 or later
+- Ninja
 - Python 3.11 or later
-- Visual Studio 2022 with MSVC on Windows
-- Ninja and Xcode/Apple Clang on macOS, or Ninja and GCC/Clang on Linux
+- A current Visual Studio with MSVC on Windows
+- Xcode/Apple Clang on macOS, or GCC/Clang on Linux
 - Optional `clang-format`; no FFmpeg or ASIO SDK is required
 
 Use `git submodule update --init --recursive`, then configure/build/test with the matching preset.
-Windows presets select the Visual Studio 2022 x64 generator explicitly; MinGW is unsupported by
-JUCE. All executables are placed under the preset build directory's `bin` folder. Run
+Run Windows presets from a Visual Studio developer shell. They explicitly select `cl`, because
+MinGW is unsupported by JUCE; hosted CI locates and initializes the installed Visual Studio version
+before configuring. All executables are placed under the preset build directory's `bin` folder. Run
 `python scripts/check-format.py`, `python scripts/verify-realtime-code.py`, and
 `python scripts/verify-project-schema.py` before builds.
 

@@ -26,10 +26,18 @@ failed on commit `166de0f130d7eeaf84d0f6e75158db835e3f8abc`:
 - Linux promoted a conversion warning originating in a JUCE header to an error.
 - macOS attempted to call `.getAddress()` on the `const char*` returned by `String::toRawUTF8()`.
 
-The Windows presets now select Visual Studio 2022 x64 with explicit build/test configurations,
-JUCE targets are added with CMake's `SYSTEM` third-party boundary, and the GUI smoke diagnostic uses
-the returned UTF-8 pointer directly. Regression coverage is tracked by `REGRESSION-CI-001` through
-`REGRESSION-CI-003`. Hosted validation is pending.
+The Windows presets now require `cl`, and CI initializes the installed MSVC x64 toolchain through
+`vswhere`; JUCE targets are added with CMake's `SYSTEM` third-party boundary; and the GUI smoke
+diagnostic uses the returned UTF-8 pointer directly. Regression coverage is tracked by
+`REGRESSION-CI-001` through `REGRESSION-CI-004`. Linux/macOS process arguments are also parsed
+before JUCE startup so GUI headless smoke does not initialize a display. Hosted validation is
+pending.
+
+[Follow-up run 30031473884](https://github.com/pheonix666999/Resamplr/actions/runs/30031473884)
+confirmed clean Linux and macOS universal compilation. It exposed two masked infrastructure issues:
+the Windows 2025 runner carries Visual Studio 2026 rather than 2022, and pre-startup JUCE argument
+storage is empty on Linux/macOS. The portable `cl`/`vswhere` setup and raw process-argument parsing
+address both without changing Milestone 0 product scope.
 
 ## Local environment and validation — 2026-07-23
 
@@ -49,12 +57,12 @@ Passing checks:
 - CMake preset JSON parsing and `cmake --list-presets=all`.
 - Python byte-compilation, PowerShell script parsing, Git Bash `bash -n`, YAML parsing, and actionlint.
 - Explicit CMake source inventory and Milestone 1+ source-boundary scan.
-- Windows preset parsing confirms the Visual Studio 2022 x64 generator and explicit Release
-  configuration.
+- Windows preset parsing confirms explicit `cl` compiler selection and Release configuration.
 
 Blocked/failed checks:
 
-- Windows Release configure stops at `project()` because Visual Studio is not installed locally.
+- Windows Debug and Release configure stop at compiler discovery because Visual Studio is not
+  installed locally.
 - Builds, unit tests, smoke executables, and development packaging could not be produced after the
   configure failure.
 - A first empty-build-tree CTest invocation returned success while finding no tests. Presets were
