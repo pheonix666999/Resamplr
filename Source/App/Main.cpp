@@ -19,8 +19,8 @@ JUCE_MAIN_FUNCTION {
         }
 
         const auto result = padflow::runSmokeScenario();
-        const auto diagnostics = result.diagnostics.toRawUTF8();
-        std::fprintf(result.succeeded ? stdout : stderr, "%s\n", diagnostics.getAddress());
+        const auto* diagnostics = result.diagnostics.toRawUTF8();
+        std::fprintf(result.succeeded ? stdout : stderr, "%s\n", diagnostics);
         return result.succeeded ? 0 : 1;
     }
 

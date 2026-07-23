@@ -18,7 +18,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(cmake/CompilerWarnings.cmake)
-add_subdirectory(external/JUCE)
+add_subdirectory(external/JUCE SYSTEM)
 
 configure_file(
     Source/App/ProductInfoGenerated.h.in

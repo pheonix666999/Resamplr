@@ -19,8 +19,9 @@ cd PadFlow
 git submodule update --init --recursive
 ```
 
-Install CMake 3.28+, Ninja, Python 3.11+, and a supported compiler: current MSVC on Windows or Xcode
-on macOS. The JUCE submodule is pinned; dependency upgrades happen only at milestone boundaries.
+Install CMake 3.28+, Python 3.11+, and a supported compiler: Visual Studio 2022 with MSVC on Windows,
+or Xcode on macOS. Ninja is required by the macOS and Linux presets. The JUCE submodule is pinned;
+dependency upgrades happen only at milestone boundaries.
 
 ## Configure, build, and test
 
@@ -68,4 +69,3 @@ ASIO is disabled and no SDK is bundled. Neither is required for the application 
 See `docs/GITHUB_ACTIONS.md`, `docs/SIGNING.md`, and `THIRD_PARTY_LICENSES.md`. Ordinary CI does not
 require signing credentials or audio hardware. Report defects with platform, build preset, exact
 steps, logs, and a minimal redistributable project where possible.
-

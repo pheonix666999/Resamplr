@@ -2,24 +2,40 @@
 
 ## Current milestone
 
-Milestone 0 — foundation: **implemented and ready for review; native validation blocked**.
+Milestone 0 — foundation: **implemented; CI remediation awaiting hosted validation**.
 
 The repository, documentation, pinned dependency, CMake targets/presets, empty application,
 foundation interfaces, schema-v1 bundle skeleton, tests, smoke paths, scripts, and baseline workflows
 are present. No Milestone 1 application feature has been started.
 
-Milestone 0 is not marked complete because this host has no compiler and hosted CI has not run.
+Milestone 0 is not marked complete because this host has no supported native compiler. The first
+hosted CI run exposed cross-platform build configuration defects; focused repairs are implemented
+and must pass a replacement hosted run.
 
 ## Reference
 
 `BLOCKED_REFERENCE_ASSET`: the local MP4 is 0 bytes and cannot be decoded. This does not block the
 Milestone 0 foundation. Exact Resamplr UI, interaction, or chopping parity is not claimed.
 
-## Local environment and validation — 2026-07-22
+## CI remediation — 2026-07-23
+
+[CI run 30030706795](https://github.com/pheonix666999/Resamplr/actions/runs/30030706795)
+failed on commit `166de0f130d7eeaf84d0f6e75158db835e3f8abc`:
+
+- Windows selected unsupported MinGW because the Ninja preset did not select MSVC.
+- Linux promoted a conversion warning originating in a JUCE header to an error.
+- macOS attempted to call `.getAddress()` on the `const char*` returned by `String::toRawUTF8()`.
+
+The Windows presets now select Visual Studio 2022 x64 with explicit build/test configurations,
+JUCE targets are added with CMake's `SYSTEM` third-party boundary, and the GUI smoke diagnostic uses
+the returned UTF-8 pointer directly. Regression coverage is tracked by `REGRESSION-CI-001` through
+`REGRESSION-CI-003`. Hosted validation is pending.
+
+## Local environment and validation — 2026-07-23
 
 - Available initially: Git 2.50.0 and Python 3.13.
-- No MSVC, Clang, GCC, Visual Studio installation, CMake, Ninja, system clang-format, GitHub CLI,
-  FFmpeg, or ffprobe was available.
+- No MSVC, Clang, GCC, Visual Studio installation, system CMake, Ninja, system clang-format, GitHub
+  CLI, FFmpeg, or ffprobe is available.
 - Temporary checksum/version-pinned validation tools were installed outside the repository:
   clang-format 18.1.8, CMake 3.31.6, Ninja 1.11.1.4, PyYAML 6.0.2, and actionlint 1.7.12.
 
@@ -33,17 +49,19 @@ Passing checks:
 - CMake preset JSON parsing and `cmake --list-presets=all`.
 - Python byte-compilation, PowerShell script parsing, Git Bash `bash -n`, YAML parsing, and actionlint.
 - Explicit CMake source inventory and Milestone 1+ source-boundary scan.
+- Windows preset parsing confirms the Visual Studio 2022 x64 generator and explicit Release
+  configuration.
 
 Blocked/failed checks:
 
-- Windows Debug and Release configure stopped at `project()` because no C or C++ compiler exists.
+- Windows Release configure stops at `project()` because Visual Studio is not installed locally.
 - Builds, unit tests, smoke executables, and development packaging could not be produced after the
   configure failure.
 - A first empty-build-tree CTest invocation returned success while finding no tests. Presets were
   corrected with `noTestsAction: error`; the repeated invocation correctly exits 8.
 - Windows artifact verification correctly fails because no archive was built.
 - macOS arm64/Intel/universal and Linux builds cannot run on this Windows host.
-- No Git remote is configured, so GitHub Actions have not executed and no CI status is claimed.
+- The GitHub CLI is unavailable. CI run/job/log inspection uses the connected GitHub integration.
 
 Principal commands executed:
 

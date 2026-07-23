@@ -34,6 +34,14 @@ bit-stable platform/compiler or proven integer-only path.
 | UIHEADLESS-001 | Console smoke | Metadata, schema round trip, finite non-silent synthetic render, cleanup, exit 0. |
 | UIHEADLESS-002 | GUI headless smoke | Same path with required flag, no window/devices/permission, exit 0. |
 
+### Milestone 0 CI regressions
+
+| ID | Test | Acceptance |
+|---|---|---|
+| REGRESSION-CI-001 | Windows toolchain selection | Windows presets configure Visual Studio 2022 x64/MSVC, never unsupported MinGW. |
+| REGRESSION-CI-002 | Third-party warning boundary | JUCE includes are system headers; PadFlow sources retain warnings as errors. |
+| REGRESSION-CI-003 | Headless UTF-8 diagnostics | GUI headless smoke compiles on Apple Clang and prints the JUCE UTF-8 pointer directly. |
+
 ## Project model — Milestone 1 unless noted
 
 | ID | Test |
@@ -174,4 +182,3 @@ bit-stable platform/compiler or proven integer-only path.
 No test above is considered implemented merely because its entry exists. `STATUS.md` records which
 IDs actually pass. Deferred entries are assigned to the stated milestone because their production
 subsystem does not exist in Milestone 0.
-
