@@ -19,9 +19,17 @@ Copy-Item -LiteralPath $executable -Destination $stage
 Copy-Item -LiteralPath (Join-Path $root "README.md") -Destination $stage
 Copy-Item -LiteralPath (Join-Path $root "LICENSE.md") -Destination $stage
 Copy-Item -LiteralPath (Join-Path $root "THIRD_PARTY_LICENSES.md") -Destination $stage
-Set-Content -LiteralPath (Join-Path $stage "UNSIGNED.txt") -Encoding utf8 -Value "Unsigned Milestone 0 development build."
-@{ product = "PadFlow"; version = "0.1.0"; platform = "windows-x64"; signed = $false } |
-    ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stage "build-manifest.json") -Encoding utf8
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText(
+    (Join-Path $stage "UNSIGNED.txt"),
+    "Unsigned Milestone 0 development build.`n",
+    $utf8NoBom)
+$manifest = @{ product = "PadFlow"; version = "0.1.0"; platform = "windows-x64"; signed = $false } |
+    ConvertTo-Json
+[System.IO.File]::WriteAllText(
+    (Join-Path $stage "build-manifest.json"),
+    "$manifest`n",
+    $utf8NoBom)
 
 $archive = Join-Path $output "PadFlow-Windows-x64-Development-Unsigned.zip"
 if (Test-Path -LiteralPath $archive) { Remove-Item -LiteralPath $archive }

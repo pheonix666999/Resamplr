@@ -41,6 +41,11 @@ remains enabled for all other project diagnostics.
 passed Linux Debug/Release validation and both macOS jobs. Windows reached the MSVC build and failed
 only on C4324 before the narrow suppression above; artifact verification was consequently skipped.
 
+[Run 30032715720](https://github.com/pheonix666999/Resamplr/actions/runs/30032715720)
+passed Linux Debug/Release, both macOS jobs, the Windows MSVC build, all Windows tests/smokes, and
+Windows packaging. Windows artifact verification alone rejected the PowerShell 5.1 UTF-8 BOM in the
+manifest. Packaging now writes explicit BOM-free UTF-8, tracked by `REGRESSION-CI-006`.
+
 [Follow-up run 30031473884](https://github.com/pheonix666999/Resamplr/actions/runs/30031473884)
 confirmed clean Linux and macOS universal compilation. It exposed two masked infrastructure issues:
 the Windows 2025 runner carries Visual Studio 2026 rather than 2022, and pre-startup JUCE argument
