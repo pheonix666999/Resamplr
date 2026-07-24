@@ -15,7 +15,9 @@ validated in hosted CI as recorded below.
 The schema-v1 persistence slice now serializes and validates the complete Milestone 1 model,
 preserves Milestone 0 manifest compatibility, rejects partial/invalid payloads without changing the
 live project, and performs semantic archive validation before publication. Hosted validation for
-this slice is pending.
+this slice passed in
+[run 30063978227](https://github.com/pheonix666999/Resamplr/actions/runs/30063978227) on commit
+`ab3bd120ccd01c2ed28b6feaa8fa7609b5e39ad7`; all five jobs passed.
 
 Feature-branch CI was enabled and validated independently in
 [run 30062883832](https://github.com/pheonix666999/Resamplr/actions/runs/30062883832) on commit
