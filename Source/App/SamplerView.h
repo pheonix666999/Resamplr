@@ -43,6 +43,9 @@ class SamplerView final : public juce::Component,
     void processPendingJobs();
 
   private:
+    using juce::Component::keyPressed;
+    using juce::Component::keyStateChanged;
+
     class PadButton final : public juce::TextButton {
       public:
         std::function<void(const juce::MouseEvent&)> onPadMouseDown;
