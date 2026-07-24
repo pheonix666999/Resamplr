@@ -10,6 +10,26 @@ The manifest uses explicit UTF-8, `/` separators, ordered keys, stable escaping,
 round-trip floating-point formatting, and lossless integer encodings. Signed 64-bit PPQ ticks and
 other potentially unsafe JSON integers use canonical decimal strings.
 
+## Milestone 1 model payload
+
+Schema v1 remains the active schema. Milestone 1 manifests add required `audio`, `assets`, `banks`,
+`midi`, and `ui` members while retaining the Milestone 0 root metadata. `banks` contains exactly
+four ordered bank objects named A through D; every bank contains exactly sixteen pads; and every pad
+contains exactly four layer records. Project, bank, pad, layer, and asset UUIDs are persisted
+verbatim.
+
+Pad records persist name, ARGB colour as an unsigned decimal string, keyboard key, MIDI note,
+playback/polyphony/choke/voice parameters, gain/pan/tuning, and ADSR values. Layer records persist
+their enabled state, external asset UUID, inclusive velocity range, gain, pan, tuning, and stable
+UUID. External asset records persist path/name/format/fingerprint, byte and frame counts, source
+metadata, and explicit missing status. Potentially unsafe 64-bit values and the project revision are
+decimal strings.
+
+Milestone 0 schema-v1 manifests without the model payload remain loadable. They receive deterministic
+default banks, pads, layers, mappings, audio/MIDI settings, and UI state derived from the persisted
+project UUID. A partially present Milestone 1 payload is invalid rather than silently defaulted.
+Loading parses and validates a complete candidate state before committing it to the live project.
+
 ## Musical time
 
 All musical positions use 960 PPQ. Absolute positions are `{ wholePpqTicks: int64,
@@ -47,4 +67,3 @@ mode additionally normalizes entry order, timestamps, compression settings, sepa
 Loading rejects absolute/traversal paths, duplicate entries, corrupt data, unsupported schema, and
 unreasonable expanded sizes. Unsupported data is never silently discarded. Migrations are explicit,
 tested, one-way transformations that preserve the original backup.
-

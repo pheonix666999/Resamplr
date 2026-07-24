@@ -1,6 +1,7 @@
 #include "App/ApplicationController.h"
 #include "Model/PadModel.h"
 #include "Model/Project.h"
+#include "Serialization/ProjectSerializer.h"
 
 #include <juce_core/juce_core.h>
 
@@ -124,6 +125,112 @@ class Milestone1ModelTests final : public juce::UnitTest {
                      static_cast<juce::int64>(0xffd9865bU));
         expect(controller.recolourPad(4U, 0x00000000U).failed());
         expect(beforeInvalidName.uuid == controller.project().pad(4U).uuid);
+
+        beginTest("SAVE-M1-001 through SAVE-M1-008 complete semantic round trip");
+        auto persisted = Project::createEmpty("Persistence", "persistence-project");
+        auto persistedState = persisted.state();
+        auto& persistedPad = persistedState.banks[0].pads[0];
+        persistedPad.name = "Layered Kick";
+        persistedPad.colourArgb = 0xff123456U;
+        persistedPad.parameters.gainDecibels = -7.25F;
+        persistedPad.parameters.pan = -0.375F;
+        persistedPad.parameters.coarseSemitones = -12;
+        persistedPad.parameters.fineCents = 23.5F;
+        persistedPad.parameters.playbackMode = PlaybackMode::toggle;
+        persistedPad.parameters.polyphonyMode = PolyphonyMode::mono;
+        persistedPad.parameters.chokeGroup = 4U;
+        persistedPad.parameters.envelope = {0.25F, 0.5F, 0.75F, 1.25F};
+        persistedPad.parameters.maximumVoices = 3U;
+        auto& persistedLayer = persistedPad.layers[2];
+        persistedLayer.assetUuid = "persistence-asset";
+        persistedLayer.enabled = true;
+        persistedLayer.velocityMinimum = 41U;
+        persistedLayer.velocityMaximum = 97U;
+        persistedLayer.gainDecibels = -4.5F;
+        persistedLayer.pan = 0.625F;
+        persistedLayer.tuningCents = -215.25F;
+        persistedState.assets.push_back(ExternalAssetReference{
+            "persistence-asset",
+            "missing/source.wav",
+            "source.wav",
+            "WAV",
+            "sha256:001122",
+            123456U,
+            -12345,
+            2U,
+            48000.0,
+            96000U,
+            768000U,
+            true,
+        });
+        persistedState.midi.preferredInputIdentifier = "stable-midi-device";
+        persistedState.midi.channelFilter = 10U;
+        persistedState.audio.outputDeviceIdentifier = "stable-output-device";
+        persistedState.audio.inputDeviceIdentifier = "stable-input-device";
+        persistedState.audio.outputChannelMask = 3U;
+        persistedState.audio.inputChannelMask = 1U;
+        persistedState.audio.sampleRate = 48000.0;
+        persistedState.audio.bufferSize = 256U;
+        persistedState.ui.selectedBank = 3U;
+        persistedState.ui.selectedPad = 12U;
+        persistedState.ui.fixedTriggerVelocity = 87U;
+        persistedState.ui.previewVolume = 0.45F;
+        persistedState.ui.windowX = 111;
+        persistedState.ui.windowY = 222;
+        persistedState.ui.windowWidth = 1440;
+        persistedState.ui.windowHeight = 900;
+        expect(persisted.restoreState(persistedState, 42U).wasOk());
+
+        const auto persistenceManifest = ProjectSerializer::canonicalManifest(persisted);
+        expectEquals(persistenceManifest, ProjectSerializer::canonicalManifest(persisted));
+        auto restored = Project::createEmpty("Unchanged", "unchanged-project");
+        expect(ProjectSerializer::restoreCanonicalManifest(persistenceManifest, restored).wasOk());
+        expect(restored.state() == persisted.state());
+        expectEquals(static_cast<juce::int64>(restored.revision()), juce::int64{42});
+
+        const auto persistenceDirectory =
+            juce::File::getSpecialLocation(juce::File::tempDirectory)
+                .getNonexistentChildFile("padflow-m1-persistence", {}, true);
+        expect(persistenceDirectory.createDirectory());
+        const auto persistenceFile = persistenceDirectory.getChildFile("state.padflow");
+        const auto persistenceSave = ProjectSerializer::save(persisted, persistenceFile);
+        expect(persistenceSave.succeeded, persistenceSave.message);
+        auto archiveRestored = Project::createEmpty();
+        const auto persistenceLoad = ProjectSerializer::load(persistenceFile, archiveRestored);
+        expect(persistenceLoad.wasOk(), persistenceLoad.getErrorMessage());
+        expect(archiveRestored.state() == persisted.state());
+        expectEquals(static_cast<juce::int64>(archiveRestored.revision()), juce::int64{42});
+        persistenceDirectory.deleteRecursively();
+
+        auto invalidManifest = persistenceManifest;
+        invalidManifest =
+            invalidManifest.replace("\"fixedTriggerVelocity\": 87", "\"fixedTriggerVelocity\": 0");
+        expect(invalidManifest != persistenceManifest);
+        const auto stateBeforeInvalidLoad = restored.state();
+        const auto revisionBeforeInvalidLoad = restored.revision();
+        expect(ProjectSerializer::restoreCanonicalManifest(invalidManifest, restored).failed());
+        expect(restored.state() == stateBeforeInvalidLoad);
+        expectEquals(static_cast<juce::int64>(restored.revision()),
+                     static_cast<juce::int64>(revisionBeforeInvalidLoad));
+
+        beginTest("SAVE-M1-009 Milestone 0 manifests load with default model state");
+        const juce::String legacyManifest{"{\n"
+                                          "  \"applicationVersion\": \"0.1.0\",\n"
+                                          "  \"bundleIdentifier\": \"com.padflow.audio.padflow\",\n"
+                                          "  \"company\": \"PadFlow Audio\",\n"
+                                          "  \"format\": \"padflow-project\",\n"
+                                          "  \"product\": \"PadFlow\",\n"
+                                          "  \"projectName\": \"Legacy\",\n"
+                                          "  \"projectUuid\": \"legacy-project\",\n"
+                                          "  \"revision\": \"7\",\n"
+                                          "  \"schemaVersion\": 1\n"
+                                          "}\n"};
+        auto legacy = Project::createEmpty();
+        expect(ProjectSerializer::restoreCanonicalManifest(legacyManifest, legacy).wasOk());
+        expectEquals(legacy.uuid(), juce::String{"legacy-project"});
+        expectEquals(legacy.name(), juce::String{"Legacy"});
+        expectEquals(static_cast<juce::int64>(legacy.revision()), juce::int64{7});
+        expectEquals(static_cast<int>(legacy.state().banks.size()), static_cast<int>(padBankCount));
     }
 };
 

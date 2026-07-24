@@ -154,6 +154,7 @@ must be used; physical audio and MIDI hardware are never required.
 | SAVE-M1-006 | Missing external assets retain pad/layer state and explicit missing status. |
 | SAVE-M1-007 | Invalid persisted ranges are rejected with diagnostics and no partial commit. |
 | SAVE-M1-008 | Project/bank/pad/layer/asset UUIDs are unchanged by save/load. |
+| SAVE-M1-009 | A Milestone 0 schema-v1 manifest loads with deterministic default banks, pads, layers, and mappings. |
 
 ### Threading
 
