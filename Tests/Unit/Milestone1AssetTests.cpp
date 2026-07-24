@@ -6,6 +6,7 @@
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_core/juce_core.h>
 
+#include <algorithm>
 #include <memory>
 
 namespace padflow {
@@ -196,6 +197,13 @@ class Milestone1AssetTests final : public juce::UnitTest {
         expectEquals(controller.project().pad(0U).layers[1].assetUuid, juce::String{"latest"});
         expect(controller.project().pad(0U).layers[1].enabled);
         expect(registry.find("latest") != nullptr);
+        expect(controller.undo());
+        expect(controller.project().pad(0U).layers[1].assetUuid.isEmpty());
+        expect(std::none_of(controller.project().state().assets.begin(),
+                            controller.project().state().assets.end(),
+                            [](const auto& asset) { return asset.uuid == "latest"; }));
+        expect(controller.redo());
+        expectEquals(controller.project().pad(0U).layers[1].assetUuid, juce::String{"latest"});
 
         beginTest("ASSET-M1-004 and ASSET-M1-015 corrupt/cancelled imports do not mutate");
         const auto corrupt = directory.getChildFile("corrupt.wav");

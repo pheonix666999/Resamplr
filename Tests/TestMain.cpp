@@ -1,4 +1,4 @@
-#include <juce_core/juce_core.h>
+#include <juce_gui_basics/juce_gui_basics.h>
 
 #include <iostream>
 
@@ -12,6 +12,7 @@ class ConsoleTestRunner final : public juce::UnitTestRunner {
 } // namespace
 
 int main() {
+    juce::ScopedJuceInitialiser_GUI juceInitialiser;
     ConsoleTestRunner runner;
     runner.setAssertOnFailure(false);
     runner.setPassesAreLogged(false);

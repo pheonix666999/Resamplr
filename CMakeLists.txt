@@ -57,6 +57,8 @@ add_library(
     Source/Audio/CaptureWriter.h
     Source/Audio/PlaybackEngine.cpp
     Source/Audio/PlaybackEngine.h
+    Source/Audio/PlaybackStatePublisher.cpp
+    Source/Audio/PlaybackStatePublisher.h
     Source/Audio/PreviewPlayer.cpp
     Source/Audio/PreviewPlayer.h
     Source/Input/InputRouter.cpp
@@ -77,9 +79,14 @@ target_link_libraries(
 padflow_enable_project_warnings(padflow_audio)
 padflow_set_output_directory(padflow_audio)
 
-add_library(padflow_ui STATIC Source/App/MainWindow.cpp Source/App/MainWindow.h)
+add_library(
+    padflow_ui STATIC
+    Source/App/MainWindow.cpp
+    Source/App/MainWindow.h
+    Source/App/SamplerView.cpp
+    Source/App/SamplerView.h)
 target_include_directories(padflow_ui PUBLIC Source)
-target_link_libraries(padflow_ui PUBLIC padflow_core juce::juce_gui_basics)
+target_link_libraries(padflow_ui PUBLIC padflow_audio juce::juce_gui_basics)
 padflow_enable_project_warnings(padflow_ui)
 padflow_set_output_directory(padflow_ui)
 

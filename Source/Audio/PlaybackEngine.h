@@ -58,6 +58,7 @@ class PlaybackEngine final {
     [[nodiscard]] PlaybackMetrics metrics() const noexcept;
     [[nodiscard]] std::size_t activeVoiceCount() const noexcept;
     [[nodiscard]] int lastAllocatedVoiceIndex() const noexcept;
+    [[nodiscard]] std::uint64_t acknowledgedSnapshotGeneration() const noexcept;
 
   private:
     enum class EnvelopeStage : std::uint8_t { inactive, attack, decay, sustain, release };
@@ -100,6 +101,7 @@ class PlaybackEngine final {
     std::atomic<float> peakRight_{0.0F};
     std::atomic<std::uint64_t> renderedBlocks_{0U};
     std::atomic<int> lastAllocatedVoice_{-1};
+    std::atomic<std::uint64_t> acknowledgedSnapshotGeneration_{0U};
 };
 
 [[nodiscard]] PlaybackSnapshot makePlaybackSnapshot(const ProjectState& project,

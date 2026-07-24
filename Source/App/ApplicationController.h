@@ -13,6 +13,7 @@ class ApplicationController final {
     ApplicationController();
 
     void createEmptyProject(juce::String name = "Untitled", juce::String fixedUuid = {});
+    [[nodiscard]] juce::Result restoreProject(Project project);
     [[nodiscard]] const Project& project() const noexcept;
     [[nodiscard]] bool isCurrentJobTarget(const JobSpec& spec) const noexcept;
     [[nodiscard]] juce::Result renamePad(std::size_t globalIndex, juce::String name);
@@ -39,19 +40,20 @@ class ApplicationController final {
     [[nodiscard]] bool redo();
 
   private:
-    struct PadEdit final {
-        std::size_t globalIndex{0U};
-        Pad before;
-        Pad after;
+    struct ProjectEdit final {
+        ProjectState before;
+        ProjectState after;
         juce::String description;
     };
 
     [[nodiscard]] juce::Result commitPadEdit(std::size_t globalIndex, Pad replacement,
                                              juce::String description);
+    [[nodiscard]] juce::Result commitProjectEdit(ProjectState replacement,
+                                                 juce::String description);
 
     Project project_;
     std::optional<Pad> clipboard_;
-    std::vector<PadEdit> undoHistory_;
-    std::vector<PadEdit> redoHistory_;
+    std::vector<ProjectEdit> undoHistory_;
+    std::vector<ProjectEdit> redoHistory_;
 };
 } // namespace padflow

@@ -1,22 +1,19 @@
 #pragma once
 
+#include "App/SamplerView.h"
+
 #include <juce_gui_basics/juce_gui_basics.h>
 
 namespace padflow {
-class FoundationView final : public juce::Component {
-  public:
-    FoundationView();
-    void paint(juce::Graphics& graphics) override;
-    void resized() override;
-
-  private:
-    juce::Label productLabel_;
-    juce::Label statusLabel_;
-};
-
 class MainWindow final : public juce::DocumentWindow {
   public:
-    explicit MainWindow(const juce::String& title);
+    MainWindow(const juce::String& title, ApplicationController& controller,
+               BackgroundJobSystem& jobs, SampleAssetRegistry& assets, AudioRuntime& runtime,
+               PlaybackStatePublisher& publisher, InputRouter& input,
+               SamplePreviewController& preview);
     void closeButtonPressed() override;
+
+  private:
+    ApplicationController& controller_;
 };
 } // namespace padflow

@@ -3,54 +3,35 @@
 #include <memory>
 
 namespace padflow {
-FoundationView::FoundationView() {
-    productLabel_.setText("PadFlow", juce::dontSendNotification);
-    productLabel_.setJustificationType(juce::Justification::centred);
-    productLabel_.setFont(juce::FontOptions{42.0F, juce::Font::bold});
-    productLabel_.setColour(juce::Label::textColourId, juce::Colour{0xff60d6c9});
-    productLabel_.setTitle("PadFlow product name");
-    addAndMakeVisible(productLabel_);
-
-    statusLabel_.setText("Milestone 0 foundation - no sampler features are enabled",
-                         juce::dontSendNotification);
-    statusLabel_.setJustificationType(juce::Justification::centred);
-    statusLabel_.setFont(juce::FontOptions{17.0F});
-    statusLabel_.setColour(juce::Label::textColourId, juce::Colour{0xffc8d1d8});
-    statusLabel_.setTitle("Current implementation status");
-    addAndMakeVisible(statusLabel_);
-
-    setTitle("PadFlow Milestone 0 foundation view");
-}
-
-void FoundationView::paint(juce::Graphics& graphics) {
-    graphics.fillAll(juce::Colour{0xff171b22});
-
-    const auto panel = getLocalBounds().reduced(48).toFloat();
-    graphics.setColour(juce::Colour{0xff232a34});
-    graphics.fillRoundedRectangle(panel, 18.0F);
-    graphics.setColour(juce::Colour{0xff394655});
-    graphics.drawRoundedRectangle(panel, 18.0F, 1.0F);
-}
-
-void FoundationView::resized() {
-    auto centre = getLocalBounds().reduced(80).withSizeKeepingCentre(720, 150);
-    productLabel_.setBounds(centre.removeFromTop(86));
-    statusLabel_.setBounds(centre);
-}
-
-MainWindow::MainWindow(const juce::String& title)
-    : juce::DocumentWindow(title, juce::Colour{0xff171b22}, juce::DocumentWindow::allButtons,
-                           true) {
+MainWindow::MainWindow(const juce::String& title, ApplicationController& controller,
+                       BackgroundJobSystem& jobs, SampleAssetRegistry& assets,
+                       AudioRuntime& runtime, PlaybackStatePublisher& publisher, InputRouter& input,
+                       SamplePreviewController& preview)
+    : juce::DocumentWindow(title, juce::Colour{0xff171b22}, juce::DocumentWindow::allButtons, true),
+      controller_(controller) {
     setUsingNativeTitleBar(true);
-    auto content = std::make_unique<FoundationView>();
+    auto content =
+        std::make_unique<SamplerView>(controller, jobs, assets, runtime, publisher, input, preview);
     setContentOwned(content.release(), true);
     setResizable(true, false);
-    setResizeLimits(900, 600, 3840, 2160);
-    centreWithSize(1180, 760);
+    setResizeLimits(1180, 760, 3840, 2160);
+    const auto& state = controller_.project().state().ui;
+    if (state.windowX >= 0 && state.windowY >= 0)
+        setBounds(state.windowX, state.windowY, std::max(1180, state.windowWidth),
+                  std::max(760, state.windowHeight));
+    else
+        centreWithSize(std::max(1180, state.windowWidth), std::max(760, state.windowHeight));
     setVisible(true);
 }
 
 void MainWindow::closeButtonPressed() {
+    auto state = controller_.project().state().ui;
+    const auto bounds = getBounds();
+    state.windowX = bounds.getX();
+    state.windowY = bounds.getY();
+    state.windowWidth = bounds.getWidth();
+    state.windowHeight = bounds.getHeight();
+    juce::ignoreUnused(controller_.setUiState(state));
     juce::JUCEApplication::getInstance()->systemRequestedQuit();
 }
 } // namespace padflow

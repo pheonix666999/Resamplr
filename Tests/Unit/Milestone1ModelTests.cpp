@@ -100,6 +100,19 @@ class Milestone1ModelTests final : public juce::UnitTest {
         expect(controller.redo());
         expect(controller.project().pad(3U).parameters == changedParameters);
 
+        beginTest("REGRESSION-M1-004 persistent settings use unified project undo");
+        const auto originalAudioSettings = controller.project().state().audio;
+        auto changedAudioSettings = originalAudioSettings;
+        changedAudioSettings.outputDeviceIdentifier = "synthetic-output";
+        changedAudioSettings.sampleRate = 48000.0;
+        changedAudioSettings.bufferSize = 256U;
+        expect(controller.setAudioSettings(changedAudioSettings).wasOk());
+        expect(controller.project().state().audio == changedAudioSettings);
+        expect(controller.undo());
+        expect(controller.project().state().audio == originalAudioSettings);
+        expect(controller.redo());
+        expect(controller.project().state().audio == changedAudioSettings);
+
         beginTest("MODEL-M1-007 clear pad preserves identity and mappings");
         const auto clearUuid = controller.project().pad(0U).uuid;
         const auto clearLayerUuid = controller.project().pad(0U).layers[0].uuid;

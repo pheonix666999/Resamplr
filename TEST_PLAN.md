@@ -188,6 +188,8 @@ must be used; physical audio and MIDI hardware are never required.
 |---|---|---|
 | REGRESSION-M1-001 | MIDI callback producer isolation | Hardware MIDI writes only to its bounded SPSC ingress; overflow is observable and message-thread flushing preserves the engine queue's single-producer contract. |
 | REGRESSION-M1-002 | Device-error panic ownership | An asynchronous device error requests panic atomically; voice mutation occurs on the next audio callback rather than the error-reporting thread. |
+| REGRESSION-M1-003 | Live playback snapshot retirement | Message-thread publication retains immutable snapshots until the audio callback acknowledges a newer generation; reclamation never occurs on the callback. |
+| REGRESSION-M1-004 | Unified project edit undo | Pad imports, asset-reference changes, mappings, and persistent device settings undo/redo the complete validated project state without orphaning model records. |
 
 ### UI-independent and GUI-headless integration
 

@@ -13,6 +13,16 @@ void ApplicationController::createEmptyProject(juce::String name, juce::String f
     redoHistory_.clear();
 }
 
+juce::Result ApplicationController::restoreProject(Project project) {
+    if (const auto validation = validateProjectState(project.state()); validation.failed())
+        return validation;
+    project_ = std::move(project);
+    clipboard_.reset();
+    undoHistory_.clear();
+    redoHistory_.clear();
+    return juce::Result::ok();
+}
+
 const Project& ApplicationController::project() const noexcept {
     return project_;
 }
@@ -75,13 +85,13 @@ juce::Result ApplicationController::setPadMappings(const std::size_t globalIndex
 juce::Result ApplicationController::setAudioSettings(AudioSettings settings) {
     auto candidate = project_.state();
     candidate.audio = std::move(settings);
-    return project_.restoreState(std::move(candidate), project_.revision() + 1U);
+    return commitProjectEdit(std::move(candidate), "Change audio settings");
 }
 
 juce::Result ApplicationController::setMidiSettings(MidiSettings settings) {
     auto candidate = project_.state();
     candidate.midi = std::move(settings);
-    return project_.restoreState(std::move(candidate), project_.revision() + 1U);
+    return commitProjectEdit(std::move(candidate), "Change MIDI settings");
 }
 
 juce::Result ApplicationController::setUiState(ProjectUiState state) {
@@ -142,7 +152,7 @@ juce::Result ApplicationController::commitImportedLayer(const JobSpec& target,
     if (project_.pad(globalIndex).uuid != target.targetUuid)
         return juce::Result::fail("Import completion targets a different pad");
 
-    const auto before = project_.pad(globalIndex);
+    const auto before = project_.state();
     auto candidate = project_.state();
     auto& replacement = candidate.banks[globalIndex / padsPerBank].pads[globalIndex % padsPerBank];
     replacement.layers[layerIndex].assetUuid = asset.uuid;
@@ -158,11 +168,10 @@ juce::Result ApplicationController::commitImportedLayer(const JobSpec& target,
 
     if (const auto validation = validateProjectState(candidate); validation.failed())
         return validation;
-    const auto after = replacement;
     if (const auto result = project_.restoreState(std::move(candidate), project_.revision() + 1U);
         result.failed())
         return result;
-    undoHistory_.push_back(PadEdit{globalIndex, before, after, "Import sample"});
+    undoHistory_.push_back(ProjectEdit{before, project_.state(), "Import sample"});
     redoHistory_.clear();
     return juce::Result::ok();
 }
@@ -181,7 +190,7 @@ bool ApplicationController::undo() {
 
     auto edit = std::move(undoHistory_.back());
     undoHistory_.pop_back();
-    if (project_.replacePad(edit.globalIndex, edit.before).failed()) {
+    if (project_.restoreState(edit.before, project_.revision() + 1U).failed()) {
         undoHistory_.push_back(std::move(edit));
         return false;
     }
@@ -195,7 +204,7 @@ bool ApplicationController::redo() {
 
     auto edit = std::move(redoHistory_.back());
     redoHistory_.pop_back();
-    if (project_.replacePad(edit.globalIndex, edit.after).failed()) {
+    if (project_.restoreState(edit.after, project_.revision() + 1U).failed()) {
         redoHistory_.push_back(std::move(edit));
         return false;
     }
@@ -207,14 +216,28 @@ juce::Result ApplicationController::commitPadEdit(const std::size_t globalIndex,
                                                   juce::String description) {
     if (globalIndex >= totalPadCount)
         return juce::Result::fail("Pad index is outside 0..63");
-    const auto before = project_.pad(globalIndex);
-    if (before == replacement)
+    const auto before = project_.state();
+    if (project_.pad(globalIndex) == replacement)
         return juce::Result::ok();
     if (const auto result = project_.replacePad(globalIndex, replacement); result.failed())
         return result;
 
-    undoHistory_.push_back(
-        PadEdit{globalIndex, before, std::move(replacement), std::move(description)});
+    undoHistory_.push_back(ProjectEdit{before, project_.state(), std::move(description)});
+    redoHistory_.clear();
+    return juce::Result::ok();
+}
+
+juce::Result ApplicationController::commitProjectEdit(ProjectState replacement,
+                                                      juce::String description) {
+    if (project_.state() == replacement)
+        return juce::Result::ok();
+    if (const auto validation = validateProjectState(replacement); validation.failed())
+        return validation;
+    const auto before = project_.state();
+    if (const auto result = project_.restoreState(std::move(replacement), project_.revision() + 1U);
+        result.failed())
+        return result;
+    undoHistory_.push_back(ProjectEdit{before, project_.state(), std::move(description)});
     redoHistory_.clear();
     return juce::Result::ok();
 }

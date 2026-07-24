@@ -101,6 +101,9 @@ void PlaybackEngine::processBlock(float* const left, float* const right,
     peakLeft_.store(peakLeft, std::memory_order_release);
     peakRight_.store(peakRight, std::memory_order_release);
     renderedBlocks_.fetch_add(1U, std::memory_order_relaxed);
+    const auto* acknowledged = snapshot_.load(std::memory_order_acquire);
+    acknowledgedSnapshotGeneration_.store(acknowledged != nullptr ? acknowledged->generation : 0U,
+                                          std::memory_order_release);
 }
 
 void PlaybackEngine::trigger(const std::uint32_t padIndex, const std::uint32_t sourceId,
@@ -292,6 +295,10 @@ std::size_t PlaybackEngine::activeVoiceCount() const noexcept {
 
 int PlaybackEngine::lastAllocatedVoiceIndex() const noexcept {
     return lastAllocatedVoice_.load(std::memory_order_acquire);
+}
+
+std::uint64_t PlaybackEngine::acknowledgedSnapshotGeneration() const noexcept {
+    return acknowledgedSnapshotGeneration_.load(std::memory_order_acquire);
 }
 
 PlaybackSnapshot makePlaybackSnapshot(const ProjectState& project,
