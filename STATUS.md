@@ -17,6 +17,12 @@ accounting, and stale completion rejection. Hosted validation passed in
 [run 30079156560](https://github.com/pheonix666999/Resamplr/actions/runs/30079156560) on commit
 `5688575506258ffa234ffd51cebf1f144d53e8e7`; all five jobs passed.
 
+[Frame-bound run 30080473401](https://github.com/pheonix666999/Resamplr/actions/runs/30080473401)
+compiled the trim/loop/reverse implementation and passed every new Milestone 2 test, but legacy
+device/input fixtures constructed raw snapshots with zero-valued Milestone 2 bounds and therefore
+terminated voices immediately. The full-asset compatibility fallback and focused coverage are
+tracked by `REGRESSION-M2-001`; hosted revalidation is pending.
+
 The Milestone 0 repository, pinned dependency, targets, interfaces, schema-v1 skeleton, tests, smoke
 paths, packaging, and workflows remain the validated baseline. Milestone 1 adds the fixed
 four-bank/64-pad model, four immutable velocity layers per pad, stable identities, validated pad

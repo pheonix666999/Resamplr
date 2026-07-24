@@ -249,6 +249,18 @@ class Milestone2EditTests final : public juce::UnitTest {
         snapshot.pads[0].layers[0].reverseEnabled = true;
         engine.processBlock(left.data(), right.data(), 1U);
         expectWithinAbsoluteError(left[0], expectedRenderedSample(1U), 0.00001F);
+
+        beginTest("REGRESSION-M2-001 legacy raw snapshot resolves complete asset bounds");
+        PlaybackSnapshot legacySnapshot;
+        legacySnapshot.pads[0].layers[0].enabled = true;
+        legacySnapshot.pads[0].layers[0].asset = asset->view();
+        legacySnapshot.pads[0].envelope = {0.0F, 0.0F, 1.0F, 0.001F};
+        engine.panic();
+        engine.publishSnapshot(&legacySnapshot);
+        expect(engine.enqueue(AudioCommand{AudioCommandType::triggerPad, 0U, 8U, 127.0F}));
+        engine.processBlock(left.data(), right.data(), 2U);
+        expect(engine.activeVoiceCount() > 0U);
+        expectWithinAbsoluteError(left[0], expectedRenderedSample(0U), 0.00001F);
     }
 };
 

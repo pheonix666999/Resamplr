@@ -159,18 +159,32 @@ void PlaybackEngine::trigger(const std::uint32_t padIndex, const std::uint32_t s
         voice.chokeGroup = pad.chokeGroup;
         voice.playbackMode = pad.playbackMode;
         voice.stage = EnvelopeStage::attack;
+        auto startFrame = layer.startFrame;
+        auto endFrame = layer.endFrame;
+        if (startFrame >= endFrame || endFrame > layer.asset.frameCount) {
+            startFrame = 0U;
+            endFrame = layer.asset.frameCount;
+        }
+        auto loopStartFrame = layer.loopStartFrame;
+        auto loopEndFrame = layer.loopEndFrame;
+        const auto validLoop = loopStartFrame >= startFrame && loopStartFrame < loopEndFrame &&
+                               loopEndFrame <= endFrame;
+        if (!validLoop) {
+            loopStartFrame = startFrame;
+            loopEndFrame = endFrame;
+        }
         const auto playbackRate =
             (layer.asset.sampleRate / outputSampleRate_) *
             std::pow(2.0, static_cast<double>(pad.coarseSemitones) / 12.0 +
                               static_cast<double>(pad.fineCents + layer.tuningCents) / 1200.0);
         voice.increment = layer.reverseEnabled ? -playbackRate : playbackRate;
-        voice.startFrame = layer.startFrame;
-        voice.endFrame = layer.endFrame;
-        voice.loopStartFrame = layer.loopStartFrame;
-        voice.loopEndFrame = layer.loopEndFrame;
-        voice.loopEnabled = layer.loopEnabled;
-        voice.position = layer.reverseEnabled ? static_cast<double>(layer.endFrame - 1U)
-                                              : static_cast<double>(layer.startFrame);
+        voice.startFrame = startFrame;
+        voice.endFrame = endFrame;
+        voice.loopStartFrame = loopStartFrame;
+        voice.loopEndFrame = loopEndFrame;
+        voice.loopEnabled = layer.loopEnabled && validLoop;
+        voice.position = layer.reverseEnabled ? static_cast<double>(endFrame - 1U)
+                                              : static_cast<double>(startFrame);
         voice.sustain = pad.envelope.sustainLevel;
         voice.attackStep = secondsStep(pad.envelope.attackSeconds, outputSampleRate_);
         voice.decayStep =

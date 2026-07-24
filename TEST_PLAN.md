@@ -359,6 +359,12 @@ are rejected without mutation unless an acceptance row explicitly specifies dete
 | UIHEADLESS-M2-009 | A completed recording can be assigned to the selected destination and retriggered. |
 | UIHEADLESS-M2-010 | Populated trim/reverse/loop/derived/recording state saves, reloads, resolves, and renders finite non-silence. |
 
+### Milestone 2 regressions
+
+| ID | Test | Acceptance |
+|---|---|---|
+| REGRESSION-M2-001 | Legacy raw playback snapshot bounds | A Milestone 1/raw test snapshot whose new trim fields are all zero resolves to the complete immutable asset in the callback, while initialized model snapshots remain prevalidated. |
+
 ## Project model — Milestone 1 unless noted
 
 | ID | Test |
