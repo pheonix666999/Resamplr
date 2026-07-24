@@ -27,7 +27,7 @@ void PlaybackStatePublisher::publish(const ProjectState& project) {
 std::size_t PlaybackStatePublisher::collectAcknowledged() {
     const auto acknowledged = engine_.acknowledgedSnapshotGeneration();
     std::size_t collected = 0U;
-    while (snapshots_.size() > 1U && snapshots_.front()->generation <= acknowledged) {
+    while (snapshots_.size() > 1U && snapshots_.front()->playback.generation <= acknowledged) {
         snapshots_.pop_front();
         ++collected;
     }

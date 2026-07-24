@@ -50,6 +50,7 @@ bit-stable platform/compiler or proven integer-only path.
 | REGRESSION-CI-010 | Device/input JUCE boundaries | Device-query methods match JUCE's mutable API, MIDI callback declarations include their owning module, and keyboard routing remains independent of GUI-only key classes. |
 | REGRESSION-CI-011 | Exact-width coarse pitch UI | The coarse-pitch slider converts directly to the model's validated `int16_t` storage without an intermediate narrowing diagnostic on GCC, Apple Clang, or MSVC. |
 | REGRESSION-CI-012 | Component/key-listener overload visibility | The sampler view preserves JUCE `Component` keyboard overload visibility while implementing `KeyListener`, remaining clean under Apple Clang's overloaded-virtual diagnostic. |
+| REGRESSION-CI-013 | Published snapshot wrapper generation | Snapshot reclamation reads the generation from the owned playback payload after immutable asset owners are added to the publication wrapper. |
 
 ## Milestone 1 playable sampler
 
