@@ -1,8 +1,9 @@
 # PadFlow
 
-PadFlow is an original, offline, standalone desktop sampler and drum-machine project by Ali Ammar
-Audio. Version 0.1.0 currently contains only the Milestone 0 engineering foundation—no playable
-sampler features are implemented yet.
+PadFlow is an original, offline, standalone desktop sampler project by Ali Ammar Audio. Version
+0.1.0 contains the Milestone 1 playable RAM-resident sampler: four banks of sixteen pads, four
+velocity layers per pad, WAV/AIFF/FLAC import and preview, mouse/keyboard/MIDI triggering,
+deterministic 128-voice playback, device settings, and schema-v1 project save/load.
 
 ## Status and platforms
 
@@ -42,12 +43,13 @@ padflow_smoke
 PadFlow --headless-smoke-test --no-audio-device
 ```
 
-They create/load a schema-v1 project and render a tiny in-memory sine wave without physical audio or
-MIDI devices. They do not test sampler playback.
+They generate a temporary WAV, import it through the bounded worker path, exercise mouse/keyboard/
+MIDI modes, render finite non-silence, save and reload a populated schema-v1 project, resolve its
+external sample, retrigger, and clean temporary files without physical audio or MIDI devices.
 
 ## Installation, settings, and projects
 
-Milestone 0 development archives are unsigned and contain `UNSIGNED.txt`. Production installers and
+Milestone 1 development archives are unsigned and contain `UNSIGNED.txt`. Production installers and
 DMG publication arrive in Milestone 10. Gatekeeper or SmartScreen may warn about unsigned development
 builds.
 

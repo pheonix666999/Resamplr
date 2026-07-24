@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify unsigned Milestone 0 development archives."""
+"""Verify unsigned PadFlow development archives."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ def verify_archive(path: pathlib.Path) -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=["milestone0"], required=True)
+    parser.add_argument("--mode", choices=["milestone0", "milestone1"], required=True)
     parser.add_argument("--platform", choices=["windows", "macos", "all"], required=True)
     parser.add_argument("--root", type=pathlib.Path, default=pathlib.Path("artifacts"))
     arguments = parser.parse_args()
@@ -54,10 +54,9 @@ def main() -> int:
     if failures:
         print("Artifact verification failed:", *failures, sep="\n- ", file=sys.stderr)
         return 1
-    print("Milestone 0 artifact verification passed.")
+    print(f"{arguments.mode.replace('milestone', 'Milestone ')} artifact verification passed.")
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

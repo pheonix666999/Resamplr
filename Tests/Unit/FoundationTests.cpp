@@ -12,6 +12,7 @@
 #include <juce_core/juce_core.h>
 
 #include <atomic>
+#include <limits>
 #include <memory>
 #include <vector>
 
@@ -30,8 +31,10 @@ class FoundationTests final : public juce::UnitTest {
         expect(MusicalTime{12, 34U} == MusicalTime{12, 34U});
         ApplicationController controller;
         controller.createEmptyProject("Controller", "controller-project");
-        expect(controller.isCurrentJobTarget(JobSpec{"controller-project", "target", 0U, 0}));
-        expect(!controller.isCurrentJobTarget(JobSpec{"controller-project", "target", 1U, 0}));
+        expect(controller.isCurrentJobTarget(
+            JobSpec{"controller-project", "controller-project", 0U, 0}));
+        expect(!controller.isCurrentJobTarget(
+            JobSpec{"controller-project", "controller-project", 1U, 0}));
 
         beginTest("SAVE-001 canonical manifest and semantic round trip");
         const auto temporaryDirectory = juce::File::getSpecialLocation(juce::File::tempDirectory)
@@ -108,12 +111,25 @@ class FoundationTests final : public juce::UnitTest {
         boundedJobs.shutdown();
 
         beginTest("ASSET-001 immutable PCM asset and byte accounting");
-        SampleAssetMetadata metadata{"asset", "Synthetic", 48000.0, 2U, 4U, {}, "test"};
+        SampleAssetMetadata metadata;
+        metadata.assetUuid = "asset";
+        metadata.displayName = "Synthetic";
+        metadata.sampleRate = 48000.0;
+        metadata.channelCount = 2U;
+        metadata.frameCount = 4U;
+        metadata.provenance = "test";
         auto asset = SampleAsset::create(metadata, std::vector<float>(8U, 0.25F));
         expectEquals(static_cast<juce::int64>(asset->decodedBytes()), juce::int64{32});
         expectEquals(static_cast<juce::int64>(estimateDecodedBytes(4U, 2U)), juce::int64{32});
         expectEquals(static_cast<juce::int64>(defaultDecodedSampleBudgetBytes),
                      juce::int64{2147483648LL});
+        SampleAssetRegistry defaultRegistry;
+        expectEquals(static_cast<juce::int64>(defaultRegistry.budgetBytes()),
+                     static_cast<juce::int64>(
+                         clampConfiguredDecodedSampleBudgetBytes(defaultDecodedSampleBudgetBytes)));
+        expect(clampConfiguredDecodedSampleBudgetBytes(1U) >= minimumDecodedSampleBudgetBytes);
+        expect(clampConfiguredDecodedSampleBudgetBytes(std::numeric_limits<std::uint64_t>::max()) <=
+               maximumDecodedSampleBudgetBytes);
         const auto view = asset->view();
         expect(view.interleavedData != nullptr && view.frameCount == 4U && view.channelCount == 2U);
         DeferredSampleAssetReclaimer reclaimer;

@@ -2,20 +2,121 @@
 
 ## Current milestone
 
-Milestone 0 — foundation: **implemented, hosted-CI validated, and ready for review**.
+Milestone 1 — playable RAM-resident sampler: **complete and ready for review on
+`feature/milestone-1-playable-sampler`**.
 
-The repository, documentation, pinned dependency, CMake targets/presets, empty application,
-foundation interfaces, schema-v1 bundle skeleton, tests, smoke paths, scripts, and baseline workflows
-are present. No Milestone 1 application feature has been started.
+The Milestone 0 repository, pinned dependency, targets, interfaces, schema-v1 skeleton, tests, smoke
+paths, packaging, and workflows remain the validated baseline. Milestone 1 adds the fixed
+four-bank/64-pad model, four immutable velocity layers per pad, stable identities, validated pad
+parameters, unified undo/redo, asynchronous WAV/AIFF/FLAC import and preview, mouse/keyboard/MIDI
+input, persistent device routing, deterministic 128-voice playback, the original sampler UI,
+external-reference project load/resolution, populated-project smoke coverage, and Milestone 1
+development artifacts. No Milestone 2 feature has started.
+
+The schema-v1 persistence slice now serializes and validates the complete Milestone 1 model,
+preserves Milestone 0 manifest compatibility, rejects partial/invalid payloads without changing the
+live project, and performs semantic archive validation before publication. Hosted validation for
+this slice passed in
+[run 30063978227](https://github.com/pheonix666999/Resamplr/actions/runs/30063978227) on commit
+`ab3bd120ccd01c2ed28b6feaa8fa7609b5e39ad7`; all five jobs passed.
+
+The immutable import slice now has bounded asynchronous WAV/AIFF/FLAC decoding, checked mono/stereo
+frame and memory accounting, source metadata/fingerprints, configurable unique-asset registry
+budgeting, cancellation/stale-result rejection, atomic layer assignment, rollback, and off-callback
+epoch retirement coverage.
+
+[Import run 30064539191](https://github.com/pheonix666999/Resamplr/actions/runs/30064539191)
+compiled the importer but warnings-as-errors rejected a Milestone 0 aggregate fixture after optional
+asset metadata was added. The explicit fixture initialization fix is tracked by
+`REGRESSION-CI-009`. Hosted revalidation passed in
+[run 30064703121](https://github.com/pheonix666999/Resamplr/actions/runs/30064703121) on commit
+`21d124b39b0641f43ab0a1102868e23408c6c74a`; all five jobs passed.
+
+The deterministic playback slice now has a 128-voice fixed pool, bounded trigger/release/panic
+commands, immutable snapshots, deterministic local/global allocation, Hermite interpolation,
+source-rate conversion, ADSR, gain/pan/tuning/velocity, playback/polyphony/choke behavior, finite
+guards, safe silence, and atomic meters. Hosted validation passed in
+[run 30065256470](https://github.com/pheonix666999/Resamplr/actions/runs/30065256470) on commit
+`32c0bc8512f2ef2bc1894e87f06b9c3af91b71b0`; all five jobs passed.
+
+The final device/input, preview, UI, integration, and documentation phases add explicit input/output
+routing, a platform-capped 2 GiB default decoded-memory budget, safe device transitions, active
+voice-aware immutable asset retirement, persisted external sample resolution, and populated
+save/load/retrigger smoke coverage. The actual Windows artifact was launched at 125% display scale;
+the final 1180×760 UI is recorded in
+[`docs/images/padflow-milestone1-windows-125pct.png`](docs/images/padflow-milestone1-windows-125pct.png).
+
+## Milestone 1 final validation — 2026-07-24
+
+[Final run 30074453172](https://github.com/pheonix666999/Resamplr/actions/runs/30074453172)
+completed successfully on validated commit `a966bcb0b9c561a6d874af6637850802cadf1a39`.
+All five jobs passed with zero hosted warnings, errors, or JUCE assertions:
+
+- Linux GCC Debug and Release each passed 3/3 CTest tests; Debug also passed console and GUI
+  populated-project smoke.
+- Windows MSVC Debug and Release each passed 3/3 CTest tests; Release passed both smoke paths,
+  Milestone 1 packaging, and archive verification.
+- macOS universal Release passed 3/3 CTest tests, both smoke paths, arm64/x86_64 `lipo` inspection,
+  packaging, and archive verification.
+- macOS Intel Release passed 3/3 CTest tests, both smoke paths, and x86_64 inspection.
+- Cross-platform artifact verification passed for `windows-development` and
+  `macos-development`.
+
+That is 18/18 CTest registrations across six native configurations plus eight explicit successful
+console/GUI smoke invocations. The final artifact IDs are `8589587424` (Windows) and `8589408404`
+(macOS).
+
+Milestone 1 Actions runs, including remediation history:
+
+| Run | Result | Scope |
+|---|---|---|
+| `30062883832` | success | Feature-branch CI enablement |
+| `30063293341` | failure | Initial model compile diagnostics |
+| `30063416386` | success | Model remediation |
+| `30063978227` | success | Schema-v1 persistence |
+| `30064539191` | failure | Extended asset fixture diagnostic |
+| `30064703121` | success | Immutable import remediation |
+| `30065256470` | success | Deterministic playback |
+| `30065664071` | success | Release-stealing coverage |
+| `30067246828` | failure | Initial device/input JUCE API diagnostics |
+| `30067376891` | failure | Const device-query diagnostics |
+| `30067485658` | success | Device/input remediation |
+| `30068041246` | success | Sample preview |
+| `30071339563` | cancelled | UI exact-width diagnostic; superseded by fix |
+| `30071468019` | cancelled | UI overload diagnostic; superseded by fix |
+| `30071662177` | success | Playable sampler UI remediation |
+| `30072772685` | failure | Wrapped snapshot generation diagnostic |
+| `30073048635` | cancelled | Safer snapshot retirement exposed stale test setup |
+| `30073315645` | success | Populated integration smoke remediation |
+| `30074453172` | success | Final full Milestone 1 gate |
+
+The scoped implementation and remediation commits remain unsquashed for review. The final hosted
+run validated all source, test, workflow, packaging, and documentation changes through `a966bcb`.
+
+Feature-branch CI was enabled and validated independently in
+[run 30062883832](https://github.com/pheonix666999/Resamplr/actions/runs/30062883832) on commit
+`ee8df6b9fe0299871a3fee72a76e4834a5d7d825`; all five jobs passed.
+
+[Model run 30063293341](https://github.com/pheonix666999/Resamplr/actions/runs/30063293341)
+found two hosted compile regressions: stable UUID generation referenced unlinked
+`juce_cryptography`, and bank-name casts used an unqualified JUCE character alias. The focused
+core-only and namespace fixes are tracked by `REGRESSION-CI-007` and `REGRESSION-CI-008`; hosted
+revalidation passed in
+[run 30063416386](https://github.com/pheonix666999/Resamplr/actions/runs/30063416386) on commit
+`38b24d3ee0849a2ebb52c7db97b9355c04167f89`. All five jobs passed, including Linux
+Debug/Release, both macOS variants, Windows x64, model unit tests, smoke tests, packaging, and
+artifact verification.
 
 This Windows host still has no supported native compiler, so local native builds remain blocked.
-That host limitation does not block review: GitHub Actions now validates the complete Milestone 0
-matrix on Linux, Windows, and macOS.
+GitHub Actions is the authoritative native compiler/test environment. Local static validation,
+script parsing, artifact inspection, and launching/screenshotting the hosted Windows executable are
+available and pass.
 
 ## Reference
 
-`BLOCKED_REFERENCE_ASSET`: the local MP4 is 0 bytes and cannot be decoded. This does not block the
-Milestone 0 foundation. Exact Resamplr UI, interaction, or chopping parity is not claimed.
+`BLOCKED_REFERENCE_ASSET`: the local MP4 is 0 bytes and cannot be decoded. It did not block the
+original PadFlow Milestone 1 implementation. Exact Resamplr UI, interaction, or chopping parity is
+not claimed.
 
 ## CI remediation — 2026-07-23
 

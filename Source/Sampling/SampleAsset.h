@@ -7,7 +7,9 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <span>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -22,6 +24,12 @@ struct SampleAssetMetadata final {
     std::uint64_t frameCount{0};
     juce::String sourceAssetUuid;
     juce::String provenance;
+    juce::String sourcePath;
+    juce::String sourceFormat;
+    juce::String contentFingerprint;
+    std::uint64_t sourceFileBytes{0U};
+    std::int64_t modificationTimeMilliseconds{0};
+    double durationSeconds{0.0};
 };
 
 class SampleAsset final {
@@ -66,4 +74,33 @@ class DeferredSampleAssetReclaimer final {
                                                  std::uint32_t channels) noexcept;
 
 inline constexpr std::uint64_t defaultDecodedSampleBudgetBytes = 2ULL * 1024ULL * 1024ULL * 1024ULL;
+inline constexpr std::uint64_t minimumDecodedSampleBudgetBytes = 256ULL * 1024ULL * 1024ULL;
+inline constexpr std::uint64_t maximumDecodedSampleBudgetBytes =
+    16ULL * 1024ULL * 1024ULL * 1024ULL;
+inline constexpr std::uint64_t defaultMilestone1DecodedBudgetBytes =
+    defaultDecodedSampleBudgetBytes;
+
+[[nodiscard]] std::uint64_t maximumPlatformDecodedSampleBudgetBytes() noexcept;
+[[nodiscard]] std::uint64_t
+clampConfiguredDecodedSampleBudgetBytes(std::uint64_t requestedBytes) noexcept;
+
+class SampleAssetRegistry final {
+  public:
+    SampleAssetRegistry() noexcept;
+    explicit SampleAssetRegistry(std::uint64_t budgetBytes) noexcept;
+
+    [[nodiscard]] bool publish(std::shared_ptr<const SampleAsset> asset);
+    [[nodiscard]] std::shared_ptr<const SampleAsset> find(const juce::String& assetUuid) const;
+    [[nodiscard]] bool erase(const juce::String& assetUuid);
+    void clear();
+    [[nodiscard]] std::uint64_t usedBytes() const;
+    [[nodiscard]] std::uint64_t budgetBytes() const noexcept;
+    [[nodiscard]] std::size_t uniqueAssetCount() const;
+
+  private:
+    const std::uint64_t budgetBytes_;
+    mutable std::mutex mutex_;
+    std::unordered_map<std::string, std::shared_ptr<const SampleAsset>> assets_;
+    std::uint64_t usedBytes_{0U};
+};
 } // namespace padflow

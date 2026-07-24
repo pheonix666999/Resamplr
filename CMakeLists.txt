@@ -32,6 +32,8 @@ add_library(
     Source/App/ApplicationController.cpp
     Source/App/ApplicationController.h
     Source/Model/MusicalTime.h
+    Source/Model/PadModel.cpp
+    Source/Model/PadModel.h
     Source/Model/Project.cpp
     Source/Model/Project.h
     Source/Sampling/SampleAsset.cpp
@@ -49,20 +51,42 @@ padflow_set_output_directory(padflow_core)
 add_library(
     padflow_audio STATIC
     Source/Audio/AudioCommandQueue.h
+    Source/Audio/AudioRuntime.cpp
+    Source/Audio/AudioRuntime.h
     Source/Audio/CaptureWriter.cpp
     Source/Audio/CaptureWriter.h
+    Source/Audio/PlaybackEngine.cpp
+    Source/Audio/PlaybackEngine.h
+    Source/Audio/PlaybackStatePublisher.cpp
+    Source/Audio/PlaybackStatePublisher.h
+    Source/Audio/PreviewPlayer.cpp
+    Source/Audio/PreviewPlayer.h
+    Source/Input/InputRouter.cpp
+    Source/Input/InputRouter.h
+    Source/Sampling/SampleImporter.cpp
+    Source/Sampling/SampleImporter.h
+    Source/Sampling/SamplePreviewController.cpp
+    Source/Sampling/SamplePreviewController.h
     Source/Smoke/SmokeScenario.cpp
     Source/Smoke/SmokeScenario.h)
 target_include_directories(padflow_audio PUBLIC Source)
 target_link_libraries(
     padflow_audio
-    PUBLIC padflow_core juce::juce_audio_basics juce::juce_audio_formats)
+    PUBLIC padflow_core
+           juce::juce_audio_basics
+           juce::juce_audio_devices
+           juce::juce_audio_formats)
 padflow_enable_project_warnings(padflow_audio)
 padflow_set_output_directory(padflow_audio)
 
-add_library(padflow_ui STATIC Source/App/MainWindow.cpp Source/App/MainWindow.h)
+add_library(
+    padflow_ui STATIC
+    Source/App/MainWindow.cpp
+    Source/App/MainWindow.h
+    Source/App/SamplerView.cpp
+    Source/App/SamplerView.h)
 target_include_directories(padflow_ui PUBLIC Source)
-target_link_libraries(padflow_ui PUBLIC padflow_core juce::juce_gui_basics)
+target_link_libraries(padflow_ui PUBLIC padflow_audio juce::juce_gui_basics)
 padflow_enable_project_warnings(padflow_ui)
 padflow_set_output_directory(padflow_ui)
 
@@ -75,7 +99,7 @@ if(PADFLOW_BUILD_APP)
         VERSION "${PADFLOW_VERSION}"
         MICROPHONE_PERMISSION_ENABLED TRUE
         MICROPHONE_PERMISSION_TEXT
-            "PadFlow uses audio input only when you explicitly start sample recording.")
+            "PadFlow uses audio input only after you explicitly enable an input device.")
     target_sources(PadFlow PRIVATE Source/App/Application.cpp Source/App/Application.h Source/App/Main.cpp)
     target_link_libraries(
         PadFlow
