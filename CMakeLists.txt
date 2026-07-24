@@ -89,6 +89,8 @@ add_library(
     padflow_ui STATIC
     Source/App/MainWindow.cpp
     Source/App/MainWindow.h
+    Source/App/RecordingPanel.cpp
+    Source/App/RecordingPanel.h
     Source/App/SamplerView.cpp
     Source/App/SamplerView.h
     Source/App/WaveformEditor.cpp

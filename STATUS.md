@@ -44,13 +44,18 @@ The capture-pipeline phase is present locally with four seconds of preallocated 
 manual and threshold state machines, a two-second-capable pre-roll ring, bounded callback copying,
 atomic meters/counters, explicit overflow rejection, a session-specific writer thread, sibling
 `.part` publication, WAV validation, collision-safe names, and cancellation cleanup. Device changes
-and shutdown cancel active capture rather than silently abandoning it. Hosted validation is
-pending, and Milestone 2 is not yet complete.
+and shutdown cancel active capture rather than silently abandoning it. All five hosted jobs passed
+in [run 30085826225](https://github.com/pheonix666999/Resamplr/actions/runs/30085826225).
 
 Recorded-asset integration is present locally: successful WAVs decode through the immutable sample
 path, preserve schema-v1 recording provenance and stable preferences, validate fixed
 project/pad/layer/revision destinations, and commit assignment plus undo/redo as one transaction.
 Stale completions leave their valid WAV unassigned. Hosted validation is pending.
+
+The recording/processing UI is present locally with typed asynchronous completion routing,
+non-destructive normalize/mono/fade/crop entry points, an explicit manual/threshold capture panel,
+live meter/elapsed/overflow feedback, fixed destinations, automatic or confirmed assignment, and
+mocked headless UI integration. Hosted validation is pending, and Milestone 2 is not yet complete.
 
 The Milestone 0 repository, pinned dependency, targets, interfaces, schema-v1 skeleton, tests, smoke
 paths, packaging, and workflows remain the validated baseline. Milestone 1 adds the fixed

@@ -70,6 +70,11 @@ SamplerView::~SamplerView() {
         fileChooser_.reset();
     input_.panic();
     juce::ignoreUnused(preview_.stop());
+    runtime_.capture().cancel();
+    if (derivedJob_.has_value())
+        derivedJob_->cancel();
+    if (recordingDecodeJob_.has_value())
+        recordingDecodeJob_->cancel();
 }
 
 void SamplerView::configureControls() {
@@ -94,9 +99,9 @@ void SamplerView::configureControls() {
 
     for (auto* button :
          {&newButton_, &openButton_, &saveButton_, &undoButton_, &redoButton_, &audioButton_,
-          &midiButton_, &importButton_, &clearLayerButton_, &clearPadButton_, &auditionButton_,
-          &stopAuditionButton_, &fitWaveformButton_, &fitSelectionButton_, &resetTrimButton_,
-          &resetLoopButton_}) {
+          &midiButton_, &recordingPanelButton_, &importButton_, &clearLayerButton_,
+          &clearPadButton_, &auditionButton_, &stopAuditionButton_, &fitWaveformButton_,
+          &fitSelectionButton_, &resetTrimButton_, &resetLoopButton_, &processButton_}) {
         styleButton(*button);
         addAndMakeVisible(*button);
         button->setTitle(button->getButtonText());
@@ -106,17 +111,20 @@ void SamplerView::configureControls() {
     saveButton_.setComponentID("save-project");
     audioButton_.setComponentID("audio-settings");
     midiButton_.setComponentID("midi-settings");
+    recordingPanelButton_.setComponentID("recording-panel-toggle");
     auditionButton_.setComponentID("waveform-audition");
     stopAuditionButton_.setComponentID("waveform-stop");
     fitWaveformButton_.setComponentID("waveform-fit");
     fitSelectionButton_.setComponentID("waveform-fit-selection");
     resetTrimButton_.setComponentID("waveform-reset-trim");
     resetLoopButton_.setComponentID("waveform-reset-loop");
+    processButton_.setComponentID("waveform-process");
     waveformInfoLabel_.setComponentID("waveform-info");
     waveformInfoLabel_.setColour(juce::Label::textColourId, juce::Colour{mutedTextColour});
     waveformInfoLabel_.setFont(juce::FontOptions{11.0F});
 
     newButton_.onClick = [this] {
+        cancelRecording();
         jobs_.cancelOwner(controller_.project().uuid());
         jobs_.cancelOwner("padflow-resolve");
         jobs_.cancelOwner("padflow-preview");
@@ -150,6 +158,7 @@ void SamplerView::configureControls() {
     };
     audioButton_.onClick = [this] { showAudioSettings(); };
     midiButton_.onClick = [this] { showMidiSettings(); };
+    recordingPanelButton_.onClick = [this] { setRecordingPanelVisible(!recordingPanelVisible_); };
 
     for (std::size_t bank = 0; bank < bankButtons_.size(); ++bank) {
         auto& button = bankButtons_[bank];
@@ -297,6 +306,16 @@ void SamplerView::configureControls() {
         applyEditorResult(controller_.resetLayerLoop(selectedGlobalPad(), selectedLayerIndex()),
                           "Reset loop");
     };
+    processButton_.onClick = [this] { showDerivedMenu(); };
+
+    addAndMakeVisible(recordingPanel_);
+    recordingPanel_.setVisible(false);
+    recordingPanel_.onArm = [this] { juce::ignoreUnused(armRecording()); };
+    recordingPanel_.onStart = [this] { juce::ignoreUnused(startRecording()); };
+    recordingPanel_.onStop = [this] { stopRecording(); };
+    recordingPanel_.onCancel = [this] { cancelRecording(); };
+    recordingPanel_.onAssign = [this] { assignPendingRecording(); };
+    recordingPanel_.onClose = [this] { setRecordingPanelVisible(false); };
 }
 
 void SamplerView::configureEditorControl(juce::Slider& slider, juce::String name,
@@ -340,6 +359,7 @@ void SamplerView::resized() {
     }
     audioButton_.setBounds(top.removeFromLeft(112).reduced(2, 7));
     midiButton_.setBounds(top.removeFromLeft(104).reduced(2, 7));
+    recordingPanelButton_.setBounds(top.removeFromLeft(82).reduced(2, 7));
     cpuLabel_.setBounds(top.removeFromLeft(80));
     audioStateLabel_.setBounds(top);
 
@@ -377,6 +397,7 @@ void SamplerView::resized() {
     fitSelectionButton_.setBounds(waveformActions.removeFromLeft(76).reduced(1));
     resetTrimButton_.setBounds(waveformActions.removeFromLeft(88).reduced(1));
     resetLoopButton_.setBounds(waveformActions.removeFromLeft(88).reduced(1));
+    processButton_.setBounds(waveformActions.removeFromLeft(72).reduced(1));
     editor.removeFromTop(4);
 
     const auto setSliderPair = [&editor](juce::Slider& first, juce::Slider& second) {
@@ -410,6 +431,7 @@ void SamplerView::resized() {
                                      grid.getY() + row * padHeight + 4, padWidth - 8,
                                      padHeight - 8);
     }
+    recordingPanel_.setBounds(bounds.reduced(14));
 }
 
 bool SamplerView::selectBank(const std::size_t bankIndex) {
@@ -449,6 +471,25 @@ std::size_t SamplerView::visiblePadCount() const noexcept {
     return padButtons_.size();
 }
 
+void SamplerView::setRecordingPanelVisible(const bool visible) {
+    recordingPanelVisible_ = visible;
+    recordingPanel_.setVisible(visible);
+    for (auto& button : bankButtons_)
+        button.setVisible(!visible);
+    for (auto& button : padButtons_)
+        button.setVisible(!visible);
+    recordingPanelButton_.setToggleState(visible, juce::dontSendNotification);
+    if (visible) {
+        recordingPanel_.setProject(controller_.project().state());
+        recordingPanel_.setPreferences(controller_.project().state().recording);
+        refreshRecording();
+        recordingPanel_.grabKeyboardFocus();
+    } else {
+        grabKeyboardFocus();
+    }
+    repaint();
+}
+
 void SamplerView::refreshAll() {
     refreshing_ = true;
     projectLabel_.setText(controller_.project().name(), juce::dontSendNotification);
@@ -457,7 +498,9 @@ void SamplerView::refreshAll() {
     redoButton_.setEnabled(controller_.canRedo());
     refreshPads();
     refreshEditor();
+    recordingPanel_.setPreferences(controller_.project().state().recording);
     refreshStatus();
+    refreshRecording();
     refreshing_ = false;
     repaint();
 }
@@ -533,10 +576,10 @@ void SamplerView::refreshEditor() {
     if (layer.assetUuid.isEmpty() || reference == controller_.project().state().assets.end()) {
         waveformEditor_.clear();
         waveformInfoLabel_.setText("No editable source", juce::dontSendNotification);
-        const std::array<juce::Component*, 9U> editorControls{
-            &loopToggle_,        &reverseToggle_,      &snapToggle_,
-            &fitWaveformButton_, &fitSelectionButton_, &resetTrimButton_,
-            &resetLoopButton_,   &auditionButton_,     &stopAuditionButton_};
+        const std::array<juce::Component*, 10U> editorControls{
+            &loopToggle_,         &reverseToggle_,   &snapToggle_,      &fitWaveformButton_,
+            &fitSelectionButton_, &resetTrimButton_, &resetLoopButton_, &auditionButton_,
+            &stopAuditionButton_, &processButton_};
         for (auto* control : editorControls)
             control->setEnabled(false);
         return;
@@ -564,10 +607,10 @@ void SamplerView::refreshEditor() {
     reverseToggle_.setToggleState(playback.reverseEnabled, juce::dontSendNotification);
     snapToggle_.setToggleState(playback.zeroCrossingSnap, juce::dontSendNotification);
     const auto editable = !reference->missing;
-    const std::array<juce::Component*, 9U> editorControls{
-        &loopToggle_,        &reverseToggle_,      &snapToggle_,
-        &fitWaveformButton_, &fitSelectionButton_, &resetTrimButton_,
-        &resetLoopButton_,   &auditionButton_,     &stopAuditionButton_};
+    const std::array<juce::Component*, 10U> editorControls{
+        &loopToggle_,         &reverseToggle_,   &snapToggle_,      &fitWaveformButton_,
+        &fitSelectionButton_, &resetTrimButton_, &resetLoopButton_, &auditionButton_,
+        &stopAuditionButton_, &processButton_};
     for (auto* control : editorControls)
         control->setEnabled(editable);
     if (cache == nullptr && !pending && editable)
@@ -686,6 +729,306 @@ void SamplerView::submitSelectedWaveform() {
     waveformJob_ = std::move(handle);
     waveformPendingAssetUuid_ = layer.assetUuid;
     waveformPendingRevision_ = revision;
+}
+
+juce::File SamplerView::projectWorkingDirectory() const {
+    return juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+        .getChildFile("PadFlow")
+        .getChildFile("Projects")
+        .getChildFile(controller_.project().uuid());
+}
+
+bool SamplerView::armRecording(juce::File destination, const double sampleRateOverride,
+                               const std::uint32_t maximumBlockOverride) {
+    const auto currentStatus = runtime_.capture().status();
+    if (currentStatus.active || recordingDecodeJob_.has_value()) {
+        setOperationMessage("Finish or cancel the active recording first", true);
+        return false;
+    }
+
+    const auto configuration = recordingPanel_.configuration();
+    if (configuration.globalPadIndex >= totalPadCount ||
+        configuration.layerIndex >= minimumLayersPerPad) {
+        setOperationMessage("Recording destination is invalid", true);
+        return false;
+    }
+    const auto runtimeSettings = runtime_.currentSettings();
+    const auto runtimeStatus = runtime_.status();
+    const auto mocked = destination != juce::File{} && sampleRateOverride > 0.0;
+    if (!mocked &&
+        (!runtimeStatus.deviceOpen || runtimeSettings.inputDeviceIdentifier.trim().isEmpty())) {
+        setOperationMessage("Enable an audio input device before arming", true);
+        return false;
+    }
+
+    RecordingPreferences preferences;
+    preferences.channels = configuration.channels;
+    preferences.thresholdMode = configuration.mode == CaptureMode::threshold;
+    preferences.thresholdDecibels = configuration.thresholdDecibels;
+    preferences.preRollMilliseconds = configuration.preRollMilliseconds;
+    preferences.autoAssign = configuration.autoAssign;
+    if (const auto result = controller_.setRecordingPreferences(preferences); result.failed()) {
+        setOperationMessage(result.getErrorMessage(), true);
+        return false;
+    }
+    modified_ = true;
+
+    auto fileName = juce::File::createLegalFileName(configuration.fileName);
+    if (fileName.trim().isEmpty())
+        fileName = "Recording.wav";
+    if (!fileName.endsWithIgnoreCase(".wav"))
+        fileName += ".wav";
+    if (destination == juce::File{})
+        destination = projectWorkingDirectory().getChildFile("Recorded").getChildFile(fileName);
+
+    const auto sampleRate =
+        sampleRateOverride > 0.0 ? sampleRateOverride : runtimeStatus.sampleRate;
+    const auto maximumBlock = maximumBlockOverride > 0U
+                                  ? maximumBlockOverride
+                                  : std::max(runtimeStatus.bufferSize, std::uint32_t{1U});
+    if (!std::isfinite(sampleRate) || sampleRate <= 0.0 || maximumBlock == 0U) {
+        setOperationMessage("Recording device format is invalid", true);
+        return false;
+    }
+    const auto requiredBlocks =
+        static_cast<std::uint64_t>(std::ceil(sampleRate * 4.0 / static_cast<double>(maximumBlock)));
+    if (requiredBlocks == 0U || requiredBlocks > CaptureFifo::maximumBlocks) {
+        setOperationMessage("Device format exceeds the bounded four-second capture FIFO", true);
+        return false;
+    }
+
+    const auto& pad = controller_.project().pad(configuration.globalPadIndex);
+    const auto& layer = pad.layers[configuration.layerIndex];
+    recordingSessionUuid_ = juce::Uuid{}.toString();
+    CaptureSpec spec;
+    spec.source = CaptureSource::input;
+    spec.destination = destination;
+    spec.sampleRate = sampleRate;
+    spec.channels = configuration.channels;
+    spec.maximumFramesPerBlock = maximumBlock;
+    spec.fifoBlockCount = static_cast<std::uint32_t>(requiredBlocks);
+    spec.mode = configuration.mode;
+    spec.thresholdDecibels = configuration.thresholdDecibels;
+    spec.preRollMilliseconds = configuration.preRollMilliseconds;
+    spec.sessionUuid = recordingSessionUuid_;
+    spec.target = CaptureTarget{controller_.project().uuid(), pad.uuid, layer.uuid,
+                                controller_.project().revision()};
+    if (!runtime_.capture().prepare(spec)) {
+        setOperationMessage("Recording session could not be prepared", true);
+        return false;
+    }
+
+    recordingGlobalPadIndex_ = configuration.globalPadIndex;
+    recordingLayerIndex_ = configuration.layerIndex;
+    recordingSampleRate_ = sampleRate;
+    recordingAutoAssign_ = configuration.autoAssign;
+    recordingDecodeSubmitted_ = false;
+    pendingRecordedResult_.reset();
+    recordingPanel_.setAssignmentReady(false);
+    setOperationMessage(configuration.mode == CaptureMode::threshold
+                            ? "Armed and waiting for threshold"
+                            : "Recording armed",
+                        false);
+    refreshRecording();
+    return true;
+}
+
+bool SamplerView::startRecording() {
+    if (!runtime_.capture().startManual()) {
+        setOperationMessage("Manual recording is not armed", true);
+        return false;
+    }
+    setOperationMessage("Recording input", false);
+    refreshRecording();
+    return true;
+}
+
+void SamplerView::stopRecording() noexcept {
+    runtime_.capture().requestStop();
+}
+
+void SamplerView::cancelRecording() noexcept {
+    runtime_.capture().cancel();
+    if (recordingDecodeJob_.has_value())
+        recordingDecodeJob_->cancel();
+    recordingDecodeJob_.reset();
+    pendingRecordedResult_.reset();
+    recordingDecodeSubmitted_ = false;
+}
+
+void SamplerView::processMockRecordingInput(const float* const* const channels,
+                                            const std::uint32_t channelCount,
+                                            const std::uint32_t frames) noexcept {
+    runtime_.capture().processInput(channels, channelCount, frames);
+}
+
+void SamplerView::refreshRecording() {
+    const auto runtimeSettings = runtime_.currentSettings();
+    const auto runtimeStatus = runtime_.status();
+    const auto captureStatus = runtime_.capture().status();
+    const auto inputAvailable =
+        runtimeStatus.deviceOpen && runtimeSettings.inputDeviceIdentifier.trim().isNotEmpty();
+    recordingPanel_.setInputDevice(runtimeSettings.inputDeviceIdentifier, inputAvailable);
+    auto resultMessage = juce::String{};
+    if (captureStatus.state == CaptureState::failed)
+        resultMessage = runtime_.capture().failureMessage();
+    else if (captureStatus.state == CaptureState::cancelled)
+        resultMessage = "Capture cancelled; temporary output removed";
+    else if (captureStatus.state == CaptureState::completed)
+        resultMessage = recordingDecodeSubmitted_ ? "Valid WAV finalized; decoding immutable take"
+                                                  : "Valid WAV finalized";
+    recordingPanel_.setCaptureStatus(
+        captureStatus, recordingSampleRate_ > 0.0 ? recordingSampleRate_ : runtimeStatus.sampleRate,
+        resultMessage);
+    if (captureStatus.state == CaptureState::completed && !recordingDecodeSubmitted_)
+        handleCompletedCapture();
+}
+
+void SamplerView::handleCompletedCapture() {
+    const auto file = runtime_.capture().completedFile();
+    const auto target = runtime_.capture().completedTarget();
+    if (file == juce::File{} || !file.existsAsFile() || target.projectUuid.trim().isEmpty()) {
+        setOperationMessage("Completed capture did not publish a valid WAV", true);
+        recordingDecodeSubmitted_ = true;
+        return;
+    }
+    const auto relativePath = "Assets/Recorded/" + file.getFileName();
+    const RecordedAssetRequest request{JobSpec{target.projectUuid, target.padUuid,
+                                               target.projectRevision, 0, JobKind::recordedAsset},
+                                       file,
+                                       recordingSessionUuid_,
+                                       makeStableUuid("recorded|" + recordingSessionUuid_),
+                                       relativePath,
+                                       runtime_.currentSettings().inputDeviceIdentifier,
+                                       target.layerUuid,
+                                       recordingGlobalPadIndex_,
+                                       recordingLayerIndex_,
+                                       assets_.budgetBytes()};
+    auto handle = RecordedAssetPublisher::submit(jobs_, request);
+    if (!handle.has_value()) {
+        setOperationMessage("Recorded sample decode queue is full; WAV remains unassigned", true);
+        return;
+    }
+    recordingDecodeJob_ = std::move(handle);
+    recordingDecodeSubmitted_ = true;
+    recordingPanel_.setDecodePending(true);
+}
+
+void SamplerView::handleRecordedAssetResult(std::shared_ptr<const JobResult> result) {
+    recordingDecodeJob_.reset();
+    recordingPanel_.setDecodePending(false);
+    if (result == nullptr || !result->succeeded) {
+        setOperationMessage(result != nullptr ? result->message
+                                              : "Recorded asset decoding returned no result",
+                            true);
+        return;
+    }
+    if (!controller_.isCurrentJobTarget(result->target)) {
+        recordingPanel_.setAssignmentReady(false);
+        setOperationMessage(
+            "Recording target changed; valid WAV remains project-owned and unassigned", true);
+        return;
+    }
+    if (!recordingAutoAssign_) {
+        pendingRecordedResult_ = std::move(result);
+        recordingPanel_.setAssignmentReady(true);
+        setOperationMessage("Recording ready to assign; WAV remains project-owned", false);
+        return;
+    }
+    const auto commit = RecordedAssetPublisher::commit(*result, controller_, assets_);
+    if (commit.wasOk()) {
+        recordingPanel_.setAssignmentReady(false);
+        setOperationMessage("Recorded sample assigned", false);
+        publishModel(true);
+    } else {
+        if (controller_.isCurrentJobTarget(result->target)) {
+            pendingRecordedResult_ = std::move(result);
+            recordingPanel_.setAssignmentReady(true);
+        } else {
+            recordingPanel_.setAssignmentReady(false);
+        }
+        setOperationMessage(commit.getErrorMessage(), true);
+    }
+}
+
+void SamplerView::assignPendingRecording() {
+    if (pendingRecordedResult_ == nullptr)
+        return;
+    const auto commit =
+        RecordedAssetPublisher::commit(*pendingRecordedResult_, controller_, assets_);
+    if (commit.wasOk()) {
+        pendingRecordedResult_.reset();
+        recordingPanel_.setAssignmentReady(false);
+        setOperationMessage("Recorded sample assigned", false);
+        publishModel(true);
+    } else {
+        setOperationMessage(commit.getErrorMessage(), true);
+    }
+}
+
+bool SamplerView::submitDerivedOperation(const DerivedAssetOperation operation,
+                                         const float normalizeTargetDecibels,
+                                         std::uint64_t fadeDurationFrames) {
+    if (derivedJob_.has_value()) {
+        setOperationMessage("A derived operation is already running", true);
+        return false;
+    }
+    const auto globalPad = selectedGlobalPad();
+    const auto layerIndex = selectedLayerIndex();
+    const auto& layer = controller_.project().pad(globalPad).layers[layerIndex];
+    const auto source = assets_.find(layer.assetUuid);
+    const auto reference = std::find_if(
+        controller_.project().state().assets.begin(), controller_.project().state().assets.end(),
+        [&](const auto& asset) { return asset.uuid == layer.assetUuid; });
+    if (source == nullptr || reference == controller_.project().state().assets.end() ||
+        reference->missing) {
+        setOperationMessage("Derived processing requires a loaded source", true);
+        return false;
+    }
+    const auto playback = resolveSamplePlaybackSettings(layer, reference->frameCount);
+    if ((operation == DerivedAssetOperation::fadeIn ||
+         operation == DerivedAssetOperation::fadeOut) &&
+        fadeDurationFrames == 0U)
+        fadeDurationFrames = std::min<std::uint64_t>(
+            playback.endFrame - playback.startFrame,
+            static_cast<std::uint64_t>(std::max(1.0, reference->sourceSampleRate * 0.01)));
+    DerivedAssetRequest request{JobSpec{controller_.project().uuid(),
+                                        controller_.project().pad(globalPad).uuid,
+                                        controller_.project().revision(), 0, JobKind::derivedAsset},
+                                source,
+                                *reference,
+                                playback,
+                                operation,
+                                normalizeTargetDecibels,
+                                fadeDurationFrames,
+                                projectWorkingDirectory().getChildFile("Derived"),
+                                "Assets/Derived",
+                                globalPad,
+                                layerIndex};
+    auto handle = DerivedAssetRenderer::submit(jobs_, std::move(request));
+    if (!handle.has_value()) {
+        setOperationMessage("Derived processing queue is full", true);
+        return false;
+    }
+    derivedJob_ = std::move(handle);
+    setOperationMessage("Rendering non-destructive derived sample", false);
+    return true;
+}
+
+void SamplerView::showDerivedMenu() {
+    juce::PopupMenu menu;
+    menu.addItem(1, "Normalize to -1 dBFS");
+    menu.addItem(2, "Convert stereo to mono");
+    menu.addItem(3, "Fade in (10 ms)");
+    menu.addItem(4, "Fade out (10 ms)");
+    menu.addItem(5, "Crop to trim");
+    menu.showMenuAsync(juce::PopupMenu::Options{}.withTargetComponent(&processButton_),
+                       [safe = juce::Component::SafePointer<SamplerView>{this}](const int choice) {
+                           if (safe == nullptr || choice == 0)
+                               return;
+                           const auto operation = static_cast<DerivedAssetOperation>(choice - 1);
+                           juce::ignoreUnused(safe->submitDerivedOperation(operation));
+                       });
 }
 
 void SamplerView::refreshStatus() {
@@ -936,25 +1279,28 @@ void SamplerView::resolveProjectAssets() {
 
 void SamplerView::processPendingJobs() {
     for (;;) {
-        const auto result = jobs_.tryPopCompleted();
+        auto result = jobs_.tryPopCompleted();
         if (result == nullptr)
             break;
-        handleCompletedJob(*result);
+        handleCompletedJob(std::move(result));
     }
+    refreshRecording();
 }
 
-void SamplerView::handleCompletedJob(const JobResult& result) {
-    if (result.target.ownerUuid == "padflow-preview") {
-        const auto previewResult = preview_.commit(result);
+void SamplerView::handleCompletedJob(std::shared_ptr<const JobResult> result) {
+    if (result == nullptr)
+        return;
+    if (result->target.kind == JobKind::samplePreview) {
+        const auto previewResult = preview_.commit(*result);
         setOperationMessage(previewResult.wasOk() ? "Preview started"
                                                   : previewResult.getErrorMessage(),
                             previewResult.failed());
         return;
     }
-    if (result.target.ownerUuid == "padflow-resolve") {
-        if (result.succeeded) {
+    if (result->target.kind == JobKind::sampleResolve) {
+        if (result->succeeded) {
             const auto* payload =
-                static_cast<const SampleImportPayload*>(result.immutablePayload.get());
+                static_cast<const SampleImportPayload*>(result->immutablePayload.get());
             if (payload != nullptr && payload->asset != nullptr &&
                 assets_.publish(payload->asset)) {
                 setOperationMessage("Resolved " + payload->reference.originalName, false);
@@ -962,34 +1308,52 @@ void SamplerView::handleCompletedJob(const JobResult& result) {
                 setOperationMessage("Resolved sample exceeded the decoded-memory budget", true);
             }
         } else {
-            setOperationMessage(result.message, true);
+            setOperationMessage(result->message, true);
         }
         publisher_.publish(controller_.project().state());
         return;
     }
-
-    const auto waveformAsset = std::find_if(
-        controller_.project().state().assets.begin(), controller_.project().state().assets.end(),
-        [&](const auto& asset) { return asset.uuid == result.target.targetUuid; });
-    if (waveformAsset != controller_.project().state().assets.end()) {
-        const auto commit = WaveformCacheGenerator::commit(result, controller_, waveformCaches_);
-        if (result.target.targetUuid == waveformPendingAssetUuid_) {
+    if (result->target.kind == JobKind::waveformCache) {
+        const auto commit = WaveformCacheGenerator::commit(*result, controller_, waveformCaches_);
+        if (result->target.targetUuid == waveformPendingAssetUuid_) {
             waveformJob_.reset();
             waveformPendingAssetUuid_.clear();
             waveformPendingRevision_ = 0U;
         }
         if (commit.wasOk())
             setOperationMessage("Waveform analysis complete", false);
-        else if (!result.message.containsIgnoreCase("cancel"))
+        else if (!result->message.containsIgnoreCase("cancel"))
             setOperationMessage(commit.getErrorMessage(), true);
         refreshEditor();
         return;
     }
+    if (result->target.kind == JobKind::derivedAsset) {
+        derivedJob_.reset();
+        const auto commit = DerivedAssetRenderer::commit(*result, controller_, assets_);
+        if (commit.wasOk()) {
+            setOperationMessage("Derived sample assigned", false);
+            publishModel(true);
+        } else if (!result->message.containsIgnoreCase("cancel")) {
+            setOperationMessage(commit.getErrorMessage(), true);
+        }
+        return;
+    }
+    if (result->target.kind == JobKind::recordedAsset) {
+        handleRecordedAssetResult(std::move(result));
+        return;
+    }
+    if (result->target.kind != JobKind::sampleImport) {
+        setOperationMessage("Ignored completion with an unknown job kind", true);
+        return;
+    }
 
     importActive_ = false;
-    const auto commit = SampleImporter::commit(result, controller_, assets_);
+    const auto* payload = static_cast<const SampleImportPayload*>(result->immutablePayload.get());
+    const auto importedName =
+        payload != nullptr ? payload->reference.originalName : juce::String{"sample"};
+    const auto commit = SampleImporter::commit(*result, controller_, assets_);
     if (commit.wasOk()) {
-        setOperationMessage("Imported " + importQueue_.front().file.getFileName(), false);
+        setOperationMessage("Imported " + importedName, false);
         if (!importQueue_.empty())
             importQueue_.pop_front();
         publishModel(true);
@@ -1067,6 +1431,7 @@ void SamplerView::showOpenChooser() {
                 return;
             const auto file = chooser.getResult();
             if (file != juce::File{}) {
+                safe->cancelRecording();
                 auto restored = Project::createEmpty();
                 auto result = ProjectSerializer::load(file, restored);
                 const auto previousProjectUuid = safe->controller_.project().uuid();

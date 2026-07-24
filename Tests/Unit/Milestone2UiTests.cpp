@@ -4,6 +4,8 @@
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_core/juce_core.h>
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <memory>
 
@@ -64,12 +66,19 @@ class Milestone2UiTests final : public juce::UnitTest {
 
         beginTest("UIHEADLESS-M2-001 constructs accessible waveform editor controls");
         for (const auto& id :
-             {"waveform-editor", "waveform-info", "waveform-audition", "waveform-stop",
-              "waveform-loop", "waveform-reverse", "waveform-zero-crossing", "waveform-fit",
-              "waveform-fit-selection", "waveform-reset-trim", "waveform-reset-loop"}) {
+             {"waveform-editor",        "waveform-info",         "waveform-audition",
+              "waveform-stop",          "waveform-loop",         "waveform-reverse",
+              "waveform-zero-crossing", "waveform-fit",          "waveform-fit-selection",
+              "waveform-reset-trim",    "waveform-reset-loop",   "waveform-process",
+              "recording-panel-toggle", "recording-panel",       "recording-input-device",
+              "recording-input-meter",  "recording-mode",        "recording-threshold",
+              "recording-preroll",      "recording-bank",        "recording-pad",
+              "recording-layer",        "recording-auto-assign", "recording-file-name",
+              "recording-arm",          "recording-start",       "recording-stop",
+              "recording-cancel",       "recording-assign"}) {
             const auto* component = view.findChildWithID(id);
             expect(component != nullptr, juce::String{"Missing control: "} + id);
-            if (component != nullptr)
+            if (component != nullptr && component->getParentComponent() == &view)
                 expect(view.getLocalBounds().contains(component->getBounds()));
         }
 
@@ -127,10 +136,98 @@ class Milestone2UiTests final : public juce::UnitTest {
             dynamic_cast<const WaveformEditor*>(view.findChildWithID("waveform-editor"));
         expect(analysedEditor != nullptr && analysedEditor->hasWaveform());
 
+        beginTest("UIHEADLESS-M2-007 derived operation reports and commits");
+        const auto sourceAssetUuid = controller.project().pad(0U).layers[0].assetUuid;
+        expect(view.submitDerivedOperation(DerivedAssetOperation::normalize));
+        for (int attempt = 0; attempt < 2000; ++attempt) {
+            juce::Thread::sleep(2);
+            view.processPendingJobs();
+            if (controller.project().pad(0U).layers[0].assetUuid != sourceAssetUuid)
+                break;
+        }
+        expect(controller.project().pad(0U).layers[0].assetUuid != sourceAssetUuid);
+        expectEquals(static_cast<int>(controller.project().state().derivedAssets.size()), 1);
+
+        beginTest("UIHEADLESS-M2-008 recording controls traverse explicit states");
+        view.setRecordingPanelVisible(true);
+        const auto recordingFile = directory.getChildFile("ui-recording.wav");
+        expect(view.armRecording(recordingFile, 1000.0, 16U));
+        const auto* recordingState =
+            dynamic_cast<const juce::Label*>(view.findChildWithID("recording-state"));
+        expect(recordingState != nullptr);
+        if (recordingState != nullptr)
+            expect(recordingState->getText().contains("Armed"));
+        expect(view.startRecording());
+        view.processPendingJobs();
+        if (recordingState != nullptr)
+            expect(recordingState->getText().contains("Recording"));
+
+        std::array<float, 64U> recordedInput{};
+        for (std::size_t frame = 0U; frame < recordedInput.size(); ++frame)
+            recordedInput[frame] = 0.5F * std::sin(static_cast<float>(frame) * 0.12F);
+        const std::array<const float*, 1U> recordedChannels{recordedInput.data()};
+        view.processMockRecordingInput(recordedChannels.data(), 1U,
+                                       static_cast<std::uint32_t>(recordedInput.size()));
+        view.stopRecording();
+
+        beginTest("UIHEADLESS-M2-009 completed recording assigns and retriggers");
+        const auto derivedAssetUuid = controller.project().pad(0U).layers[0].assetUuid;
+        for (int attempt = 0; attempt < 3000; ++attempt) {
+            juce::Thread::sleep(2);
+            view.processPendingJobs();
+            if (controller.project().pad(0U).layers[0].assetUuid != derivedAssetUuid)
+                break;
+        }
+        expect(controller.project().pad(0U).layers[0].assetUuid != derivedAssetUuid);
+        expectEquals(static_cast<int>(controller.project().state().recordedAssets.size()), 1);
+        expect(recordingFile.existsAsFile());
+        std::array<float, 128U> left{};
+        std::array<float, 128U> right{};
+        runtime.engine().processBlock(left.data(), right.data(), left.size());
+        expect(input.mouseDown(0U));
+        runtime.engine().processBlock(left.data(), right.data(), left.size());
+        expect(std::any_of(left.begin(), left.end(), [](const auto sampleValue) {
+            return std::abs(sampleValue) > 0.00001F;
+        }));
+        juce::ignoreUnused(input.mouseUp(0U));
+
+        beginTest("REGRESSION-M2-003 late import completion has typed safe routing");
+        const auto oldProjectWorkingDirectory =
+            juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+                .getChildFile("PadFlow")
+                .getChildFile("Projects")
+                .getChildFile(controller.project().uuid());
+        const auto blocker = jobs.submit(
+            JobSpec{"regression-blocker", "regression-blocker", 0U, 10, JobKind::generic},
+            [](const CancellationToken&, JobProgress&) {
+                juce::Thread::sleep(50);
+                return std::make_shared<const JobResult>(JobResult{
+                    JobSpec{"regression-blocker", "regression-blocker", 0U, 10, JobKind::generic},
+                    true,
+                    "Blocker complete",
+                    {}});
+            });
+        expect(blocker.has_value());
+        juce::StringArray lateFiles;
+        lateFiles.add(sample.getFullPathName());
+        expect(view.queueImportFiles(lateFiles, 1U, true));
+        auto* newProjectButton = dynamic_cast<juce::Button*>(view.findChildWithID("new-project"));
+        expect(newProjectButton != nullptr);
+        if (newProjectButton != nullptr && newProjectButton->onClick)
+            newProjectButton->onClick();
+        for (int attempt = 0; attempt < 200; ++attempt) {
+            juce::Thread::sleep(2);
+            view.processPendingJobs();
+        }
+        expect(controller.project().pad(1U).layers[0].assetUuid.isEmpty());
+
         input.panic();
         jobs.shutdown();
         publisher.clearWhenAudioIsStopped();
         assets.clear();
+        if (oldProjectWorkingDirectory.isAChildOf(
+                juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)))
+            juce::ignoreUnused(oldProjectWorkingDirectory.deleteRecursively());
         expect(directory.deleteRecursively());
     }
 };
