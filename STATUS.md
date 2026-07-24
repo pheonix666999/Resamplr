@@ -22,7 +22,12 @@ this slice passed in
 The immutable import slice now has bounded asynchronous WAV/AIFF/FLAC decoding, checked mono/stereo
 frame and memory accounting, source metadata/fingerprints, configurable unique-asset registry
 budgeting, cancellation/stale-result rejection, atomic layer assignment, rollback, and off-callback
-epoch retirement coverage. Hosted validation for this slice is pending.
+epoch retirement coverage.
+
+[Import run 30064539191](https://github.com/pheonix666999/Resamplr/actions/runs/30064539191)
+compiled the importer but warnings-as-errors rejected a Milestone 0 aggregate fixture after optional
+asset metadata was added. The explicit fixture initialization fix is tracked by
+`REGRESSION-CI-009`; hosted revalidation is pending.
 
 Feature-branch CI was enabled and validated independently in
 [run 30062883832](https://github.com/pheonix666999/Resamplr/actions/runs/30062883832) on commit

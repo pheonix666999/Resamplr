@@ -110,7 +110,13 @@ class FoundationTests final : public juce::UnitTest {
         boundedJobs.shutdown();
 
         beginTest("ASSET-001 immutable PCM asset and byte accounting");
-        SampleAssetMetadata metadata{"asset", "Synthetic", 48000.0, 2U, 4U, {}, "test"};
+        SampleAssetMetadata metadata;
+        metadata.assetUuid = "asset";
+        metadata.displayName = "Synthetic";
+        metadata.sampleRate = 48000.0;
+        metadata.channelCount = 2U;
+        metadata.frameCount = 4U;
+        metadata.provenance = "test";
         auto asset = SampleAsset::create(metadata, std::vector<float>(8U, 0.25F));
         expectEquals(static_cast<juce::int64>(asset->decodedBytes()), juce::int64{32});
         expectEquals(static_cast<juce::int64>(estimateDecodedBytes(4U, 2U)), juce::int64{32});

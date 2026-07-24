@@ -46,6 +46,7 @@ bit-stable platform/compiler or proven integer-only path.
 | REGRESSION-CI-006 | Windows manifest encoding | Windows PowerShell packaging writes canonical BOM-free UTF-8 accepted by artifact verification. |
 | REGRESSION-CI-007 | Core-only stable UUIDs | Deterministic model UUID generation compiles with the linked `juce_core` module and does not rely on `juce_cryptography`. |
 | REGRESSION-CI-008 | JUCE character namespace | Bank-name construction uses the qualified `juce::juce_wchar` alias on Apple Clang, GCC, and MSVC. |
+| REGRESSION-CI-009 | Extensible asset fixtures | Foundation fixtures explicitly initialize required immutable-asset metadata and remain warning-clean when metadata gains optional fields. |
 
 ## Milestone 1 playable sampler
 
