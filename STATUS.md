@@ -37,8 +37,15 @@ both macOS variants, universal architecture inspection, and cross-platform artif
 
 The derived-asset phase is in implementation: deterministic recipes, cancellable immutable PCM
 transforms, project-owned WAV publication, provenance persistence, stale-target cleanup, and unified
-assignment undo/redo are present locally. Hosted validation is pending, and Milestone 2 is not yet
-complete.
+assignment undo/redo passed all five hosted jobs in
+[run 30084397590](https://github.com/pheonix666999/Resamplr/actions/runs/30084397590).
+
+The capture-pipeline phase is present locally with four seconds of preallocated FIFO capacity,
+manual and threshold state machines, a two-second-capable pre-roll ring, bounded callback copying,
+atomic meters/counters, explicit overflow rejection, a session-specific writer thread, sibling
+`.part` publication, WAV validation, collision-safe names, and cancellation cleanup. Device changes
+and shutdown cancel active capture rather than silently abandoning it. Hosted validation is
+pending, and Milestone 2 is not yet complete.
 
 The Milestone 0 repository, pinned dependency, targets, interfaces, schema-v1 skeleton, tests, smoke
 paths, packaging, and workflows remain the validated baseline. Milestone 1 adds the fixed

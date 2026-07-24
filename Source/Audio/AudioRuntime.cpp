@@ -54,6 +54,7 @@ juce::Result AudioRuntime::initialise(const AudioSettings& preferred) {
 }
 
 juce::Result AudioRuntime::applySettings(const AudioSettings& settings) {
+    capture_.cancel();
     auto setup = manager_.getAudioDeviceSetup();
     setup.outputDeviceName = settings.outputDeviceIdentifier;
     setup.inputDeviceName = settings.inputDeviceIdentifier;
@@ -90,12 +91,15 @@ void AudioRuntime::close() {
     activeMidiCallback_ = nullptr;
     if (callbackRegistered_.exchange(false, std::memory_order_acq_rel))
         manager_.removeAudioCallback(this);
+    capture_.cancel();
+    capture_.shutdown();
     engine_.panic();
     preview_.panicWhenQuiescent();
     manager_.closeAudioDevice();
 }
 
 juce::Result AudioRuntime::restart() {
+    capture_.cancel();
     const auto callbackWasRegistered = callbackRegistered_.load(std::memory_order_acquire);
     if (callbackWasRegistered)
         manager_.removeAudioCallback(this);
@@ -211,11 +215,23 @@ const PreviewPlayer& AudioRuntime::preview() const noexcept {
     return preview_;
 }
 
+CaptureSession& AudioRuntime::capture() noexcept {
+    return capture_;
+}
+
+const CaptureSession& AudioRuntime::capture() const noexcept {
+    return capture_;
+}
+
 void AudioRuntime::audioDeviceIOCallbackWithContext(
     const float* const* const inputChannelData, const int numInputChannels,
     float* const* const outputChannelData, const int numOutputChannels, const int numSamples,
     const juce::AudioIODeviceCallbackContext& context) {
-    juce::ignoreUnused(inputChannelData, numInputChannels, context);
+    juce::ignoreUnused(context);
+    if (numSamples > 0)
+        capture_.processInput(inputChannelData,
+                              static_cast<std::uint32_t>(std::max(0, numInputChannels)),
+                              static_cast<std::uint32_t>(numSamples));
     if (panicRequested_.exchange(false, std::memory_order_acq_rel)) {
         engine_.panic();
         preview_.panicWhenQuiescent();
@@ -267,6 +283,7 @@ void AudioRuntime::audioDeviceAboutToStart(juce::AudioIODevice* const device) {
 }
 
 void AudioRuntime::audioDeviceStopped() {
+    capture_.cancel();
     engine_.panic();
     preview_.panicWhenQuiescent();
     testTonePhase_ = 0.0;
