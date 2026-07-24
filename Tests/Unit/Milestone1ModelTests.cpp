@@ -21,7 +21,7 @@ class Milestone1ModelTests final : public juce::UnitTest {
                      static_cast<int>(padBankCount));
         for (std::size_t bankIndex = 0; bankIndex < padBankCount; ++bankIndex) {
             const auto& bank = project.bank(bankIndex);
-            expectEquals(bank.name, juce::String::charToString(static_cast<juce_wchar>(
+            expectEquals(bank.name, juce::String::charToString(static_cast<juce::juce_wchar>(
                                         'A' + static_cast<int>(bankIndex))));
             expectEquals(static_cast<int>(bank.pads.size()), static_cast<int>(padsPerBank));
             for (std::size_t padIndex = 0; padIndex < padsPerBank; ++padIndex) {

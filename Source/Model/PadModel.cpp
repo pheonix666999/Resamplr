@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <string_view>
 #include <unordered_set>
 #include <utility>
 
@@ -14,6 +15,23 @@ constexpr std::array<const char*, padsPerBank> defaultKeyboardKeys{
 juce::String formatUuidHex(const juce::String& hex) {
     return hex.substring(0, 8) + "-" + hex.substring(8, 12) + "-" + hex.substring(12, 16) + "-" +
            hex.substring(16, 20) + "-" + hex.substring(20, 32);
+}
+
+std::uint64_t fnv1a64(const std::string_view value, std::uint64_t hash) noexcept {
+    constexpr std::uint64_t prime = 1099511628211ULL;
+    for (const auto byte : value) {
+        hash ^= static_cast<std::uint64_t>(static_cast<unsigned char>(byte));
+        hash *= prime;
+    }
+    return hash;
+}
+
+void writeHashBytes(std::array<std::uint8_t, 16U>& bytes, const std::size_t offset,
+                    const std::uint64_t hash) noexcept {
+    for (std::size_t index = 0; index < 8U; ++index) {
+        const auto shift = static_cast<unsigned int>((7U - index) * 8U);
+        bytes[offset + index] = static_cast<std::uint8_t>((hash >> shift) & 0xffU);
+    }
 }
 
 bool isFiniteInRange(const float value, const float minimum, const float maximum) noexcept {
@@ -38,9 +56,13 @@ void addUuid(std::unordered_set<std::string>& uuids, const juce::String& uuid,
 } // namespace
 
 juce::String makeStableUuid(const juce::String& seed) {
-    const auto utf8 = seed.toRawUTF8();
-    const juce::MD5 digest{utf8, static_cast<std::size_t>(seed.getNumBytesAsUTF8())};
-    return formatUuidHex(digest.toHexString());
+    const auto utf8 = seed.toStdString();
+    std::array<std::uint8_t, 16U> bytes{};
+    writeHashBytes(bytes, 0U, fnv1a64(utf8, 14695981039346656037ULL));
+    writeHashBytes(bytes, 8U, fnv1a64(utf8, 7809847782465536322ULL));
+    bytes[6] = static_cast<std::uint8_t>((bytes[6] & 0x0fU) | 0x50U);
+    bytes[8] = static_cast<std::uint8_t>((bytes[8] & 0x3fU) | 0x80U);
+    return formatUuidHex(juce::Uuid{bytes.data()}.toString());
 }
 
 ProjectState makeDefaultProjectState(const juce::String& projectUuid, juce::String projectName) {
@@ -50,8 +72,8 @@ ProjectState makeDefaultProjectState(const juce::String& projectUuid, juce::Stri
 
     for (std::size_t bankIndex = 0; bankIndex < padBankCount; ++bankIndex) {
         auto& bank = state.banks[bankIndex];
-        bank.name =
-            juce::String::charToString(static_cast<juce_wchar>('A' + static_cast<int>(bankIndex)));
+        bank.name = juce::String::charToString(
+            static_cast<juce::juce_wchar>('A' + static_cast<int>(bankIndex)));
         bank.uuid = makeStableUuid(projectUuid + "/bank/" + bank.name);
 
         for (std::size_t padIndex = 0; padIndex < padsPerBank; ++padIndex) {
@@ -163,8 +185,8 @@ juce::Result validateProjectState(const ProjectState& state) {
     addUuid(uuids, state.projectUuid, result);
     for (std::size_t bankIndex = 0; bankIndex < padBankCount && result.wasOk(); ++bankIndex) {
         const auto& bank = state.banks[bankIndex];
-        if (bank.name !=
-            juce::String::charToString(static_cast<juce_wchar>('A' + static_cast<int>(bankIndex))))
+        if (bank.name != juce::String::charToString(
+                             static_cast<juce::juce_wchar>('A' + static_cast<int>(bankIndex))))
             return juce::Result::fail("Pad bank names must be A..D in stable order");
         addUuid(uuids, bank.uuid, result);
         for (const auto& pad : bank.pads) {

@@ -44,6 +44,8 @@ bit-stable platform/compiler or proven integer-only path.
 | REGRESSION-CI-004 | Pre-GUI argument parsing | Linux/macOS parse raw process arguments before JUCE startup, so headless smoke never initializes a display. |
 | REGRESSION-CI-005 | Intentional queue alignment | MSVC `/WX` accepts documented cache-line padding while all other project warnings remain errors. |
 | REGRESSION-CI-006 | Windows manifest encoding | Windows PowerShell packaging writes canonical BOM-free UTF-8 accepted by artifact verification. |
+| REGRESSION-CI-007 | Core-only stable UUIDs | Deterministic model UUID generation compiles with the linked `juce_core` module and does not rely on `juce_cryptography`. |
+| REGRESSION-CI-008 | JUCE character namespace | Bank-name construction uses the qualified `juce::juce_wchar` alias on Apple Clang, GCC, and MSVC. |
 
 ## Milestone 1 playable sampler
 
