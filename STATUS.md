@@ -31,6 +31,11 @@ asset metadata was added. The explicit fixture initialization fix is tracked by
 [run 30064703121](https://github.com/pheonix666999/Resamplr/actions/runs/30064703121) on commit
 `21d124b39b0641f43ab0a1102868e23408c6c74a`; all five jobs passed.
 
+The deterministic playback slice now has a 128-voice fixed pool, bounded trigger/release/panic
+commands, immutable snapshots, deterministic local/global allocation, Hermite interpolation,
+source-rate conversion, ADSR, gain/pan/tuning/velocity, playback/polyphony/choke behavior, finite
+guards, safe silence, and atomic meters. Hosted validation for this slice is pending.
+
 Feature-branch CI was enabled and validated independently in
 [run 30062883832](https://github.com/pheonix666999/Resamplr/actions/runs/30062883832) on commit
 `ee8df6b9fe0299871a3fee72a76e4834a5d7d825`; all five jobs passed.

@@ -47,6 +47,13 @@ seconds of block storage before arming. The callback copies samples and enqueues
 writer owns a `.part` file. Overflow increments an atomic counter, marks the result incomplete,
 deletes the temporary output, warns the user, and never creates an asset.
 
+Milestone 1 playback uses an immutable raw-view snapshot published off callback, a bounded SPSC
+command queue, and exactly 128 stable-index preallocated voices. Voice selection is deterministic,
+with pad-local limits before global oldest-age stealing and pool index as the final tie-breaker.
+Rendering performs source/output-rate conversion, four-point Hermite interpolation, ADSR, layer and
+pad gain/pan/tuning, velocity selection, mono/poly behavior, gate/one-shot/toggle modes, choke
+release, finite-output guards, panic, and atomic metering without callback ownership changes.
+
 ## Determinism
 
 Probability algorithm `siphash24-v1` hashes a canonical fixed-width tuple of project seed, pattern,

@@ -66,7 +66,10 @@ enum class AudioCommandType : std::uint8_t {
     stopAll,
     publishProject,
     publishAsset,
-    setParameter
+    setParameter,
+    triggerPad,
+    releaseSource,
+    panic
 };
 
 struct AudioCommand final {
