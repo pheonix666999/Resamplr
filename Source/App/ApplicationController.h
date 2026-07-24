@@ -25,6 +25,9 @@ class ApplicationController final {
     [[nodiscard]] juce::Result pastePad(std::size_t globalIndex);
     [[nodiscard]] juce::Result duplicatePad(std::size_t sourceGlobalIndex,
                                             std::size_t destinationGlobalIndex);
+    [[nodiscard]] juce::Result commitImportedLayer(const JobSpec& target, std::size_t globalIndex,
+                                                   std::size_t layerIndex,
+                                                   ExternalAssetReference asset);
     [[nodiscard]] bool canUndo() const noexcept;
     [[nodiscard]] bool canRedo() const noexcept;
     [[nodiscard]] bool undo();

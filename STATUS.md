@@ -19,6 +19,11 @@ this slice passed in
 [run 30063978227](https://github.com/pheonix666999/Resamplr/actions/runs/30063978227) on commit
 `ab3bd120ccd01c2ed28b6feaa8fa7609b5e39ad7`; all five jobs passed.
 
+The immutable import slice now has bounded asynchronous WAV/AIFF/FLAC decoding, checked mono/stereo
+frame and memory accounting, source metadata/fingerprints, configurable unique-asset registry
+budgeting, cancellation/stale-result rejection, atomic layer assignment, rollback, and off-callback
+epoch retirement coverage. Hosted validation for this slice is pending.
+
 Feature-branch CI was enabled and validated independently in
 [run 30062883832](https://github.com/pheonix666999/Resamplr/actions/runs/30062883832) on commit
 `ee8df6b9fe0299871a3fee72a76e4834a5d7d825`; all five jobs passed.

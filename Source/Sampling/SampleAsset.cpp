@@ -2,6 +2,7 @@
 
 #include <limits>
 #include <stdexcept>
+#include <string>
 #include <utility>
 
 namespace padflow {
@@ -37,6 +38,64 @@ std::size_t SampleAsset::decodedBytes() const noexcept {
 SampleAssetView SampleAsset::view() const noexcept {
     return {interleavedPcm_.data(), metadata_.frameCount, metadata_.channelCount,
             metadata_.sampleRate};
+}
+
+SampleAssetRegistry::SampleAssetRegistry(const std::uint64_t budgetBytes) noexcept
+    : budgetBytes_(budgetBytes) {}
+
+bool SampleAssetRegistry::publish(std::shared_ptr<const SampleAsset> asset) {
+    if (asset == nullptr || asset->metadata().assetUuid.trim().isEmpty())
+        return false;
+
+    const auto key = asset->metadata().assetUuid.toStdString();
+    const auto newBytes = static_cast<std::uint64_t>(asset->decodedBytes());
+    std::lock_guard lock{mutex_};
+    const auto existing = assets_.find(key);
+    const auto previousBytes = existing != assets_.end()
+                                   ? static_cast<std::uint64_t>(existing->second->decodedBytes())
+                                   : 0U;
+    if (newBytes > budgetBytes_ - (usedBytes_ - previousBytes))
+        return false;
+
+    usedBytes_ = usedBytes_ - previousBytes + newBytes;
+    assets_.insert_or_assign(key, std::move(asset));
+    return true;
+}
+
+std::shared_ptr<const SampleAsset> SampleAssetRegistry::find(const juce::String& assetUuid) const {
+    std::lock_guard lock{mutex_};
+    const auto entry = assets_.find(assetUuid.toStdString());
+    return entry != assets_.end() ? entry->second : nullptr;
+}
+
+bool SampleAssetRegistry::erase(const juce::String& assetUuid) {
+    std::lock_guard lock{mutex_};
+    const auto entry = assets_.find(assetUuid.toStdString());
+    if (entry == assets_.end())
+        return false;
+    usedBytes_ -= static_cast<std::uint64_t>(entry->second->decodedBytes());
+    assets_.erase(entry);
+    return true;
+}
+
+void SampleAssetRegistry::clear() {
+    std::lock_guard lock{mutex_};
+    assets_.clear();
+    usedBytes_ = 0U;
+}
+
+std::uint64_t SampleAssetRegistry::usedBytes() const {
+    std::lock_guard lock{mutex_};
+    return usedBytes_;
+}
+
+std::uint64_t SampleAssetRegistry::budgetBytes() const noexcept {
+    return budgetBytes_;
+}
+
+std::size_t SampleAssetRegistry::uniqueAssetCount() const {
+    std::lock_guard lock{mutex_};
+    return assets_.size();
 }
 
 void DeferredSampleAssetReclaimer::retireAfterEpoch(const std::uint64_t retirementEpoch,

@@ -29,8 +29,13 @@ owner UUID, target UUID, target revision, cancellation, and progress. A complete
 only after the message thread revalidates those values. Queue exhaustion, cancellation, failure, or
 stale targets leave the project unchanged.
 
-Decoded mono/stereo float PCM is immutable and shared. Default decoded budget is 2 GiB; the user
-range is 256 MiB through `min(16 GiB, 50% physical RAM)`. Unique source/derived PCM counts once.
+Decoded mono/stereo float PCM is immutable and shared. The Milestone 1 registry defaults to 256 MiB
+and accepts a platform-clamped configured limit; future settings may expose values through
+`min(16 GiB, 50% physical RAM)`. Unique source/derived PCM counts once. WAV, AIFF, and FLAC readers
+run only on bounded workers. Before allocating decoded PCM they validate channel count, frame
+arithmetic, and the request budget. Message-thread commit rechecks owner UUID, target UUID, and
+revision, publishes the immutable asset, then atomically assigns the layer and external reference;
+failure rolls registry publication back.
 Audio-visible asset retirement is epoch-acknowledged and reclaimed off the callback. The provider
 boundary permits future streaming without changing pad and voice identities.
 
@@ -64,4 +69,3 @@ Undo switches UUID references. Unreferenced derived data is reclaimed only by ex
 save compaction.
 
 See `docs/AUDIO_THREAD_RULES.md` and `docs/PROJECT_FORMAT.md` for the normative contracts.
-

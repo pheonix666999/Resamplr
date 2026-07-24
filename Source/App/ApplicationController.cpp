@@ -1,5 +1,6 @@
 #include "ApplicationController.h"
 
+#include <algorithm>
 #include <utility>
 
 namespace padflow {
@@ -99,6 +100,42 @@ juce::Result ApplicationController::duplicatePad(const std::size_t sourceGlobalI
     replacement.midiNote = project_.pad(destinationGlobalIndex).midiNote;
     replacement.keyboardKey = project_.pad(destinationGlobalIndex).keyboardKey;
     return commitPadEdit(destinationGlobalIndex, std::move(replacement), "Duplicate pad");
+}
+
+juce::Result ApplicationController::commitImportedLayer(const JobSpec& target,
+                                                        const std::size_t globalIndex,
+                                                        const std::size_t layerIndex,
+                                                        ExternalAssetReference asset) {
+    if (!isCurrentJobTarget(target))
+        return juce::Result::fail("Import completion targets stale project state");
+    if (globalIndex >= totalPadCount || layerIndex >= minimumLayersPerPad)
+        return juce::Result::fail("Import completion targets an invalid layer");
+    if (project_.pad(globalIndex).uuid != target.targetUuid)
+        return juce::Result::fail("Import completion targets a different pad");
+
+    const auto before = project_.pad(globalIndex);
+    auto candidate = project_.state();
+    auto& replacement = candidate.banks[globalIndex / padsPerBank].pads[globalIndex % padsPerBank];
+    replacement.layers[layerIndex].assetUuid = asset.uuid;
+    replacement.layers[layerIndex].enabled = true;
+
+    const auto existingAsset =
+        std::find_if(candidate.assets.begin(), candidate.assets.end(),
+                     [&](const auto& entry) { return entry.uuid == asset.uuid; });
+    if (existingAsset != candidate.assets.end())
+        *existingAsset = std::move(asset);
+    else
+        candidate.assets.push_back(std::move(asset));
+
+    if (const auto validation = validateProjectState(candidate); validation.failed())
+        return validation;
+    const auto after = replacement;
+    if (const auto result = project_.restoreState(std::move(candidate), project_.revision() + 1U);
+        result.failed())
+        return result;
+    undoHistory_.push_back(PadEdit{globalIndex, before, after, "Import sample"});
+    redoHistory_.clear();
+    return juce::Result::ok();
 }
 
 bool ApplicationController::canUndo() const noexcept {
