@@ -45,6 +45,154 @@ bit-stable platform/compiler or proven integer-only path.
 | REGRESSION-CI-005 | Intentional queue alignment | MSVC `/WX` accepts documented cache-line padding while all other project warnings remain errors. |
 | REGRESSION-CI-006 | Windows manifest encoding | Windows PowerShell packaging writes canonical BOM-free UTF-8 accepted by artifact verification. |
 
+## Milestone 1 playable sampler
+
+These granular IDs are the Milestone 1 acceptance authority. Programmatically generated fixtures
+must be used; physical audio and MIDI hardware are never required.
+
+### Model and editing
+
+| ID | Acceptance |
+|---|---|
+| MODEL-M1-001 | A new project contains exactly four banks named A–D. |
+| MODEL-M1-002 | Every bank contains exactly sixteen addressable pads. |
+| MODEL-M1-003 | All sixty-four pad UUIDs are non-empty, unique, stable, and deterministic in fixtures. |
+| MODEL-M1-004 | Copy/paste duplicates pad state and asset references without copying decoded PCM. |
+| MODEL-M1-005 | Duplicate preserves values while generating required new pad/layer UUIDs. |
+| MODEL-M1-006 | A parameter command and its undo/redo restore exact prior/next state and revision. |
+| MODEL-M1-007 | Clear pad removes assignments and resets parameters without affecting other pads/assets. |
+| MODEL-M1-008 | Rename/recolor accepts valid values and rejects invalid names/colours without mutation. |
+
+### Assets and imports
+
+| ID | Acceptance |
+|---|---|
+| ASSET-M1-001 | A generated WAV decodes asynchronously to immutable PCM with correct metadata. |
+| ASSET-M1-002 | A generated AIFF decodes asynchronously to immutable PCM with correct metadata. |
+| ASSET-M1-003 | A generated FLAC decodes asynchronously to immutable PCM with correct metadata. |
+| ASSET-M1-004 | Invalid, corrupt, and unsupported-channel audio is rejected without model mutation. |
+| ASSET-M1-005 | A generated mono asset preserves one channel and exact frame accounting. |
+| ASSET-M1-006 | A generated stereo asset preserves two channels and interleaving. |
+| ASSET-M1-007 | 44.1/48/88.2/96 kHz fixtures preserve source-rate metadata. |
+| ASSET-M1-008 | Decoded-memory usage equals checked frame × channel × float-byte accounting. |
+| ASSET-M1-009 | Multiple layer/pad references count a unique decoded asset exactly once. |
+| ASSET-M1-010 | An over-budget import fails before project or asset-registry mutation. |
+| ASSET-M1-011 | Rapid replacement retains live readers and publishes only the latest valid revision. |
+| ASSET-M1-012 | Project unload cancels imports and releases assets outside the callback. |
+| ASSET-M1-013 | Audio-visible replacement destruction occurs only after epoch acknowledgement off callback. |
+| ASSET-M1-014 | A completed import for a stale target UUID/revision is discarded. |
+| ASSET-M1-015 | A cancelled import leaves the model, undo stack, budget, and playback state unchanged. |
+
+### Layers
+
+| ID | Acceptance |
+|---|---|
+| LAYER-M1-001 | Every pad supports at least four stable layer slots. |
+| LAYER-M1-002 | Velocity minimum and maximum boundaries are inclusive. |
+| LAYER-M1-003 | Inverted or out-of-domain velocity ranges are rejected without mutation. |
+| LAYER-M1-004 | Every enabled overlapping layer plays in stable layer order. |
+| LAYER-M1-005 | Empty disabled or unassigned layers are valid and silent. |
+| LAYER-M1-006 | UUIDs, asset refs, ranges, enabled state, gain/pan/tuning persist and round-trip. |
+
+### Audio rendering and voice allocation
+
+| ID | Acceptance |
+|---|---|
+| AUDIO-M1-001 | The engine owns exactly 128 stable-index preallocated voices. |
+| AUDIO-M1-002 | Allocation selects the lowest-index fully inactive eligible voice. |
+| AUDIO-M1-003 | A pad-local voice limit releases/steals deterministically before global allocation. |
+| AUDIO-M1-004 | Mono retrigger clears prior ownership and uses the documented short release. |
+| AUDIO-M1-005 | Choke-group triggering releases all other group members before allocation. |
+| AUDIO-M1-006 | Completed release, lowest released envelope, then other release envelope order is exact. |
+| AUDIO-M1-007 | Global exhaustion selects the oldest active trigger age. |
+| AUDIO-M1-008 | Equal candidates use stable pool index as final tie-breaker. |
+| AUDIO-M1-009 | One-shot continues after source release until sample/envelope completion. |
+| AUDIO-M1-010 | Gate release enters release and cannot leave a stuck voice. |
+| AUDIO-M1-011 | Toggle alternates deterministic start and stop for the same source. |
+| AUDIO-M1-012 | Attack, decay, sustain, and release stages meet documented sample tolerances. |
+| AUDIO-M1-013 | Pad/layer gain produces expected finite amplitude. |
+| AUDIO-M1-014 | Constant-power pan produces expected left/right values. |
+| AUDIO-M1-015 | Coarse pitch uses the documented semitone ratio and changes duration. |
+| AUDIO-M1-016 | Fine pitch uses the documented cent ratio and changes duration. |
+| AUDIO-M1-017 | Source-rate/output-rate conversion uses the documented playback ratio. |
+| AUDIO-M1-018 | Four-point Hermite interpolation produces bounded finite output at edge positions. |
+| AUDIO-M1-019 | Every supported rendering path produces zero NaN/infinity samples. |
+| AUDIO-M1-020 | Stop/panic silences and clears all voices and ownership. |
+| AUDIO-M1-021 | A stolen voice retains no pad/layer/MIDI/source/gate/choke ownership. |
+| AUDIO-M1-022 | Repeated identical allocation scenarios produce identical voice-index traces. |
+| AUDIO-M1-023 | Missing/unpublished assets and unavailable output produce exact safe silence. |
+| AUDIO-M1-024 | Sample-rate change resets runtime state and recomputes ratios off callback. |
+| AUDIO-M1-025 | Buffer-size variants preserve resolved output and completion within tolerance. |
+
+### Trigger input
+
+| ID | Acceptance |
+|---|---|
+| INPUT-M1-001 | Mouse press triggers one-shot at configured fixed velocity. |
+| INPUT-M1-002 | Mouse release/capture loss releases gate mode without a stuck note. |
+| INPUT-M1-003 | The default 4×4 keyboard map triggers the active-bank pad. |
+| INPUT-M1-004 | Repeated key-down is ignored until a matching release. |
+| INPUT-M1-005 | MIDI note-on triggers the mapped pad and records MIDI ownership. |
+| INPUT-M1-006 | MIDI note-off releases only matching gate ownership. |
+| INPUT-M1-007 | MIDI velocity selects inclusive layers and scales the trigger. |
+| INPUT-M1-008 | MIDI note-on velocity zero behaves exactly as note-off. |
+| INPUT-M1-009 | MIDI device disconnect invokes panic and clears ownership. |
+| INPUT-M1-010 | Omni and channels 1–16 filters accept/reject deterministically. |
+| INPUT-M1-011 | Keyboard and default chromatic MIDI mapping follow the selected bank. |
+
+### Persistence
+
+| ID | Acceptance |
+|---|---|
+| SAVE-M1-001 | A loaded pad and external asset record survive semantic round-trip. |
+| SAVE-M1-002 | Every layer field and stable UUID survive semantic round-trip. |
+| SAVE-M1-003 | Every implemented pad parameter survives semantic round-trip. |
+| SAVE-M1-004 | Keyboard assignments and fixed trigger velocity survive round-trip. |
+| SAVE-M1-005 | MIDI notes, channel filter, and stable device preference survive round-trip. |
+| SAVE-M1-006 | Missing external assets retain pad/layer state and explicit missing status. |
+| SAVE-M1-007 | Invalid persisted ranges are rejected with diagnostics and no partial commit. |
+| SAVE-M1-008 | Project/bank/pad/layer/asset UUIDs are unchanged by save/load. |
+
+### Threading
+
+| ID | Acceptance |
+|---|---|
+| THREAD-M1-001 | Import worker cancellation completes without publication or leaked outstanding work. |
+| THREAD-M1-002 | Owner/target UUID or revision mismatch discards the immutable result. |
+| THREAD-M1-003 | Full command/job queues return observable failure and accept no silent drop. |
+| THREAD-M1-004 | Rapid immutable playback publication is epoch-safe and deterministic. |
+| THREAD-M1-005 | Final asset destruction is observed on a non-audio thread. |
+| THREAD-M1-006 | Project close during import cancels/drains safely and produces no late mutation. |
+
+### Devices and preview
+
+| ID | Acceptance |
+|---|---|
+| DEVICE-M1-001 | Mock device setup persists output channels, rate, and buffer size. |
+| DEVICE-M1-002 | Unavailable/open-failed device reports an error and renders safe silence. |
+| DEVICE-M1-003 | Test tone is bounded, finite, explicitly started/stopped, and uses no input permission. |
+| DEVICE-M1-004 | CPU/dropout snapshots are atomic; reset clears the dropout count off callback. |
+| PREVIEW-M1-001 | Generated WAV/AIFF/FLAC can be previewed before assignment. |
+| PREVIEW-M1-002 | File change and stop release the fixed preview voice without stale ownership. |
+| PREVIEW-M1-003 | Failed preview leaves silence, no active preview voice, and a user-facing error. |
+| PREVIEW-M1-004 | Preview volume is bounded, persistent, and applied without callback allocation. |
+
+### UI-independent and GUI-headless integration
+
+| ID | Acceptance |
+|---|---|
+| UIHEADLESS-M1-001 | The main sampler view constructs with accessible named controls. |
+| UIHEADLESS-M1-002 | Bank selection visits A–D and exposes sixteen pads each. |
+| UIHEADLESS-M1-003 | Selection visits every global pad index without invalid access. |
+| UIHEADLESS-M1-004 | A generated sample imports through worker/controller commit into A1. |
+| UIHEADLESS-M1-005 | Triggering loaded A1 renders finite non-silence. |
+| UIHEADLESS-M1-006 | A populated project saves, reloads, resolves refs, and retriggers. |
+| UIHEADLESS-M1-007 | Audio-disabled mode retains model/import/save/UI behavior and safe silence. |
+| UIHEADLESS-M1-008 | Keyboard mapping edit, duplicate policy, active bank, and persistence work. |
+| UIHEADLESS-M1-009 | MIDI mapping/channel/device model edits and persistence work without hardware. |
+| UIHEADLESS-M1-010 | File drop assigns multiple generated files sequentially with overwrite policy. |
+| UIHEADLESS-M1-011 | Main layout meets minimum bounds and exposes focus indicators at tested scales. |
+
 ## Project model — Milestone 1 unless noted
 
 | ID | Test |

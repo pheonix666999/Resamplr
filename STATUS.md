@@ -2,15 +2,17 @@
 
 ## Current milestone
 
-Milestone 0 — foundation: **implemented, hosted-CI validated, and ready for review**.
+Milestone 1 — playable RAM-resident sampler: **planning and interface audit complete; implementation
+in progress on `feature/milestone-1-playable-sampler`**.
 
-The repository, documentation, pinned dependency, CMake targets/presets, empty application,
-foundation interfaces, schema-v1 bundle skeleton, tests, smoke paths, scripts, and baseline workflows
-are present. No Milestone 1 application feature has been started.
+The Milestone 0 repository, pinned dependency, targets, interfaces, schema-v1 skeleton, tests, smoke
+paths, packaging, and workflows remain the validated baseline. The Milestone 1 authority now has
+phased delivery tasks in `PLANS.md` and granular acceptance IDs in `TEST_PLAN.md`. Product code has
+not yet been changed on this branch.
 
 This Windows host still has no supported native compiler, so local native builds remain blocked.
-That host limitation does not block review: GitHub Actions now validates the complete Milestone 0
-matrix on Linux, Windows, and macOS.
+GitHub Actions remains the authoritative native compiler/test environment for each implementation
+phase.
 
 ## Reference
 
