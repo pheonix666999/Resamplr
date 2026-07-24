@@ -11,7 +11,6 @@ constexpr auto borderColour = 0xff3b4957U;
 constexpr auto textColour = 0xffd8e1e8U;
 constexpr auto mutedTextColour = 0xff91a0abU;
 constexpr auto tealColour = 0xff50c8bbU;
-constexpr auto amberColour = 0xffe1aa55U;
 constexpr auto coralColour = 0xffe27868U;
 
 void styleButton(juce::Button& button) {
@@ -58,7 +57,7 @@ void RecordingPanel::configureControls() {
     inputMeter_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 72, 22);
     inputMeter_.setRange(-60.0, 0.0, 0.1);
     inputMeter_.setValue(-60.0, juce::dontSendNotification);
-    inputMeter_.setSuffix(" dBFS");
+    inputMeter_.setTextValueSuffix(" dBFS");
     inputMeter_.setColour(juce::Slider::trackColourId, juce::Colour{tealColour});
     inputMeter_.setColour(juce::Slider::backgroundColourId, juce::Colour{raisedColour});
     inputMeter_.setComponentID("recording-input-meter");
@@ -89,11 +88,11 @@ void RecordingPanel::configureControls() {
         addAndMakeVisible(*slider);
     }
     thresholdSlider_.setRange(-96.0, 0.0, 0.5);
-    thresholdSlider_.setSuffix(" dBFS");
+    thresholdSlider_.setTextValueSuffix(" dBFS");
     thresholdSlider_.setComponentID("recording-threshold");
     thresholdSlider_.setTitle("Threshold trigger level");
     preRollSlider_.setRange(0.0, 2000.0, 10.0);
-    preRollSlider_.setSuffix(" ms");
+    preRollSlider_.setTextValueSuffix(" ms");
     preRollSlider_.setComponentID("recording-preroll");
     preRollSlider_.setTitle("Threshold pre-roll duration");
 

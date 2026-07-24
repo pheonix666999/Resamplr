@@ -128,7 +128,7 @@ class Milestone2WaveformTests final : public juce::UnitTest {
         reference.decodedBytes = static_cast<std::uint64_t>(stereo->decodedBytes());
         reference.missing = false;
         const JobSpec importTarget{controller.project().uuid(), controller.project().pad(0U).uuid,
-                                   controller.project().revision(), 0};
+                                   controller.project().revision(), 0, JobKind::sampleImport};
         expect(controller.commitImportedLayer(importTarget, 0U, 0U, reference).wasOk());
 
         const WaveformCacheRequest request{JobSpec{controller.project().uuid(), reference.uuid,

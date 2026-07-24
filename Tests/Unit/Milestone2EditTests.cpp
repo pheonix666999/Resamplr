@@ -33,7 +33,7 @@ ExternalAssetReference makeReference(const juce::String& uuid, const std::uint64
 bool assignFixture(ApplicationController& controller, const juce::String& uuid,
                    const std::uint64_t frames) {
     const JobSpec target{controller.project().uuid(), controller.project().pad(0U).uuid,
-                         controller.project().revision(), 0};
+                         controller.project().revision(), 0, JobKind::sampleImport};
     return controller.commitImportedLayer(target, 0U, 0U, makeReference(uuid, frames)).wasOk();
 }
 

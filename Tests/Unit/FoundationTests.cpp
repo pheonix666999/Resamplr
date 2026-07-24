@@ -66,7 +66,7 @@ class FoundationTests final : public juce::UnitTest {
 
         beginTest("THREAD-002 background job immutable completion");
         BackgroundJobSystem jobs{4U, 1U};
-        JobSpec spec{"owner", "target", 7U, 0};
+        JobSpec spec{"owner", "target", 7U, 0, JobKind::generic};
         const auto handle =
             jobs.submit(spec, [spec](const CancellationToken& token, JobProgress& progress) {
                 progress.set(1.0F);
