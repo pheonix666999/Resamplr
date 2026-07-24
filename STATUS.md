@@ -27,7 +27,9 @@ epoch retirement coverage.
 [Import run 30064539191](https://github.com/pheonix666999/Resamplr/actions/runs/30064539191)
 compiled the importer but warnings-as-errors rejected a Milestone 0 aggregate fixture after optional
 asset metadata was added. The explicit fixture initialization fix is tracked by
-`REGRESSION-CI-009`; hosted revalidation is pending.
+`REGRESSION-CI-009`. Hosted revalidation passed in
+[run 30064703121](https://github.com/pheonix666999/Resamplr/actions/runs/30064703121) on commit
+`21d124b39b0641f43ab0a1102868e23408c6c74a`; all five jobs passed.
 
 Feature-branch CI was enabled and validated independently in
 [run 30062883832](https://github.com/pheonix666999/Resamplr/actions/runs/30062883832) on commit
