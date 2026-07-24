@@ -138,10 +138,10 @@ AudioRuntimeStatus AudioRuntime::status() {
     const auto* device = manager_.getCurrentAudioDevice();
     value.deviceOpen = device != nullptr && !deviceError_.load(std::memory_order_acquire);
     if (device != nullptr) {
+        const auto setup = manager_.getAudioDeviceSetup();
         value.deviceName = device->getName();
-        value.sampleRate = device->getCurrentSampleRate();
-        value.bufferSize =
-            static_cast<std::uint32_t>(std::max(0, device->getCurrentBufferSizeSamples()));
+        value.sampleRate = setup.sampleRate;
+        value.bufferSize = static_cast<std::uint32_t>(std::max(0, setup.bufferSize));
     }
     value.cpuUsage = std::clamp(manager_.getCpuUsage(), 0.0, 1.0);
     const auto xruns = static_cast<std::uint64_t>(std::max(0, manager_.getXRunCount()));
