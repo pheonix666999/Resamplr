@@ -48,6 +48,7 @@ bit-stable platform/compiler or proven integer-only path.
 | REGRESSION-CI-008 | JUCE character namespace | Bank-name construction uses the qualified `juce::juce_wchar` alias on Apple Clang, GCC, and MSVC. |
 | REGRESSION-CI-009 | Extensible asset fixtures | Foundation fixtures explicitly initialize required immutable-asset metadata and remain warning-clean when metadata gains optional fields. |
 | REGRESSION-CI-010 | Device/input JUCE boundaries | Device-query methods match JUCE's mutable API, MIDI callback declarations include their owning module, and keyboard routing remains independent of GUI-only key classes. |
+| REGRESSION-CI-011 | Exact-width coarse pitch UI | The coarse-pitch slider converts directly to the model's validated `int16_t` storage without an intermediate narrowing diagnostic on GCC, Apple Clang, or MSVC. |
 
 ## Milestone 1 playable sampler
 

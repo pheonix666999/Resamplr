@@ -480,7 +480,7 @@ void SamplerView::applyParameterControls() {
     auto parameters = controller_.project().pad(selectedGlobalPad()).parameters;
     parameters.gainDecibels = static_cast<float>(gainSlider_.getValue());
     parameters.pan = static_cast<float>(panSlider_.getValue());
-    parameters.coarseSemitones = static_cast<std::int32_t>(coarseSlider_.getValue());
+    parameters.coarseSemitones = static_cast<std::int16_t>(coarseSlider_.getValue());
     parameters.fineCents = static_cast<float>(fineSlider_.getValue());
     parameters.envelope.attackSeconds = static_cast<float>(attackSlider_.getValue());
     parameters.envelope.decaySeconds = static_cast<float>(decaySlider_.getValue());
