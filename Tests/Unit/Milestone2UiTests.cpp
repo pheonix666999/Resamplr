@@ -54,6 +54,13 @@ juce::Component* findDescendantWithId(juce::Component& root, const juce::String&
     }
     return nullptr;
 }
+
+bool writeUiEvidence(juce::Component& component, const juce::File& file) {
+    const auto image = component.createComponentSnapshot(component.getLocalBounds(), true, 1.0F);
+    auto stream = file.createOutputStream();
+    return image.isValid() && stream != nullptr && stream->openedOk() &&
+           juce::PNGImageFormat{}.writeImageToStream(image, *stream);
+}
 } // namespace
 
 class Milestone2UiTests final : public juce::UnitTest {
@@ -145,6 +152,14 @@ class Milestone2UiTests final : public juce::UnitTest {
         const auto* analysedEditor =
             dynamic_cast<const WaveformEditor*>(findDescendantWithId(view, "waveform-editor"));
         expect(analysedEditor != nullptr && analysedEditor->hasWaveform());
+        const auto evidenceDirectoryPath =
+            juce::SystemStats::getEnvironmentVariable("PADFLOW_SCREENSHOT_DIR", {});
+        const auto evidenceDirectory = juce::File{evidenceDirectoryPath};
+        if (evidenceDirectoryPath.isNotEmpty()) {
+            expect(evidenceDirectory.createDirectory());
+            expect(writeUiEvidence(view,
+                                   evidenceDirectory.getChildFile("padflow-waveform-editor.png")));
+        }
 
         beginTest("UIHEADLESS-M2-007 derived operation reports and commits");
         const auto sourceAssetUuid = controller.project().pad(0U).layers[0].assetUuid;
@@ -167,6 +182,9 @@ class Milestone2UiTests final : public juce::UnitTest {
         expect(recordingState != nullptr);
         if (recordingState != nullptr)
             expect(recordingState->getText().contains("Armed"));
+        if (evidenceDirectoryPath.isNotEmpty())
+            expect(writeUiEvidence(view,
+                                   evidenceDirectory.getChildFile("padflow-recording-panel.png")));
         expect(view.startRecording());
         view.processPendingJobs();
         if (recordingState != nullptr)

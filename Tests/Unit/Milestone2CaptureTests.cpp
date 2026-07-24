@@ -1,4 +1,5 @@
 #include "App/ApplicationController.h"
+#include "Audio/AudioRuntime.h"
 #include "Audio/CaptureWriter.h"
 #include "Sampling/RecordedAsset.h"
 #include "Serialization/ProjectSerializer.h"
@@ -290,6 +291,27 @@ class Milestone2CaptureTests final : public juce::UnitTest {
                RecordedAssetPublisher::commit(*stale, staleController, registry).failed());
         expect(staleController.project().pad(0U).layers[0].assetUuid.isEmpty());
         expect(manual.completedFile().existsAsFile());
+
+        beginTest("RECORD-M2-019 device-format stop cancels active capture safely");
+        AudioRuntime runtime;
+        const auto restartDestination = root.getChildFile("restart-cancel.wav");
+        expect(runtime.capture().prepare(captureSpec(restartDestination, 1U, CaptureMode::manual)));
+        expect(runtime.capture().startManual());
+        runtime.capture().processInput(monoChannels.data(), 1U, 16U);
+        runtime.audioDeviceStopped();
+        expectEquals(static_cast<int>(waitForTerminal(runtime.capture()).state),
+                     static_cast<int>(CaptureState::cancelled));
+        expect(!restartDestination.existsAsFile());
+
+        beginTest("RECORD-M2-020 and THREAD-M2-007 close joins writer and cleans capture");
+        const auto closeDestination = root.getChildFile("close-cancel.wav");
+        expect(runtime.capture().prepare(captureSpec(closeDestination, 1U, CaptureMode::manual)));
+        expect(runtime.capture().startManual());
+        runtime.capture().processInput(monoChannels.data(), 1U, 16U);
+        runtime.close();
+        expectEquals(static_cast<int>(runtime.capture().status().state),
+                     static_cast<int>(CaptureState::idle));
+        expect(!closeDestination.existsAsFile());
 
         manual.shutdown();
         threshold.shutdown();

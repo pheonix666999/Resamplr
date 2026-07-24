@@ -1,9 +1,13 @@
 #include "SmokeScenario.h"
 
 #include "App/ApplicationController.h"
+#include "Audio/CaptureWriter.h"
 #include "Audio/PlaybackStatePublisher.h"
 #include "Input/InputRouter.h"
+#include "Sampling/DerivedAsset.h"
+#include "Sampling/RecordedAsset.h"
 #include "Sampling/SampleImporter.h"
+#include "Sampling/WaveformCache.h"
 #include "Serialization/ProjectSerializer.h"
 
 #include <juce_audio_formats/juce_audio_formats.h>
@@ -48,6 +52,51 @@ std::shared_ptr<const JobResult> awaitCompletion(BackgroundJobSystem& jobs) {
     return result;
 }
 
+CaptureStatus awaitCapture(CaptureSession& capture) {
+    for (int attempt = 0; attempt < 5000; ++attempt) {
+        const auto status = capture.status();
+        if (status.state == CaptureState::completed || status.state == CaptureState::failed ||
+            status.state == CaptureState::cancelled)
+            return status;
+        juce::Thread::sleep(1);
+    }
+    return capture.status();
+}
+
+const ExternalAssetReference* findReference(const ProjectState& state,
+                                            const juce::String& assetUuid) {
+    const auto found =
+        std::find_if(state.assets.begin(), state.assets.end(),
+                     [&](const auto& reference) { return reference.uuid == assetUuid; });
+    return found == state.assets.end() ? nullptr : std::addressof(*found);
+}
+
+bool resolveAllAssets(const ApplicationController& controller, SampleAssetRegistry& registry) {
+    for (const auto& reference : controller.project().state().assets) {
+        if (reference.missing)
+            continue;
+        const SampleImportRequest request{JobSpec{"padflow-resolve", reference.uuid,
+                                                  controller.project().revision(), 0,
+                                                  JobKind::sampleResolve},
+                                          juce::File{reference.originalPath},
+                                          reference.uuid,
+                                          0U,
+                                          0U,
+                                          registry.budgetBytes()};
+        CancellationToken token;
+        JobProgress progress;
+        const auto decoded = SampleImporter::decode(request, token, progress);
+        const auto* payload =
+            decoded != nullptr
+                ? static_cast<const SampleImportPayload*>(decoded->immutablePayload.get())
+                : nullptr;
+        if (decoded == nullptr || !decoded->succeeded || payload == nullptr ||
+            payload->asset == nullptr || !registry.publish(payload->asset))
+            return false;
+    }
+    return true;
+}
+
 bool renderFiniteSignal(PlaybackEngine& engine, const std::size_t frames,
                         const bool requireSignal) {
     std::array<float, 256U> left{};
@@ -84,7 +133,7 @@ SampleImportRequest makeImportRequest(const ApplicationController& controller,
 
 SmokeResult runSmokeScenario() {
     auto temporaryDirectory = juce::File::getSpecialLocation(juce::File::tempDirectory)
-                                  .getNonexistentChildFile("padflow-m1-smoke", {}, true);
+                                  .getNonexistentChildFile("padflow-m2-smoke", {}, true);
     if (!temporaryDirectory.createDirectory())
         return {false, "SMOKE failure: could not create temporary directory"};
     const auto cleanup = juce::ScopeGuard([&] { temporaryDirectory.deleteRecursively(); });
@@ -92,6 +141,9 @@ SmokeResult runSmokeScenario() {
     const auto projectFile = temporaryDirectory.getChildFile("populated.padflow");
     if (!writeSyntheticSample(sampleFile))
         return {false, "SMOKE failure: could not generate synthetic WAV"};
+    juce::MemoryBlock originalSourceBytes;
+    if (!sampleFile.loadFileAsData(originalSourceBytes))
+        return {false, "SMOKE failure: could not fingerprint synthetic source"};
 
     ApplicationController controller;
     controller.createEmptyProject("Populated Smoke", "00000000-0000-4000-8000-000000000101");
@@ -105,6 +157,78 @@ SmokeResult runSmokeScenario() {
     if (imported == nullptr || !imported->succeeded ||
         SampleImporter::commit(*imported, controller, assets).failed())
         return {false, "SMOKE failure: sample import/assignment failed"};
+
+    const auto sourceAsset = assets.find(controller.project().pad(0U).layers[0].assetUuid);
+    if (sourceAsset == nullptr)
+        return {false, "SMOKE failure: imported immutable source is unavailable"};
+    CancellationToken waveformToken;
+    JobProgress waveformProgress;
+    juce::String waveformError;
+    const auto waveform =
+        WaveformCache::generate(*sourceAsset, waveformToken, waveformProgress, waveformError);
+    WaveformCacheRegistry waveformRegistry;
+    if (waveform == nullptr || !waveformRegistry.publish(waveform))
+        return {false, "SMOKE failure: waveform cache generation failed: " + waveformError};
+
+    if (controller.setLayerTrim(0U, 0U, 128U, 1920U).failed() ||
+        controller.setLayerLoop(0U, 0U, 256U, 512U).failed() ||
+        controller.setLayerLoopEnabled(0U, 0U, true).failed() ||
+        controller.setLayerReverseEnabled(0U, 0U, true).failed())
+        return {false, "SMOKE failure: trim/reverse/loop editing failed"};
+
+    PlaybackEngine editedEngine;
+    editedEngine.prepare(48000.0);
+    PlaybackStatePublisher editedPublisher{editedEngine, assets};
+    editedPublisher.publish(controller.project().state());
+    InputRouter editedInput{controller, editedEngine};
+    if (!editedInput.mouseDown(0U) || !renderFiniteSignal(editedEngine, 2048U, true) ||
+        editedEngine.activeVoiceCount() == 0U)
+        return {false, "SMOKE failure: reverse loop playback did not remain finite and active"};
+    editedInput.panic();
+    juce::ignoreUnused(renderFiniteSignal(editedEngine, 64U, false));
+    editedPublisher.clearWhenAudioIsStopped();
+
+    const auto* sourceReference =
+        findReference(controller.project().state(), sourceAsset->metadata().assetUuid);
+    if (sourceReference == nullptr)
+        return {false, "SMOKE failure: source metadata is unavailable"};
+    auto submitDerived = [&](const DerivedAssetOperation operation) {
+        const auto globalPad = std::size_t{0U};
+        const auto layerIndex = std::size_t{0U};
+        const auto& layer = controller.project().pad(globalPad).layers[layerIndex];
+        const auto immutable = assets.find(layer.assetUuid);
+        const auto* reference = findReference(controller.project().state(), layer.assetUuid);
+        if (immutable == nullptr || reference == nullptr)
+            return std::shared_ptr<const JobResult>{};
+        DerivedAssetRequest request{
+            JobSpec{controller.project().uuid(), controller.project().pad(globalPad).uuid,
+                    controller.project().revision(), 0, JobKind::derivedAsset},
+            immutable,
+            *reference,
+            resolveSamplePlaybackSettings(layer, reference->frameCount),
+            operation,
+            -1.0F,
+            0U,
+            temporaryDirectory.getChildFile("Derived"),
+            "Assets/Derived",
+            globalPad,
+            layerIndex};
+        if (!DerivedAssetRenderer::submit(jobs, std::move(request)).has_value())
+            return std::shared_ptr<const JobResult>{};
+        return awaitCompletion(jobs);
+    };
+
+    const auto normalized = submitDerived(DerivedAssetOperation::normalize);
+    if (normalized == nullptr || !normalized->succeeded ||
+        DerivedAssetRenderer::commit(*normalized, controller, assets).failed())
+        return {false, "SMOKE failure: normalize render/assignment failed"};
+    const auto cropped = submitDerived(DerivedAssetOperation::crop);
+    if (cropped == nullptr || !cropped->succeeded ||
+        DerivedAssetRenderer::commit(*cropped, controller, assets).failed())
+        return {false, "SMOKE failure: crop render/assignment failed"};
+    juce::MemoryBlock currentSourceBytes;
+    if (!sampleFile.loadFileAsData(currentSourceBytes) || currentSourceBytes != originalSourceBytes)
+        return {false, "SMOKE failure: derived operations changed source bytes"};
 
     auto ui = controller.project().state().ui;
     ui.selectedBank = 0U;
@@ -168,13 +292,17 @@ SmokeResult runSmokeScenario() {
     if (!renderFiniteSignal(engine, 256U, false))
         return {false, "SMOKE failure: panic produced non-finite output"};
 
+    const auto editedAssetUuid = controller.project().pad(0U).layers[0].assetUuid;
     const auto save = ProjectSerializer::save(controller.project(), projectFile);
     if (!save.succeeded)
         return {false, "SMOKE failure: " + save.message};
     auto loaded = Project::createEmpty();
     const auto load = ProjectSerializer::load(projectFile, loaded);
     if (load.failed() || loaded.state() != controller.project().state() ||
-        loaded.pad(0U).layers[0].assetUuid != "smoke-asset" || loaded.pad(0U).keyboardKey != "K" ||
+        loaded.pad(0U).layers[0].assetUuid != editedAssetUuid ||
+        loaded.state().derivedAssets.size() != 2U ||
+        !loaded.pad(0U).layers[0].playback.loopEnabled ||
+        !loaded.pad(0U).layers[0].playback.reverseEnabled || loaded.pad(0U).keyboardKey != "K" ||
         loaded.pad(0U).midiNote != 48U)
         return {false, "SMOKE failure: populated schema-v1 round trip failed"};
 
@@ -182,18 +310,63 @@ SmokeResult runSmokeScenario() {
     if (restoredController.restoreProject(std::move(loaded)).failed())
         return {false, "SMOKE failure: restored controller rejected the project"};
     SampleAssetRegistry restoredAssets{16U * 1024U * 1024U};
-    CancellationToken restoreToken;
-    JobProgress restoreProgress;
-    const auto restoredDecode =
-        SampleImporter::decode(makeImportRequest(restoredController, sampleFile, "smoke-asset"),
-                               restoreToken, restoreProgress);
-    const auto* restoredPayload =
-        restoredDecode != nullptr
-            ? static_cast<const SampleImportPayload*>(restoredDecode->immutablePayload.get())
-            : nullptr;
-    if (restoredDecode == nullptr || !restoredDecode->succeeded || restoredPayload == nullptr ||
-        restoredPayload->asset == nullptr || !restoredAssets.publish(restoredPayload->asset))
-        return {false, "SMOKE failure: restored external sample could not be resolved"};
+    if (!resolveAllAssets(restoredController, restoredAssets))
+        return {false, "SMOKE failure: restored project assets could not be resolved"};
+
+    const auto captureFile = temporaryDirectory.getChildFile("mock-recording.wav");
+    CaptureSession capture;
+    CaptureSpec captureSpec;
+    captureSpec.destination = captureFile;
+    captureSpec.sampleRate = 1000.0;
+    captureSpec.channels = 1U;
+    captureSpec.maximumFramesPerBlock = 16U;
+    captureSpec.fifoBlockCount = 250U;
+    captureSpec.mode = CaptureMode::manual;
+    captureSpec.sessionUuid = "smoke-recording-session";
+    captureSpec.target = CaptureTarget{restoredController.project().uuid(),
+                                       restoredController.project().pad(1U).uuid,
+                                       restoredController.project().pad(1U).layers[0].uuid,
+                                       restoredController.project().revision()};
+    if (!capture.prepare(captureSpec) || !capture.startManual())
+        return {false, "SMOKE failure: mocked capture could not arm/start"};
+    std::array<float, 64U> capturedInput{};
+    for (std::size_t frame = 0U; frame < capturedInput.size(); ++frame)
+        capturedInput[frame] = 0.4F * std::sin(static_cast<float>(frame) * 0.11F);
+    const std::array<const float*, 1U> capturedChannels{capturedInput.data()};
+    capture.processInput(capturedChannels.data(), 1U,
+                         static_cast<std::uint32_t>(capturedInput.size()));
+    capture.requestStop();
+    const auto captureStatus = awaitCapture(capture);
+    if (captureStatus.state != CaptureState::completed || captureStatus.incomplete ||
+        captureStatus.framesWritten != capturedInput.size() ||
+        !capture.completedFile().existsAsFile())
+        return {false, "SMOKE failure: mocked capture WAV finalization failed"};
+
+    const auto captureTarget = capture.completedTarget();
+    const RecordedAssetRequest recordedRequest{
+        JobSpec{captureTarget.projectUuid, captureTarget.padUuid, captureTarget.projectRevision, 0,
+                JobKind::recordedAsset},
+        capture.completedFile(),
+        captureSpec.sessionUuid,
+        "smoke-recorded-asset",
+        "Assets/Recorded/" + capture.completedFile().getFileName(),
+        "mock-input",
+        captureTarget.layerUuid,
+        1U,
+        0U,
+        restoredAssets.budgetBytes()};
+    CancellationToken recordedToken;
+    JobProgress recordedProgress;
+    const auto recorded =
+        RecordedAssetPublisher::decode(recordedRequest, recordedToken, recordedProgress);
+    if (recorded == nullptr || !recorded->succeeded ||
+        RecordedAssetPublisher::commit(*recorded, restoredController, restoredAssets).failed())
+        return {false, "SMOKE failure: completed recording could not assign to A2"};
+    if (!restoredController.undo() ||
+        !restoredController.project().pad(1U).layers[0].assetUuid.isEmpty() ||
+        !restoredController.redo() ||
+        restoredController.project().pad(1U).layers[0].assetUuid != "smoke-recorded-asset")
+        return {false, "SMOKE failure: recording assignment undo/redo failed"};
 
     PlaybackEngine restoredEngine;
     restoredEngine.prepare(48000.0);
@@ -202,18 +375,30 @@ SmokeResult runSmokeScenario() {
     InputRouter restoredInput{restoredController, restoredEngine};
     if (!restoredInput.keyDown('K', false) || !renderFiniteSignal(restoredEngine, 512U, true) ||
         !restoredInput.keyUp('K'))
-        return {false, "SMOKE failure: restored project did not retrigger"};
+        return {false, "SMOKE failure: edited A1 did not retrigger"};
+    if (!restoredInput.mouseDown(1U) || !renderFiniteSignal(restoredEngine, 128U, true) ||
+        !restoredInput.mouseUp(1U))
+        return {false, "SMOKE failure: recorded A2 did not retrigger"};
+
+    const auto finalSave = ProjectSerializer::save(restoredController.project(), projectFile);
+    auto finalLoaded = Project::createEmpty();
+    if (!finalSave.succeeded || ProjectSerializer::load(projectFile, finalLoaded).failed() ||
+        finalLoaded.state() != restoredController.project().state() ||
+        finalLoaded.state().recordedAssets.size() != 1U)
+        return {false, "SMOKE failure: final Milestone 2 semantic round trip failed"};
 
     restoredInput.panic();
     renderFiniteSignal(restoredEngine, 256U, false);
     publisher.clearWhenAudioIsStopped();
     restoredPublisher.clearWhenAudioIsStopped();
+    capture.shutdown();
     jobs.shutdown();
     assets.clear();
     restoredAssets.clear();
     juce::ignoreUnused(cleanup);
     return {true,
-            "SMOKE success: generated import, parameters, mouse/keyboard/MIDI modes, populated "
-            "schema-v1 save/load, external resolution, and restored playback passed"};
+            "SMOKE success: import, waveform cache, trim/reverse/loop, normalize/crop, schema-v1 "
+            "round trip, mocked WAV capture, A2 assignment, retrigger, undo/redo, finite render, "
+            "and temporary cleanup passed"};
 }
 } // namespace padflow
