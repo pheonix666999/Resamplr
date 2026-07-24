@@ -1,9 +1,11 @@
 # PadFlow
 
 PadFlow is an original, offline, standalone desktop sampler project by Ali Ammar Audio. Version
-0.1.0 contains the Milestone 1 playable RAM-resident sampler: four banks of sixteen pads, four
-velocity layers per pad, WAV/AIFF/FLAC import and preview, mouse/keyboard/MIDI triggering,
-deterministic 128-voice playback, device settings, and schema-v1 project save/load.
+0.1.0 contains the playable RAM-resident sampler plus Milestone 2 non-destructive waveform editing
+and recording: four banks of sixteen pads, four velocity layers per pad, WAV/AIFF/FLAC import and
+preview, mouse/keyboard/MIDI triggering, deterministic 128-voice playback, device settings,
+frame-bound trim/loop/reverse, derived PCM operations, input capture, and schema-v1 project
+save/load.
 
 ## Status and platforms
 
@@ -43,14 +45,41 @@ padflow_smoke
 PadFlow --headless-smoke-test --no-audio-device
 ```
 
-They generate a temporary WAV, import it through the bounded worker path, exercise mouse/keyboard/
-MIDI modes, render finite non-silence, save and reload a populated schema-v1 project, resolve its
-external sample, retrigger, and clean temporary files without physical audio or MIDI devices.
+They generate a temporary WAV, import and analyse it through bounded worker paths, edit and render
+trim/reverse/loop playback, create normalize/crop derived assets without changing the source,
+round-trip a populated schema-v1 project, record mocked input through the capture FIFO/writer,
+assign and retrigger the WAV, verify undo/redo, and clean temporary files. No physical audio, MIDI,
+or input device is required.
+
+## Waveform editing and recording
+
+Select a loaded layer to use its cached waveform editor. Teal markers delimit the inclusive/exclusive
+trim range, amber markers delimit the loop, and the coral playhead follows callback-published
+position data. Drag markers or select one and use the arrow keys; Shift+arrow performs a coarse
+nudge. The wheel zooms around the cursor, middle/right drag pans, and the Fit and Selection buttons
+restore useful views. Loop, Reverse, zero-crossing preference, audition, reset, and process controls
+commit through the project controller and remain undoable.
+
+The Process menu creates a new project-owned WAV for Normalize, Stereo to mono, Fade in, Fade out,
+or Crop. The source is never overwritten. Normalize defaults to -1 dBFS, stereo conversion uses
+`(left + right) * 0.5`, fades are linear, and crop uses the active half-open trim range.
+
+Open Record to choose input channels, Manual or Threshold mode, threshold, 0–2000 ms pre-roll,
+destination bank/pad/layer, and automatic assignment. Arm prepares bounded storage; Record starts a
+manual take, while threshold mode waits for a crossing. Stop drains and validates a 24-bit WAV on
+the writer thread. Cancel, device/project changes, overflow, or shutdown never publish an incomplete
+take. A completed non-auto-assigned take remains available through Assign take.
+
+CI-generated Milestone 2 UI evidence:
+
+![PadFlow waveform editor](docs/images/padflow-milestone2-waveform-editor.png)
+
+![PadFlow recording panel](docs/images/padflow-milestone2-recording-panel.png)
 
 ## Installation, settings, and projects
 
-Milestone 1 development archives are unsigned and contain `UNSIGNED.txt`. Production installers and
-DMG publication arrive in Milestone 10. Gatekeeper or SmartScreen may warn about unsigned development
+Development archives are unsigned and contain `UNSIGNED.txt`. Production installers and DMG
+publication arrive in Milestone 10. Gatekeeper or SmartScreen may warn about unsigned development
 builds.
 
 Planned settings locations:

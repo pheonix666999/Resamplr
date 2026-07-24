@@ -2,60 +2,71 @@
 
 ## Current milestone
 
-Milestone 2 — waveform editing and recording: **started on
+Milestone 2 — waveform editing and recording: **complete and ready for review on
 `feature/milestone-2-waveform-recording`**.
 
 Milestone 1 was merged into `main` at `e11eb4e45b6b04ab6504f070f1ffd646a18f1389`.
 [Post-merge run 30076870715](https://github.com/pheonix666999/Resamplr/actions/runs/30076870715)
 passed validation, Windows x64, macOS universal, macOS Intel smoke, and cross-platform artifact
-verification before the Milestone 2 branch was created. Milestone 2 acceptance authorities are now
-defined in `PLANS.md` and `TEST_PLAN.md`; product implementation has not yet been claimed complete.
+verification before the Milestone 2 branch was created.
 
-The immutable waveform-cache slice provides cancellable bounded-worker generation, mono/stereo
-multi-resolution min/max summaries, source-identity validation, separate unique-cache memory
-accounting, and stale completion rejection. Hosted validation passed in
-[run 30079156560](https://github.com/pheonix666999/Resamplr/actions/runs/30079156560) on commit
-`5688575506258ffa234ffd51cebf1f144d53e8e7`; all five jobs passed.
+Milestone 2 adds immutable bounded mono/stereo waveform caches; a selected-layer waveform editor
+with trim, loop, reverse, zoom, pan, marker nudge, audition, and callback-published playhead;
+deterministic project-owned normalize, stereo-to-mono, fade, and crop derivatives; and manual or
+threshold input capture with pre-roll. Capture storage is prepared before arming, the callback only
+copies into bounded preallocated storage and updates atomics, and a session writer owns `.part`
+creation, 24-bit WAV finalization, validation, publication, and cleanup. Successful recordings use
+the normal immutable asset path and fixed project/pad/layer/revision validation before assignment.
+Every accepted edit or assignment is covered by unified undo/redo and schema-v1-compatible
+persistence. Milestone 1 project payloads remain loadable.
 
-[Frame-bound run 30080473401](https://github.com/pheonix666999/Resamplr/actions/runs/30080473401)
-compiled the trim/loop/reverse implementation and passed every new Milestone 2 test, but legacy
-device/input fixtures constructed raw snapshots with zero-valued Milestone 2 bounds and therefore
-terminated voices immediately. The full-asset compatibility fallback and focused coverage are
-tracked by `REGRESSION-M2-001`. Hosted
-[revalidation run 30081191847](https://github.com/pheonix666999/Resamplr/actions/runs/30081191847)
-passed all five jobs.
+## Milestone 2 final validation — 2026-07-24
 
-The selected-layer editor phase now has cache-backed mono/stereo waveform display, bounded zoom and
-horizontal navigation, draggable trim and loop markers with one controller transaction per drag,
-keyboard marker nudging, fit/reset controls, reverse/loop/zero-crossing preferences, boundary-aware
-sampler audition, explicit stop, accessible control identities, and headless UI coverage. Hosted
-run `30082704347` reached the new sources and stopped on portable warnings-as-errors and one JUCE
-drawing API mismatch before tests; the focused remediation is tracked by `REGRESSION-M2-002`.
-[Revalidation run 30082956358](https://github.com/pheonix666999/Resamplr/actions/runs/30082956358)
-passed all five jobs, including Linux Debug/Release, Windows Debug/Release and smoke/package paths,
-both macOS variants, universal architecture inspection, and cross-platform artifact verification.
+[Final run 30090128569](https://github.com/pheonix666999/Resamplr/actions/runs/30090128569)
+completed successfully on validated implementation commit
+`d10f23ef4aa1f3cd051fba84acf8d121d16948a9`. All five required jobs passed:
 
-The derived-asset phase is in implementation: deterministic recipes, cancellable immutable PCM
-transforms, project-owned WAV publication, provenance persistence, stale-target cleanup, and unified
-assignment undo/redo passed all five hosted jobs in
-[run 30084397590](https://github.com/pheonix666999/Resamplr/actions/runs/30084397590).
+- `validation`: Linux GCC Debug and Release, static checks, 6/6 CTest registrations, and the two
+  explicit Debug smoke invocations.
+- `windows-x64`: MSVC Debug and Release, 6/6 CTest registrations, both explicit Release smoke
+  invocations, actual offscreen UI screenshots, unsigned packaging, and archive verification.
+- `macos-universal`: Release tests and both smoke paths, arm64/x86_64 `lipo` inspection, unsigned
+  packaging, and archive verification.
+- `macos-intel-smoke`: x86_64 Release tests, both smoke paths, and architecture inspection.
+- `artifact-verification`: cross-platform verification of both development archives.
 
-The capture-pipeline phase is present locally with four seconds of preallocated FIFO capacity,
-manual and threshold state machines, a two-second-capable pre-roll ring, bounded callback copying,
-atomic meters/counters, explicit overflow rejection, a session-specific writer thread, sibling
-`.part` publication, WAV validation, collision-safe names, and cancellation cleanup. Device changes
-and shutdown cancel active capture rather than silently abandoning it. All five hosted jobs passed
-in [run 30085826225](https://github.com/pheonix666999/Resamplr/actions/runs/30085826225).
+That is 18/18 CTest registrations across six native configurations, eight additional successful
+console/GUI smoke invocations, and 114 named unit-test groups. The final artifacts are
+`windows-development` (`8595610630`), `macos-development` (`8595483660`), and
+`milestone2-ui-screenshots` (`8595608598`). The inspected CI-generated evidence is preserved in
+[`docs/images/padflow-milestone2-waveform-editor.png`](docs/images/padflow-milestone2-waveform-editor.png)
+and
+[`docs/images/padflow-milestone2-recording-panel.png`](docs/images/padflow-milestone2-recording-panel.png).
 
-Recorded-asset integration is present locally: successful WAVs decode through the immutable sample
-path, preserve schema-v1 recording provenance and stable preferences, validate fixed
-project/pad/layer/revision destinations, and commit assignment plus undo/redo as one transaction.
-Stale completions leave their valid WAV unassigned. Hosted validation is pending.
+Milestone 2 Actions and remediation history:
 
-The recording/processing UI is present locally with typed asynchronous completion routing,
-non-destructive normalize/mono/fade/crop entry points, an explicit manual/threshold capture panel,
-live meter/elapsed/overflow feedback, fixed destinations, automatic or confirmed assignment, and
-mocked headless UI integration. Hosted validation is pending, and Milestone 2 is not yet complete.
+| Run | Result | Scope or diagnosis |
+|---|---|---|
+| `30078089044` | success | Acceptance-plan baseline |
+| `30079156560` | success | Immutable waveform cache |
+| `30080473401` | failure | Legacy raw snapshots had zero-valued new bounds |
+| `30081191847` | success | Full-asset compatibility fallback (`REGRESSION-M2-001`) |
+| `30082704347` | failure | Portable JUCE drawing API and warnings-as-errors diagnostics |
+| `30082956358` | success | Waveform editor portability remediation (`REGRESSION-M2-002`) |
+| `30084397590` | success | Non-destructive derived assets |
+| `30085826225` | success | Real-time-safe capture pipeline |
+| `30087206829` | failure | Unsupported recording-slider suffix API |
+| `30087346364` | failure | Nested headless control lookup and hidden focus assertion |
+| `30087777765` | success | Recording UI headless remediation (`REGRESSION-M2-004/005`) |
+| `30088626389` | failure | Invalid-bound fixture missed canonical pretty-printed token |
+| `30088986594` | cancelled | Correct fixture was green on Linux/macOS; superseded during Windows build |
+| `30089702312` | failure | Persistent looped one-shot contaminated the following Gate smoke assertion |
+| `30090128569` | success | Final integration and smoke remediation (`REGRESSION-M2-007`) |
+
+Project-owned compiler diagnostics remain warnings-as-errors. The failed runs above were repaired
+without weakening tests, changing JUCE, suppressing project diagnostics, or removing a runner.
+`BLOCKED_REFERENCE_ASSET` remains unchanged, exact Resamplr parity is not claimed, and Milestone 3
+chopping functionality was not started.
 
 The Milestone 0 repository, pinned dependency, targets, interfaces, schema-v1 skeleton, tests, smoke
 paths, packaging, and workflows remain the validated baseline. Milestone 1 adds the fixed
