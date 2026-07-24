@@ -216,6 +216,149 @@ must be used; physical audio and MIDI hardware are never required.
 | UIHEADLESS-M1-010 | File drop assigns multiple generated files sequentially with overwrite policy. |
 | UIHEADLESS-M1-011 | Main layout meets minimum bounds and exposes focus indicators at tested scales. |
 
+## Milestone 2 waveform editing and recording
+
+All Milestone 2 fixtures are synthetic and all capture input is mocked. No physical audio interface
+or microphone is required. Frame boundaries use an inclusive start and exclusive end. Invalid edits
+are rejected without mutation unless an acceptance row explicitly specifies deterministic clamping.
+
+### Waveform cache
+
+| ID | Acceptance |
+|---|---|
+| WAVE-M2-001 | A mono asset produces immutable per-channel minimum/maximum peak summaries. |
+| WAVE-M2-002 | A stereo asset preserves independent left/right peak summaries. |
+| WAVE-M2-003 | One-frame and very short assets produce valid non-empty cache levels. |
+| WAVE-M2-004 | Successive resolution levels cover the complete source with deterministic block aggregation. |
+| WAVE-M2-005 | Asset UUID, fingerprint, algorithm, channel, or frame mismatch invalidates a cached result. |
+| WAVE-M2-006 | A completion for a stale project/asset UUID or revision is discarded without publication. |
+| WAVE-M2-007 | Cancellation leaves the cache registry and project unchanged and releases work safely. |
+| WAVE-M2-008 | Separate cache accounting is checked, bounded, counts shared entries once, and rejects over-budget publication. |
+
+### Frame-bound editing
+
+| ID | Acceptance |
+|---|---|
+| EDIT-M2-001 | A newly assigned asset defaults to `[0, sourceFrameCount)` with loop bounds matching trim, loop off, and reverse off. |
+| EDIT-M2-002 | Trim and loop starts are inclusive, ends exclusive, and every accepted range contains at least one frame. |
+| EDIT-M2-003 | A one-frame trim and one-frame loop are valid and stable. |
+| EDIT-M2-004 | A trim start outside `[0, endFrame)` is rejected without mutation. |
+| EDIT-M2-005 | A trim end outside `(startFrame, sourceFrameCount]` is rejected without mutation. |
+| EDIT-M2-006 | A loop wholly inside the active trim is accepted. |
+| EDIT-M2-007 | A loop outside the active trim is rejected without mutation. |
+| EDIT-M2-008 | Shrinking trim clamps both loop bounds into trim while preserving one frame where possible; otherwise loop resets to trim and is disabled. |
+| EDIT-M2-009 | One completed marker drag creates exactly one undo entry and undo/redo restores exact bounds. |
+| EDIT-M2-010 | Reverse enablement survives semantic save/load and undo/redo. |
+| EDIT-M2-011 | Loop enablement and bounds survive semantic save/load and undo/redo. |
+
+### Trim, loop, and reverse playback
+
+| ID | Acceptance |
+|---|---|
+| AUDIO-M2-001 | Forward playback begins exactly at the inclusive trim start. |
+| AUDIO-M2-002 | Forward non-loop playback stops before the exclusive trim end. |
+| AUDIO-M2-003 | Reverse playback begins immediately before the exclusive trim end. |
+| AUDIO-M2-004 | Reverse non-loop playback stops before crossing the inclusive trim start. |
+| AUDIO-M2-005 | Forward playback wraps inside `[loopStartFrame, loopEndFrame)`. |
+| AUDIO-M2-006 | Reverse playback wraps inside `[loopStartFrame, loopEndFrame)`. |
+| AUDIO-M2-007 | Forward and reverse wrapping retain fractional overshoot deterministically. |
+| AUDIO-M2-008 | A one-frame loop stays finite, in range, and stoppable. |
+| AUDIO-M2-009 | Gate release continues within the loop until envelope completion. |
+| AUDIO-M2-010 | Hermite interpolation at every trim/loop/source boundary is finite and deterministically clamped. |
+| AUDIO-M2-011 | Guarded fixtures detect no source read outside `[0, sourceFrameCount)`. |
+| AUDIO-M2-012 | Reverse and boundary edits affect new triggers only; active voices retain their published state. |
+| AUDIO-M2-013 | Every Milestone 1 playback, voice-allocation, trigger, and panic test remains valid. |
+
+### Derived immutable assets
+
+| ID | Acceptance |
+|---|---|
+| DERIVED-M2-001 | Normalize scales non-silent PCM without changing source PCM. |
+| DERIVED-M2-002 | Normalize leaves silent PCM silent with no NaN or infinity. |
+| DERIVED-M2-003 | Default normalize output peaks at -1.0 dBFS within numerical policy. |
+| DERIVED-M2-004 | Stereo-to-mono output is `(left + right) * 0.5` per frame. |
+| DERIVED-M2-005 | Mono-to-mono returns an explicit deterministic reusable no-op result. |
+| DERIVED-M2-006 | Linear fade-in starts at zero, reaches unity at its boundary, and never reads outside the operation region. |
+| DERIVED-M2-007 | Linear fade-out starts at unity, ends at zero, and never reads outside the operation region. |
+| DERIVED-M2-008 | Crop output contains exactly `[startFrame, endFrame)` and reports its exact frame count. |
+| DERIVED-M2-009 | Crop resets assigned trim to the complete derived asset. |
+| DERIVED-M2-010 | Crop rebases a retained valid loop; otherwise it resets loop to trim and disables it. |
+| DERIVED-M2-011 | Every operation leaves the source file bytes and source immutable PCM unchanged. |
+| DERIVED-M2-012 | Identical canonical source fingerprint/operation/version/parameters reuse one derived recipe result. |
+| DERIVED-M2-013 | Cancellation removes temporary output and leaves model, registry, and undo history unchanged. |
+| DERIVED-M2-014 | A stale project/pad/layer/revision completion is discarded without assignment. |
+| DERIVED-M2-015 | Undo/redo switches the layer asset reference while retaining both immutable assets off callback. |
+| DERIVED-M2-016 | Unreferenced derived data remains available for undo and is removed only by explicit cleanup/compaction. |
+
+### Recording
+
+| ID | Acceptance |
+|---|---|
+| RECORD-M2-001 | Preparing a session allocates at least four seconds of bounded FIFO storage and all pre-roll storage before arming. |
+| RECORD-M2-002 | Manual start/stop records the exact accepted synthetic frames and reaches Completed. |
+| RECORD-M2-003 | Threshold mode remains Waiting while the input peak is below the configured threshold. |
+| RECORD-M2-004 | The first threshold crossing starts one capture exactly once. |
+| RECORD-M2-005 | Included pre-roll frames are written in chronological order. |
+| RECORD-M2-006 | Pre-roll remains chronological across circular-buffer wrap. |
+| RECORD-M2-007 | The pre-roll/live boundary contains no duplicated or omitted trigger frames. |
+| RECORD-M2-008 | Mono input produces a valid mono recording with exact frame accounting. |
+| RECORD-M2-009 | Stereo input preserves interleaving and exact frame accounting. |
+| RECORD-M2-010 | Writer stop drains, finalizes, flushes, closes, validates, and publishes only off callback. |
+| RECORD-M2-011 | A successful default WAV has a readable header, expected channels/rate/frames, and finite samples. |
+| RECORD-M2-012 | FIFO saturation atomically increments overflow and marks the session incomplete. |
+| RECORD-M2-013 | Incomplete capture deletes `.part`/output and creates no successful asset or undo entry. |
+| RECORD-M2-014 | Cancellation shuts down safely, deletes temporary output, and creates no assignment. |
+| RECORD-M2-015 | Repeated recording names publish through deterministic collision-safe suffixes. |
+| RECORD-M2-016 | A stale project/pad/layer/revision never mutates another destination; a valid file may remain unassigned. |
+| RECORD-M2-017 | A completed valid recording publishes through the immutable registry and assigns the selected layer. |
+| RECORD-M2-018 | Undo/redo removes and restores the recording assignment without rewriting recorded PCM. |
+| RECORD-M2-019 | Device/sample-rate change is rejected while active or cancels safely before recreating storage off callback. |
+| RECORD-M2-020 | Project/application close cancels or drains the writer and leaves no abandoned temporary capture. |
+
+### Milestone 2 threading
+
+| ID | Acceptance |
+|---|---|
+| THREAD-M2-001 | Waveform worker cancellation cannot publish a late result. |
+| THREAD-M2-002 | Derived-render cancellation cannot publish a file, asset, or model edit. |
+| THREAD-M2-003 | A full capture FIFO returns failure immediately and never silently accepts a descriptor. |
+| THREAD-M2-004 | A deliberately slow writer cannot block the producer and yields observable incomplete status. |
+| THREAD-M2-005 | Callback capture paths contain no filesystem or audio-writer operation. |
+| THREAD-M2-006 | Steady-state capture and pre-roll callback paths perform zero allocation. |
+| THREAD-M2-007 | Writer shutdown drains or cancels deterministically and joins off callback. |
+| THREAD-M2-008 | Recording asset publication occurs only after writer finalization and validation. |
+| THREAD-M2-009 | Waveform, derived, and recorded immutable owners are destroyed off the audio thread. |
+
+### Milestone 2 persistence
+
+| ID | Acceptance |
+|---|---|
+| SAVE-M2-001 | Milestone 1 schema-v1 projects load with deterministic full-range editing defaults. |
+| SAVE-M2-002 | Trim bounds survive semantic round trip exactly. |
+| SAVE-M2-003 | Loop bounds and enablement survive semantic round trip exactly. |
+| SAVE-M2-004 | Reverse and zero-crossing preference survive semantic round trip exactly. |
+| SAVE-M2-005 | Derived records and canonical provenance survive semantic round trip. |
+| SAVE-M2-006 | Recorded project-owned asset records survive semantic round trip. |
+| SAVE-M2-007 | Missing derived/recorded files retain references and explicit missing state. |
+| SAVE-M2-008 | Invalid persisted boundaries produce diagnostics and no partial project commit. |
+| SAVE-M2-009 | Missing/invalid waveform caches are ignored and regenerable because caches are non-authoritative. |
+| SAVE-M2-010 | A populated Milestone 2 project is semantically equal after save/load. |
+
+### Milestone 2 UI-independent and GUI-headless integration
+
+| ID | Acceptance |
+|---|---|
+| UIHEADLESS-M2-001 | The waveform editor constructs with accessible named controls and explicit loading/missing states. |
+| UIHEADLESS-M2-002 | Every layer can be selected without invalid access and displays its own edit state. |
+| UIHEADLESS-M2-003 | Controller/UI commits a valid trim as one transaction and republishes playback. |
+| UIHEADLESS-M2-004 | Controller/UI rejects an invalid trim without model or playback mutation. |
+| UIHEADLESS-M2-005 | Loop control commits only valid bounds and enablement. |
+| UIHEADLESS-M2-006 | Reverse control updates new triggers and visible direction state. |
+| UIHEADLESS-M2-007 | A derived operation reports progress and commits one valid immutable result. |
+| UIHEADLESS-M2-008 | Recording controls traverse only valid explicit state transitions. |
+| UIHEADLESS-M2-009 | A completed recording can be assigned to the selected destination and retriggered. |
+| UIHEADLESS-M2-010 | Populated trim/reverse/loop/derived/recording state saves, reloads, resolves, and renders finite non-silence. |
+
 ## Project model — Milestone 1 unless noted
 
 | ID | Test |

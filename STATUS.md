@@ -2,8 +2,14 @@
 
 ## Current milestone
 
-Milestone 1 — playable RAM-resident sampler: **complete and ready for review on
-`feature/milestone-1-playable-sampler`**.
+Milestone 2 — waveform editing and recording: **started on
+`feature/milestone-2-waveform-recording`**.
+
+Milestone 1 was merged into `main` at `e11eb4e45b6b04ab6504f070f1ffd646a18f1389`.
+[Post-merge run 30076870715](https://github.com/pheonix666999/Resamplr/actions/runs/30076870715)
+passed validation, Windows x64, macOS universal, macOS Intel smoke, and cross-platform artifact
+verification before the Milestone 2 branch was created. Milestone 2 acceptance authorities are now
+defined in `PLANS.md` and `TEST_PLAN.md`; product implementation has not yet been claimed complete.
 
 The Milestone 0 repository, pinned dependency, targets, interfaces, schema-v1 skeleton, tests, smoke
 paths, packaging, and workflows remain the validated baseline. Milestone 1 adds the fixed
@@ -11,7 +17,7 @@ four-bank/64-pad model, four immutable velocity layers per pad, stable identitie
 parameters, unified undo/redo, asynchronous WAV/AIFF/FLAC import and preview, mouse/keyboard/MIDI
 input, persistent device routing, deterministic 128-voice playback, the original sampler UI,
 external-reference project load/resolution, populated-project smoke coverage, and Milestone 1
-development artifacts. No Milestone 2 feature has started.
+development artifacts.
 
 The schema-v1 persistence slice now serializes and validates the complete Milestone 1 model,
 preserves Milestone 0 manifest compatibility, rejects partial/invalid payloads without changing the

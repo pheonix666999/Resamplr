@@ -10,7 +10,7 @@ targets, bounded-worker and immutable-asset interfaces, real-time queue and capt
 schema-v1 bundle skeleton, shared headless smoke path, unit tests, scripts, and Linux/Windows/macOS CI.
 The invalid video is recorded as `BLOCKED_REFERENCE_ASSET`; reference-parity approval is excluded.
 
-## Milestone 1 — playable RAM-resident sampler (current)
+## Milestone 1 — playable RAM-resident sampler (complete)
 
 Milestone 1 replaces the foundation view with a genuinely playable sampler. It remains limited to
 RAM-resident sample playback: no trimming, loops, recording, chopping, sequencing, effects,
@@ -83,10 +83,76 @@ resampling, skipback, export, MIDI clock, parameter locks, 16 Levels, or Roll.
 - Finish only after Linux Debug/Release, Windows Debug/Release, macOS universal, macOS Intel, smoke,
   packaging, and cross-platform artifact verification are green and `STATUS.md` records the facts.
 
-## Milestone 2 — waveform editing and recording
+## Milestone 2 — waveform editing and recording (current)
 
-Waveform cache; metadata trim/loop/reverse; derived normalize/mono/fade/crop; input recording,
-pre-roll, capture FIFO/writer, and reference-based undo/redo.
+Milestone 2 extends the playable sampler with non-destructive frame-bound editing, immutable
+derived PCM, and audio-input recording. It does not include chopping, sequencing, effects,
+resampling, skipback, song mode, or export. Milestone 1 behavior and schema-v1 compatibility remain
+regression gates throughout.
+
+### Phase 1 — acceptance contract and waveform cache
+
+- Add the `WAVE-M2-*`, `EDIT-M2-*`, `AUDIO-M2-*`, `DERIVED-M2-*`, `RECORD-M2-*`,
+  `THREAD-M2-*`, `SAVE-M2-*`, and `UIHEADLESS-M2-*` authorities before product changes.
+- Generate immutable mono/stereo multi-resolution min/max summaries on bounded workers.
+- Key caches by asset UUID, source fingerprint, algorithm version, channels, and source frames;
+  enforce a separate bounded memory budget and stale/cancelled result rejection.
+
+### Phase 2 — frame-bound model, persistence, and playback
+
+- Add inclusive trim/loop starts, exclusive ends, loop enablement, reverse, zero-crossing preference,
+  and selected-layer editor state with one-transaction undo/redo.
+- Default imported assets to the full source range and validate every published boundary against
+  immutable source metadata.
+- Extend playback snapshots and fixed voices for forward/reverse trim and loop wrapping while
+  retaining fractional overshoot, deterministic Hermite bounds, and new-trigger-only edit updates.
+- Extend schema v1 additively, load Milestone 0/1 files unchanged, and reject invalid partial
+  Milestone 2 state without a partial model commit.
+
+### Phase 3 — functional waveform editor
+
+- Add selected-layer waveform display, distinct trim/loop/playhead markers, loading/missing states,
+  duration/position readouts, accessible focus, and minimum-window/high-DPI behavior.
+- Add validated marker dragging/nudging, cursor-centred zoom, horizontal navigation, fit/selection
+  views, optional zero-crossing/time snap, audition controls, loop toggle, and reverse toggle.
+- Keep chopping markers and slice assignment out of this milestone.
+
+### Phase 4 — immutable derived assets
+
+- Render normalize, stereo-to-mono, linear fade-in/out, and crop on cancellable bounded workers.
+- Write project-owned derived audio through sibling temporary files, validate before publication,
+  retain deterministic provenance/recipes, reuse matching recipes, and never overwrite sources.
+- Revalidate project/pad/layer/revision on the message thread, publish through the normal immutable
+  registry, and commit one reference-based undo entry.
+
+### Phase 5 — real-time-safe input capture
+
+- Prepare one foreground session with at least four seconds of preallocated FIFO storage, a
+  pre-roll ring, fixed session/target identity, and explicit state before arming.
+- Limit the callback to input copies, fixed descriptors, bounded queues, threshold state, and atomic
+  counters/meters. A dedicated writer owns `.part` creation, WAV encoding/finalization, validation,
+  collision-safe publication, cleanup, and failure reporting.
+- Support manual and threshold start, 0–2000 ms pre-roll, mono/stereo input, cancellation, overflow
+  rejection, stale destinations, and safe project/device shutdown.
+
+### Phase 6 — recording UI and assignment
+
+- Add explicit Idle/Armed/Waiting/Recording/Stopping/Finalizing/Completed/Cancelled/Failed states,
+  input routing, meter, mode, threshold, pre-roll, controls, destination, elapsed time, overflow,
+  filename, and result messaging.
+- Assign successful recordings through the immutable asset path and unified undo/redo; incomplete,
+  failed, cancelled, or stale captures never create an assignment or undo entry.
+
+### Phase 7 — integration, packaging, and hosted remediation
+
+- Extend console/GUI smoke with trim/reverse/loop, derived normalize/crop, schema round trip, mocked
+  capture/WAV validation, recording assignment, retrigger, undo/redo, and temporary cleanup.
+- Run format/static validation, clean Debug/Release builds, CTest, smoke, unsigned packaging,
+  architecture inspection, and artifact verification.
+- Push coherent phases and inspect the actual hosted Linux, Windows, macOS universal, macOS Intel,
+  and artifact jobs. Every discovered project defect receives a `REGRESSION-*` authority.
+- Finish only after a full green workflow and an updated `STATUS.md`; exact reference parity remains
+  blocked by `BLOCKED_REFERENCE_ASSET`.
 
 ## Milestone 3 — chopping
 
