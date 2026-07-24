@@ -26,3 +26,7 @@ Dependencies are immutable and upgraded only in a reviewed milestone-boundary co
 Expensive work uses `BackgroundJobSystem`; results carry target UUID/revision and are committed only
 by the message thread. Audio and capture code must follow `docs/AUDIO_THREAD_RULES.md`. Project work
 must follow `docs/PROJECT_FORMAT.md`. Add stable test IDs before claiming new acceptance behavior.
+
+Milestone 1 playback publication couples each raw-view snapshot to message-thread-owned immutable
+sample owners. Reclamation is gated by the oldest generation still referenced by a callback voice;
+never replace this with current-snapshot acknowledgement alone.

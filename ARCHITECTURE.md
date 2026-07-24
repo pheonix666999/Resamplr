@@ -29,9 +29,9 @@ owner UUID, target UUID, target revision, cancellation, and progress. A complete
 only after the message thread revalidates those values. Queue exhaustion, cancellation, failure, or
 stale targets leave the project unchanged.
 
-Decoded mono/stereo float PCM is immutable and shared. The Milestone 1 registry defaults to 256 MiB
-and accepts a platform-clamped configured limit; future settings may expose values through
-`min(16 GiB, 50% physical RAM)`. Unique source/derived PCM counts once. WAV, AIFF, and FLAC readers
+Decoded mono/stereo float PCM is immutable and shared. The Milestone 1 registry defaults to 2 GiB
+and accepts a configured limit from 256 MiB through `min(16 GiB, 50% physical RAM)`. Unique
+source/derived PCM counts once. WAV, AIFF, and FLAC readers
 run only on bounded workers. Before allocating decoded PCM they validate channel count, frame
 arithmetic, and the request budget. Message-thread commit rechecks owner UUID, target UUID, and
 revision, publishes the immutable asset, then atomically assigns the layer and external reference;
@@ -48,11 +48,14 @@ writer owns a `.part` file. Overflow increments an atomic counter, marks the res
 deletes the temporary output, warns the user, and never creates an asset.
 
 Milestone 1 playback uses an immutable raw-view snapshot published off callback, a bounded SPSC
-command queue, and exactly 128 stable-index preallocated voices. Voice selection is deterministic,
-with pad-local limits before global oldest-age stealing and pool index as the final tie-breaker.
-Rendering performs source/output-rate conversion, four-point Hermite interpolation, ADSR, layer and
-pad gain/pan/tuning, velocity selection, mono/poly behavior, gate/one-shot/toggle modes, choke
-release, finite-output guards, panic, and atomic metering without callback ownership changes.
+command queue, and exactly 128 stable-index preallocated voices. Each published wrapper retains the
+immutable asset owners referenced by its raw views. The callback reports the oldest generation
+still used by active voices; the message thread reclaims older wrappers only after that
+acknowledgement. Voice selection is deterministic, with pad-local limits before global oldest-age
+stealing and pool index as the final tie-breaker. Rendering performs source/output-rate conversion,
+four-point Hermite interpolation, ADSR, layer and pad gain/pan/tuning, velocity selection,
+mono/poly behavior, gate/one-shot/toggle modes, choke release, finite-output guards, panic, and
+atomic metering without callback ownership changes.
 
 ## Determinism
 

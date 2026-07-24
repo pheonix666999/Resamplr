@@ -5,7 +5,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-if (-not $DevelopmentArchive) { throw "Milestone 0 supports only -DevelopmentArchive" }
+if (-not $DevelopmentArchive) { throw "Milestone 1 supports only -DevelopmentArchive" }
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $build = Join-Path $root $BuildDirectory
@@ -22,7 +22,7 @@ Copy-Item -LiteralPath (Join-Path $root "THIRD_PARTY_LICENSES.md") -Destination 
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText(
     (Join-Path $stage "UNSIGNED.txt"),
-    "Unsigned Milestone 0 development build.`n",
+    "Unsigned Milestone 1 development build.`n",
     $utf8NoBom)
 $manifest = @{ product = "PadFlow"; version = "0.1.0"; platform = "windows-x64"; signed = $false } |
     ConvertTo-Json

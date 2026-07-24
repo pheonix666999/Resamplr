@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [[ "${1:-}" != "--development-archive" ]]; then
-    echo "Milestone 0 supports only --development-archive" >&2
+    echo "Milestone 1 supports only --development-archive" >&2
     exit 2
 fi
 
@@ -17,7 +17,7 @@ rm -rf "${stage}"
 mkdir -p "${stage}"
 cp -R "${app}" "${stage}/"
 cp "${root}/README.md" "${root}/LICENSE.md" "${root}/THIRD_PARTY_LICENSES.md" "${stage}/"
-printf '%s\n' 'Unsigned Milestone 0 development build.' > "${stage}/UNSIGNED.txt"
+printf '%s\n' 'Unsigned Milestone 1 development build.' > "${stage}/UNSIGNED.txt"
 printf '%s\n' '{"platform":"macos-universal","product":"PadFlow","signed":false,"version":"0.1.0"}' > "${stage}/build-manifest.json"
 mkdir -p "${output}"
 archive="${output}/PadFlow-macOS-Universal-Development-Unsigned.zip"

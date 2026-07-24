@@ -31,7 +31,8 @@ resampling, skipback, export, MIDI clock, parameter locks, 16 Levels, or Roll.
   and decoded bytes.
 - Decode WAV, AIFF, and FLAC on bounded workers; validate owner/target UUID and revision on message
   thread before committing.
-- Enforce unique-asset accounting and the configurable 256 MiB–platform-cap budget.
+- Enforce unique-asset accounting and the configurable budget: 2 GiB default, 256 MiB minimum,
+  capped at `min(16 GiB, 50% physical RAM)`.
 - Implement cancellation, stale-result rejection, rapid replacement, off-callback retirement,
   generated fixtures, and `ASSET-M1-*`/asset-threading tests.
 
@@ -45,8 +46,9 @@ resampling, skipback, export, MIDI clock, parameter locks, 16 Levels, or Roll.
 
 ### Phase 4 — devices, preview, keyboard, and MIDI
 
-- Integrate `AudioDeviceManager`, persistent output settings, test tone, CPU/dropout snapshots,
-  restart, and graceful unavailable-device behavior without requesting microphone permission.
+- Integrate `AudioDeviceManager`, persistent input/output routing, test tone, CPU/dropout snapshots,
+  restart, and graceful unavailable-device behavior. Input is disabled by default, so playback
+  does not request microphone access.
 - Add a fixed-capacity preview path, configurable preview volume, file-change stop, and failure
   cleanup.
 - Add active-bank keyboard mappings, repeat suppression/focus guards, MIDI device selection,

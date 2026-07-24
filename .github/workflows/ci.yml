@@ -63,7 +63,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           submodules: recursive
-      - name: Configure and build Release
+      - name: Configure and build Debug and Release
         shell: cmd
         run: |
           for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "PADFLOW_VS_PATH=%%i"
@@ -72,6 +72,12 @@ jobs:
             exit /b 1
           )
           call "%PADFLOW_VS_PATH%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
+          if errorlevel 1 exit /b %errorlevel%
+          cmake --preset windows-debug --fresh
+          if errorlevel 1 exit /b %errorlevel%
+          cmake --build --preset windows-debug
+          if errorlevel 1 exit /b %errorlevel%
+          ctest --preset windows-debug --output-on-failure
           if errorlevel 1 exit /b %errorlevel%
           cmake --preset windows-release --fresh
           if errorlevel 1 exit /b %errorlevel%
@@ -86,7 +92,7 @@ jobs:
         shell: powershell
         run: scripts\package-windows.ps1 -DevelopmentArchive
       - name: Verify archive
-        run: python scripts/verify-artifacts.py --mode milestone0 --platform windows
+        run: python scripts/verify-artifacts.py --mode milestone1 --platform windows
       # actions/upload-artifact v7.0.1
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
@@ -113,7 +119,7 @@ jobs:
       - name: Create unsigned development archive
         run: bash scripts/package-macos.sh --development-archive
       - name: Verify archive
-        run: python3 scripts/verify-artifacts.py --mode milestone0 --platform macos
+        run: python3 scripts/verify-artifacts.py --mode milestone1 --platform macos
       # actions/upload-artifact v7.0.1
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
@@ -152,4 +158,4 @@ jobs:
           name: macos-development
           path: artifacts/macos
       - name: Verify all development artifacts
-        run: python3 scripts/verify-artifacts.py --mode milestone0 --platform all
+        run: python3 scripts/verify-artifacts.py --mode milestone1 --platform all

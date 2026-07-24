@@ -19,12 +19,11 @@ jobs:
     permissions:
       contents: read
 
-  milestone-zero-boundary:
+  milestone-one-boundary:
     needs: full-ci
     runs-on: ubuntu-24.04
     steps:
-      - name: Confirm non-publishing Milestone 0 behavior
+      - name: Confirm non-publishing Milestone 1 behavior
         run: |
-          echo "Milestone 0 release workflow validates CI only."
+          echo "Milestone 1 release workflow validates CI only."
           echo "Publishing, installers, DMG, signing, notarization, and contents:write are deferred to Milestone 10."
-
