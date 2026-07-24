@@ -23,6 +23,22 @@ juce::Result ApplicationController::restoreProject(Project project) {
     return juce::Result::ok();
 }
 
+std::size_t ApplicationController::refreshExternalAssetAvailability() {
+    auto candidate = project_.state();
+    std::size_t changed = 0U;
+    for (auto& asset : candidate.assets) {
+        const auto missing =
+            asset.originalPath.isEmpty() || !juce::File{asset.originalPath}.existsAsFile();
+        if (asset.missing != missing) {
+            asset.missing = missing;
+            ++changed;
+        }
+    }
+    if (changed != 0U)
+        juce::ignoreUnused(project_.restoreState(std::move(candidate), project_.revision() + 1U));
+    return changed;
+}
+
 const Project& ApplicationController::project() const noexcept {
     return project_;
 }

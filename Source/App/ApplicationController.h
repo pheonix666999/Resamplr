@@ -14,6 +14,7 @@ class ApplicationController final {
 
     void createEmptyProject(juce::String name = "Untitled", juce::String fixedUuid = {});
     [[nodiscard]] juce::Result restoreProject(Project project);
+    [[nodiscard]] std::size_t refreshExternalAssetAvailability();
     [[nodiscard]] const Project& project() const noexcept;
     [[nodiscard]] bool isCurrentJobTarget(const JobSpec& spec) const noexcept;
     [[nodiscard]] juce::Result renamePad(std::size_t globalIndex, juce::String name);

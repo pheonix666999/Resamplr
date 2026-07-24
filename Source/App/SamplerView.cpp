@@ -104,7 +104,13 @@ void SamplerView::configureControls() {
     midiButton_.setComponentID("midi-settings");
 
     newButton_.onClick = [this] {
+        jobs_.cancelOwner(controller_.project().uuid());
+        jobs_.cancelOwner("padflow-resolve");
+        jobs_.cancelOwner("padflow-preview");
+        importQueue_.clear();
+        importActive_ = false;
         input_.panic();
+        juce::ignoreUnused(preview_.stop());
         assets_.clear();
         controller_.createEmptyProject();
         modified_ = false;
@@ -656,6 +662,30 @@ void SamplerView::submitNextImport() {
     }
 }
 
+void SamplerView::resolveProjectAssets() {
+    std::size_t queued = 0U;
+    for (const auto& asset : controller_.project().state().assets) {
+        if (asset.missing || asset.uuid.isEmpty())
+            continue;
+        SampleImportRequest request{
+            JobSpec{"padflow-resolve", asset.uuid, controller_.project().revision(), 0},
+            juce::File{asset.originalPath},
+            asset.uuid,
+            0U,
+            0U,
+            assets_.budgetBytes(),
+        };
+        if (SampleImporter::submit(jobs_, std::move(request)).has_value())
+            ++queued;
+        else {
+            setOperationMessage("External sample resolution queue is full", true);
+            break;
+        }
+    }
+    if (queued != 0U)
+        setOperationMessage("Resolving " + juce::String{queued} + " external sample(s)", false);
+}
+
 void SamplerView::processPendingJobs() {
     for (;;) {
         const auto result = jobs_.tryPopCompleted();
@@ -677,8 +707,14 @@ void SamplerView::handleCompletedJob(const JobResult& result) {
         if (result.succeeded) {
             const auto* payload =
                 static_cast<const SampleImportPayload*>(result.immutablePayload.get());
-            if (payload != nullptr && payload->asset != nullptr)
-                juce::ignoreUnused(assets_.publish(payload->asset));
+            if (payload != nullptr && payload->asset != nullptr &&
+                assets_.publish(payload->asset)) {
+                setOperationMessage("Resolved " + payload->reference.originalName, false);
+            } else {
+                setOperationMessage("Resolved sample exceeded the decoded-memory budget", true);
+            }
+        } else {
+            setOperationMessage(result.message, true);
         }
         publisher_.publish(controller_.project().state());
         return;
@@ -767,14 +803,27 @@ void SamplerView::showOpenChooser() {
             if (file != juce::File{}) {
                 auto restored = Project::createEmpty();
                 auto result = ProjectSerializer::load(file, restored);
+                const auto previousProjectUuid = safe->controller_.project().uuid();
                 if (result.wasOk())
                     result = safe->controller_.restoreProject(std::move(restored));
                 if (result.wasOk()) {
+                    safe->jobs_.cancelOwner(previousProjectUuid);
+                    safe->jobs_.cancelOwner("padflow-resolve");
+                    safe->jobs_.cancelOwner("padflow-preview");
+                    safe->importQueue_.clear();
+                    safe->importActive_ = false;
                     safe->input_.panic();
+                    juce::ignoreUnused(safe->preview_.stop());
                     safe->assets_.clear();
+                    const auto missing = safe->controller_.refreshExternalAssetAvailability();
                     safe->modified_ = false;
                     safe->publishModel(false);
-                    safe->setOperationMessage("Opened " + file.getFileName(), false);
+                    safe->resolveProjectAssets();
+                    safe->setOperationMessage(
+                        "Opened " + file.getFileName() +
+                            (missing != 0U ? "; " + juce::String{missing} + " sample(s) missing"
+                                           : juce::String{}),
+                        missing != 0U);
                 } else {
                     safe->setOperationMessage(result.getErrorMessage(), true);
                 }

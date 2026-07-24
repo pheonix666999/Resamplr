@@ -78,6 +78,7 @@ class SamplerView final : public juce::Component,
     void applyParameterControls();
     void applyMappings();
     void submitNextImport();
+    void resolveProjectAssets();
     void handleCompletedJob(const JobResult& result);
     void showImportChooser(std::size_t globalPadIndex);
     void showSaveChooser();

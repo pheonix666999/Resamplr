@@ -97,9 +97,7 @@ if(PADFLOW_BUILD_APP)
         COMPANY_NAME "${PADFLOW_COMPANY_NAME}"
         BUNDLE_ID "${PADFLOW_BUNDLE_ID}"
         VERSION "${PADFLOW_VERSION}"
-        MICROPHONE_PERMISSION_ENABLED TRUE
-        MICROPHONE_PERMISSION_TEXT
-            "PadFlow uses audio input only when you explicitly start sample recording.")
+        MICROPHONE_PERMISSION_ENABLED FALSE)
     target_sources(PadFlow PRIVATE Source/App/Application.cpp Source/App/Application.h Source/App/Main.cpp)
     target_link_libraries(
         PadFlow

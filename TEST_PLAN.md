@@ -192,6 +192,9 @@ must be used; physical audio and MIDI hardware are never required.
 | REGRESSION-M1-002 | Device-error panic ownership | An asynchronous device error requests panic atomically; voice mutation occurs on the next audio callback rather than the error-reporting thread. |
 | REGRESSION-M1-003 | Live playback snapshot retirement | Message-thread publication retains immutable snapshots until the audio callback acknowledges a newer generation; reclamation never occurs on the callback. |
 | REGRESSION-M1-004 | Unified project edit undo | Pad imports, asset-reference changes, mappings, and persistent device settings undo/redo the complete validated project state without orphaning model records. |
+| REGRESSION-M1-005 | Active playback asset lifetime | A voice started from an older snapshot keeps its immutable sample owner alive after registry replacement until the callback reports that the voice no longer references that generation. |
+| REGRESSION-M1-006 | Loaded external asset availability | Project load refreshes persisted missing flags from the filesystem without clearing layer references and asynchronously resolves every available external asset. |
+| REGRESSION-M1-007 | Device transition callback quiescence | Apply/restart removes the audio callback before directly resetting playback/preview state and reinstalls it after the device transition. |
 
 ### UI-independent and GUI-headless integration
 

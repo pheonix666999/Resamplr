@@ -101,9 +101,17 @@ void PlaybackEngine::processBlock(float* const left, float* const right,
     peakLeft_.store(peakLeft, std::memory_order_release);
     peakRight_.store(peakRight, std::memory_order_release);
     renderedBlocks_.fetch_add(1U, std::memory_order_relaxed);
-    const auto* acknowledged = snapshot_.load(std::memory_order_acquire);
-    acknowledgedSnapshotGeneration_.store(acknowledged != nullptr ? acknowledged->generation : 0U,
-                                          std::memory_order_release);
+    const auto* currentSnapshot = snapshot_.load(std::memory_order_acquire);
+    auto minimumReferencedGeneration =
+        currentSnapshot != nullptr ? currentSnapshot->generation : std::uint64_t{0U};
+    for (const auto& voice : voices_)
+        if (voice.stage != EnvelopeStage::inactive &&
+            (minimumReferencedGeneration == 0U ||
+             voice.snapshotGeneration < minimumReferencedGeneration))
+            minimumReferencedGeneration = voice.snapshotGeneration;
+    reclaimableSnapshotGeneration_.store(
+        minimumReferencedGeneration > 0U ? minimumReferencedGeneration - 1U : 0U,
+        std::memory_order_release);
 }
 
 void PlaybackEngine::trigger(const std::uint32_t padIndex, const std::uint32_t sourceId,
@@ -167,6 +175,7 @@ void PlaybackEngine::trigger(const std::uint32_t padIndex, const std::uint32_t s
         voice.leftGain = gain * std::cos(angle);
         voice.rightGain = gain * std::sin(angle);
         voice.triggerAge = nextTriggerAge_++;
+        voice.snapshotGeneration = snapshot->generation;
         lastAllocatedVoice_.store(static_cast<int>(index), std::memory_order_release);
     }
 }
@@ -298,7 +307,7 @@ int PlaybackEngine::lastAllocatedVoiceIndex() const noexcept {
 }
 
 std::uint64_t PlaybackEngine::acknowledgedSnapshotGeneration() const noexcept {
-    return acknowledgedSnapshotGeneration_.load(std::memory_order_acquire);
+    return reclaimableSnapshotGeneration_.load(std::memory_order_acquire);
 }
 
 PlaybackSnapshot makePlaybackSnapshot(const ProjectState& project,

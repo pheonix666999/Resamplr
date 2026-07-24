@@ -1,14 +1,26 @@
 #include "PlaybackStatePublisher.h"
 
+#include <algorithm>
+
 namespace padflow {
 PlaybackStatePublisher::PlaybackStatePublisher(PlaybackEngine& engine,
                                                const SampleAssetRegistry& assets) noexcept
     : engine_(engine), assets_(assets) {}
 
 void PlaybackStatePublisher::publish(const ProjectState& project) {
-    auto snapshot = std::make_unique<PlaybackSnapshot>(makePlaybackSnapshot(project, assets_));
-    snapshot->generation = nextGeneration_++;
-    engine_.publishSnapshot(snapshot.get());
+    auto snapshot = std::make_unique<PublishedSnapshot>();
+    snapshot->playback = makePlaybackSnapshot(project, assets_);
+    snapshot->playback.generation = nextGeneration_++;
+    for (const auto& bank : project.banks)
+        for (const auto& pad : bank.pads)
+            for (const auto& layer : pad.layers) {
+                const auto asset = assets_.find(layer.assetUuid);
+                if (asset != nullptr &&
+                    std::find(snapshot->retainedAssets.begin(), snapshot->retainedAssets.end(),
+                              asset) == snapshot->retainedAssets.end())
+                    snapshot->retainedAssets.push_back(asset);
+            }
+    engine_.publishSnapshot(&snapshot->playback);
     snapshots_.push_back(std::move(snapshot));
 }
 

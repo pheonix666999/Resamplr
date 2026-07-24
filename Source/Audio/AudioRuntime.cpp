@@ -61,7 +61,15 @@ juce::Result AudioRuntime::applySettings(const AudioSettings& settings) {
     setup.inputChannels.clear();
     setup.useDefaultOutputChannels = settings.outputChannelMask == 0U;
     setup.outputChannels = channelMask(settings.outputChannelMask);
+    const auto callbackWasRegistered = callbackRegistered_.load(std::memory_order_acquire);
+    if (callbackWasRegistered)
+        manager_.removeAudioCallback(this);
+    const auto resumeCallback = juce::ScopeGuard([this, callbackWasRegistered] {
+        if (callbackWasRegistered)
+            manager_.addAudioCallback(this);
+    });
     engine_.panic();
+    preview_.panicWhenQuiescent();
     const auto error = manager_.setAudioDeviceSetup(setup, true);
     if (error.isNotEmpty())
         return juce::Result::fail(error);
@@ -85,7 +93,15 @@ void AudioRuntime::close() {
 }
 
 juce::Result AudioRuntime::restart() {
+    const auto callbackWasRegistered = callbackRegistered_.load(std::memory_order_acquire);
+    if (callbackWasRegistered)
+        manager_.removeAudioCallback(this);
+    const auto resumeCallback = juce::ScopeGuard([this, callbackWasRegistered] {
+        if (callbackWasRegistered)
+            manager_.addAudioCallback(this);
+    });
     engine_.panic();
+    preview_.panicWhenQuiescent();
     manager_.restartLastAudioDevice();
     if (manager_.getCurrentAudioDevice() == nullptr)
         return juce::Result::fail("Audio device could not be restarted");

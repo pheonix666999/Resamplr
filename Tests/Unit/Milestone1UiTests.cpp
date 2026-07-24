@@ -149,6 +149,24 @@ class Milestone1UiTests final : public juce::UnitTest {
         expect(publisher.collectAcknowledged() > 0U);
         expectEquals(static_cast<int>(publisher.retainedSnapshotCount()), 1);
 
+        beginTest("REGRESSION-M1-005 active voices retain immutable sample ownership");
+        const auto activeAssetUuid = controller.project().pad(0U).layers[0].assetUuid;
+        const std::weak_ptr<const SampleAsset> activeAsset = assets.find(activeAssetUuid);
+        expect(!activeAsset.expired());
+        expect(input.mouseDown(0U));
+        runtime.engine().processBlock(left.data(), right.data(), 1U);
+        expect(runtime.engine().activeVoiceCount() > 0U);
+        expect(controller.clearPad(0U).wasOk());
+        publisher.publish(controller.project().state());
+        assets.clear();
+        runtime.engine().processBlock(left.data(), right.data(), 1U);
+        juce::ignoreUnused(publisher.collectAcknowledged());
+        expect(!activeAsset.expired());
+        input.panic();
+        runtime.engine().processBlock(left.data(), right.data(), left.size());
+        expect(publisher.collectAcknowledged() > 0U);
+        expect(activeAsset.expired());
+
         beginTest("UIHEADLESS-M1-011 minimum layout keeps named controls inside bounds");
         for (const auto& id :
              {"new-project", "save-project", "pad-name", "layer-selector", "pad-0", "pad-15"}) {

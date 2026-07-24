@@ -80,6 +80,7 @@ class PlaybackEngine final {
         float leftGain{1.0F};
         float rightGain{1.0F};
         std::uint64_t triggerAge{0U};
+        std::uint64_t snapshotGeneration{0U};
     };
 
     void handleCommand(const AudioCommand& command) noexcept;
@@ -101,7 +102,7 @@ class PlaybackEngine final {
     std::atomic<float> peakRight_{0.0F};
     std::atomic<std::uint64_t> renderedBlocks_{0U};
     std::atomic<int> lastAllocatedVoice_{-1};
-    std::atomic<std::uint64_t> acknowledgedSnapshotGeneration_{0U};
+    std::atomic<std::uint64_t> reclaimableSnapshotGeneration_{0U};
 };
 
 [[nodiscard]] PlaybackSnapshot makePlaybackSnapshot(const ProjectState& project,

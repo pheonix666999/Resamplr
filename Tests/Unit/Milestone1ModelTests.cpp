@@ -226,6 +226,53 @@ class Milestone1ModelTests final : public juce::UnitTest {
         expectEquals(static_cast<juce::int64>(restored.revision()),
                      static_cast<juce::int64>(revisionBeforeInvalidLoad));
 
+        beginTest("REGRESSION-M1-006 loaded external assets refresh missing status");
+        const auto availabilityDirectory =
+            juce::File::getSpecialLocation(juce::File::tempDirectory)
+                .getNonexistentChildFile("padflow-m1-availability", {}, true);
+        expect(availabilityDirectory.createDirectory());
+        const auto availableFile = availabilityDirectory.getChildFile("available.wav");
+        expect(availableFile.replaceWithText("fixture"));
+        ApplicationController availabilityController;
+        auto availabilityProject = Project::createEmpty("Availability", "availability-project");
+        auto availabilityState = availabilityProject.state();
+        availabilityState.assets.push_back({"available",
+                                            availableFile.getFullPathName(),
+                                            "available.wav",
+                                            "WAV",
+                                            {},
+                                            7U,
+                                            0,
+                                            1U,
+                                            48000.0,
+                                            1U,
+                                            4U,
+                                            true});
+        availabilityState.assets.push_back(
+            {"missing",
+             availabilityDirectory.getChildFile("missing.wav").getFullPathName(),
+             "missing.wav",
+             "WAV",
+             {},
+             7U,
+             0,
+             1U,
+             48000.0,
+             1U,
+             4U,
+             false});
+        availabilityState.banks[0].pads[0].layers[0].assetUuid = "missing";
+        availabilityState.banks[0].pads[0].layers[0].enabled = true;
+        expect(availabilityProject.restoreState(std::move(availabilityState), 3U).wasOk());
+        expect(availabilityController.restoreProject(std::move(availabilityProject)).wasOk());
+        expectEquals(static_cast<int>(availabilityController.refreshExternalAssetAvailability()),
+                     2);
+        expect(!availabilityController.project().state().assets[0].missing);
+        expect(availabilityController.project().state().assets[1].missing);
+        expectEquals(availabilityController.project().pad(0U).layers[0].assetUuid,
+                     juce::String{"missing"});
+        expect(availabilityDirectory.deleteRecursively());
+
         beginTest("SAVE-M1-009 Milestone 0 manifests load with default model state");
         const juce::String legacyManifest{"{\n"
                                           "  \"applicationVersion\": \"0.1.0\",\n"

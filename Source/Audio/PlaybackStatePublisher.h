@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <deque>
 #include <memory>
+#include <vector>
 
 namespace padflow {
 class PlaybackStatePublisher final {
@@ -18,9 +19,14 @@ class PlaybackStatePublisher final {
     void clearWhenAudioIsStopped() noexcept;
 
   private:
+    struct PublishedSnapshot final {
+        PlaybackSnapshot playback;
+        std::vector<std::shared_ptr<const SampleAsset>> retainedAssets;
+    };
+
     PlaybackEngine& engine_;
     const SampleAssetRegistry& assets_;
-    std::deque<std::unique_ptr<PlaybackSnapshot>> snapshots_;
+    std::deque<std::unique_ptr<PublishedSnapshot>> snapshots_;
     std::uint64_t nextGeneration_{1U};
 };
 } // namespace padflow
