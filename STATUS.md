@@ -20,7 +20,11 @@ Feature-branch CI was enabled and validated independently in
 found two hosted compile regressions: stable UUID generation referenced unlinked
 `juce_cryptography`, and bank-name casts used an unqualified JUCE character alias. The focused
 core-only and namespace fixes are tracked by `REGRESSION-CI-007` and `REGRESSION-CI-008`; hosted
-revalidation is pending.
+revalidation passed in
+[run 30063416386](https://github.com/pheonix666999/Resamplr/actions/runs/30063416386) on commit
+`38b24d3ee0849a2ebb52c7db97b9355c04167f89`. All five jobs passed, including Linux
+Debug/Release, both macOS variants, Windows x64, model unit tests, smoke tests, packaging, and
+artifact verification.
 
 This Windows host still has no supported native compiler, so local native builds remain blocked.
 GitHub Actions remains the authoritative native compiler/test environment for each implementation
