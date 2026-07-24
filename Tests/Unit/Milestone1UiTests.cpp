@@ -142,6 +142,8 @@ class Milestone1UiTests final : public juce::UnitTest {
         expect(input.handleMidi(juce::MidiMessage::noteOn(4, 48, juce::uint8{100U})));
 
         beginTest("REGRESSION-M1-003 live snapshots retire only after audio acknowledgement");
+        input.panic();
+        runtime.engine().processBlock(left.data(), right.data(), left.size());
         publisher.publish(controller.project().state());
         publisher.publish(controller.project().state());
         expect(publisher.retainedSnapshotCount() >= 2U);
