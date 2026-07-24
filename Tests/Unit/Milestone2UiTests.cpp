@@ -44,6 +44,16 @@ bool waitForUiAsset(SamplerView& view, ApplicationController& controller,
     }
     return false;
 }
+
+juce::Component* findDescendantWithId(juce::Component& root, const juce::String& id) {
+    if (root.getComponentID() == id)
+        return &root;
+    for (auto* child : root.getChildren()) {
+        if (auto* match = findDescendantWithId(*child, id))
+            return match;
+    }
+    return nullptr;
+}
 } // namespace
 
 class Milestone2UiTests final : public juce::UnitTest {
@@ -64,7 +74,7 @@ class Milestone2UiTests final : public juce::UnitTest {
         SamplerView view{controller, jobs, assets, runtime, publisher, input, preview};
         view.setBounds(0, 0, 1180, 760);
 
-        beginTest("UIHEADLESS-M2-001 constructs accessible waveform editor controls");
+        beginTest("UIHEADLESS-M2-001 and REGRESSION-M2-005 find nested controls headlessly");
         for (const auto& id :
              {"waveform-editor",        "waveform-info",         "waveform-audition",
               "waveform-stop",          "waveform-loop",         "waveform-reverse",
@@ -76,7 +86,7 @@ class Milestone2UiTests final : public juce::UnitTest {
               "recording-layer",        "recording-auto-assign", "recording-file-name",
               "recording-arm",          "recording-start",       "recording-stop",
               "recording-cancel",       "recording-assign"}) {
-            const auto* component = view.findChildWithID(id);
+            const auto* component = findDescendantWithId(view, id);
             expect(component != nullptr, juce::String{"Missing control: "} + id);
             if (component != nullptr && component->getParentComponent() == &view)
                 expect(view.getLocalBounds().contains(component->getBounds()));
@@ -96,7 +106,7 @@ class Milestone2UiTests final : public juce::UnitTest {
         beginTest("UIHEADLESS-M2-002 selects an assigned sample layer");
         expect(view.selectPad(0U));
         const auto* editor =
-            dynamic_cast<const WaveformEditor*>(view.findChildWithID("waveform-editor"));
+            dynamic_cast<const WaveformEditor*>(findDescendantWithId(view, "waveform-editor"));
         expect(editor != nullptr);
         if (editor != nullptr)
             expectEquals(static_cast<int>(editor->frameCount()), 512);
@@ -128,12 +138,12 @@ class Milestone2UiTests final : public juce::UnitTest {
             juce::Thread::sleep(1);
             view.processPendingJobs();
             const auto* liveEditor =
-                dynamic_cast<const WaveformEditor*>(view.findChildWithID("waveform-editor"));
+                dynamic_cast<const WaveformEditor*>(findDescendantWithId(view, "waveform-editor"));
             if (liveEditor != nullptr && liveEditor->hasWaveform())
                 break;
         }
         const auto* analysedEditor =
-            dynamic_cast<const WaveformEditor*>(view.findChildWithID("waveform-editor"));
+            dynamic_cast<const WaveformEditor*>(findDescendantWithId(view, "waveform-editor"));
         expect(analysedEditor != nullptr && analysedEditor->hasWaveform());
 
         beginTest("UIHEADLESS-M2-007 derived operation reports and commits");
@@ -153,7 +163,7 @@ class Milestone2UiTests final : public juce::UnitTest {
         const auto recordingFile = directory.getChildFile("ui-recording.wav");
         expect(view.armRecording(recordingFile, 1000.0, 16U));
         const auto* recordingState =
-            dynamic_cast<const juce::Label*>(view.findChildWithID("recording-state"));
+            dynamic_cast<const juce::Label*>(findDescendantWithId(view, "recording-state"));
         expect(recordingState != nullptr);
         if (recordingState != nullptr)
             expect(recordingState->getText().contains("Armed"));
@@ -211,7 +221,8 @@ class Milestone2UiTests final : public juce::UnitTest {
         juce::StringArray lateFiles;
         lateFiles.add(sample.getFullPathName());
         expect(view.queueImportFiles(lateFiles, 1U, true));
-        auto* newProjectButton = dynamic_cast<juce::Button*>(view.findChildWithID("new-project"));
+        auto* newProjectButton =
+            dynamic_cast<juce::Button*>(findDescendantWithId(view, "new-project"));
         expect(newProjectButton != nullptr);
         if (newProjectButton != nullptr && newProjectButton->onClick)
             newProjectButton->onClick();

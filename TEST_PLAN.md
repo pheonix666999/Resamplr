@@ -367,6 +367,7 @@ are rejected without mutation unless an acceptance row explicitly specifies dete
 | REGRESSION-M2-002 | Portable waveform-editor compilation | Waveform drawing uses JUCE's supported path API, numeric domain changes are explicit, and heterogeneous controls use a typed component array under warnings-as-errors. |
 | REGRESSION-M2-003 | Typed asynchronous completion routing | Late cancelled import completions are routed by explicit job kind and never access an empty UI import queue or masquerade as waveform/derived/recording work. |
 | REGRESSION-M2-004 | Portable recording-control suffixes | Recording sliders use JUCE's supported `setTextValueSuffix` API and every aggregate job target carries an explicit operation kind under warnings-as-errors. |
+| REGRESSION-M2-005 | Nested recording controls in headless UI | UI acceptance checks traverse the component hierarchy, and showing a recording panel without a desktop peer never attempts to take keyboard focus. |
 
 ## Project model — Milestone 1 unless noted
 

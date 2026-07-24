@@ -483,7 +483,8 @@ void SamplerView::setRecordingPanelVisible(const bool visible) {
         recordingPanel_.setProject(controller_.project().state());
         recordingPanel_.setPreferences(controller_.project().state().recording);
         refreshRecording();
-        recordingPanel_.grabKeyboardFocus();
+        if (recordingPanel_.isShowing())
+            recordingPanel_.grabKeyboardFocus();
     } else {
         grabKeyboardFocus();
     }
