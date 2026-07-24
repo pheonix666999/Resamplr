@@ -5,6 +5,8 @@ target_sources(
             Unit/FoundationTests.cpp
             Unit/Milestone1AssetTests.cpp
             Unit/Milestone1AudioTests.cpp
+            Unit/Milestone1DeviceTests.cpp
+            Unit/Milestone1InputTests.cpp
             Unit/Milestone1ModelTests.cpp)
 target_link_libraries(padflow_tests PRIVATE padflow_audio)
 padflow_enable_project_warnings(padflow_tests)

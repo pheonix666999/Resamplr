@@ -181,6 +181,13 @@ must be used; physical audio and MIDI hardware are never required.
 | PREVIEW-M1-003 | Failed preview leaves silence, no active preview voice, and a user-facing error. |
 | PREVIEW-M1-004 | Preview volume is bounded, persistent, and applied without callback allocation. |
 
+### Milestone 1 regressions
+
+| ID | Test | Acceptance |
+|---|---|---|
+| REGRESSION-M1-001 | MIDI callback producer isolation | Hardware MIDI writes only to its bounded SPSC ingress; overflow is observable and message-thread flushing preserves the engine queue's single-producer contract. |
+| REGRESSION-M1-002 | Device-error panic ownership | An asynchronous device error requests panic atomically; voice mutation occurs on the next audio callback rather than the error-reporting thread. |
+
 ### UI-independent and GUI-headless integration
 
 | ID | Acceptance |

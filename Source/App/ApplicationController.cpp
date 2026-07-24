@@ -61,6 +61,35 @@ juce::Result ApplicationController::setLayer(const std::size_t globalIndex,
     return commitPadEdit(globalIndex, std::move(replacement), "Change sample layer");
 }
 
+juce::Result ApplicationController::setPadMappings(const std::size_t globalIndex,
+                                                   const std::uint8_t midiNote,
+                                                   juce::String keyboardKey) {
+    if (globalIndex >= totalPadCount)
+        return juce::Result::fail("Pad index is outside 0..63");
+    auto replacement = project_.pad(globalIndex);
+    replacement.midiNote = midiNote;
+    replacement.keyboardKey = keyboardKey.trim().toUpperCase();
+    return commitPadEdit(globalIndex, std::move(replacement), "Change pad mappings");
+}
+
+juce::Result ApplicationController::setAudioSettings(AudioSettings settings) {
+    auto candidate = project_.state();
+    candidate.audio = std::move(settings);
+    return project_.restoreState(std::move(candidate), project_.revision() + 1U);
+}
+
+juce::Result ApplicationController::setMidiSettings(MidiSettings settings) {
+    auto candidate = project_.state();
+    candidate.midi = std::move(settings);
+    return project_.restoreState(std::move(candidate), project_.revision() + 1U);
+}
+
+juce::Result ApplicationController::setUiState(ProjectUiState state) {
+    auto candidate = project_.state();
+    candidate.ui = state;
+    return project_.restoreState(std::move(candidate), project_.revision() + 1U);
+}
+
 juce::Result ApplicationController::clearPad(const std::size_t globalIndex) {
     if (globalIndex >= totalPadCount)
         return juce::Result::fail("Pad index is outside 0..63");

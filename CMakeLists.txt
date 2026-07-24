@@ -51,10 +51,14 @@ padflow_set_output_directory(padflow_core)
 add_library(
     padflow_audio STATIC
     Source/Audio/AudioCommandQueue.h
+    Source/Audio/AudioRuntime.cpp
+    Source/Audio/AudioRuntime.h
     Source/Audio/CaptureWriter.cpp
     Source/Audio/CaptureWriter.h
     Source/Audio/PlaybackEngine.cpp
     Source/Audio/PlaybackEngine.h
+    Source/Input/InputRouter.cpp
+    Source/Input/InputRouter.h
     Source/Sampling/SampleImporter.cpp
     Source/Sampling/SampleImporter.h
     Source/Smoke/SmokeScenario.cpp
@@ -62,7 +66,10 @@ add_library(
 target_include_directories(padflow_audio PUBLIC Source)
 target_link_libraries(
     padflow_audio
-    PUBLIC padflow_core juce::juce_audio_basics juce::juce_audio_formats)
+    PUBLIC padflow_core
+           juce::juce_audio_basics
+           juce::juce_audio_devices
+           juce::juce_audio_formats)
 padflow_enable_project_warnings(padflow_audio)
 padflow_set_output_directory(padflow_audio)
 

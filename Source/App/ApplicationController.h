@@ -20,6 +20,11 @@ class ApplicationController final {
     [[nodiscard]] juce::Result setPadParameters(std::size_t globalIndex, PadParameters parameters);
     [[nodiscard]] juce::Result setLayer(std::size_t globalIndex, std::size_t layerIndex,
                                         SampleLayer layer);
+    [[nodiscard]] juce::Result setPadMappings(std::size_t globalIndex, std::uint8_t midiNote,
+                                              juce::String keyboardKey);
+    [[nodiscard]] juce::Result setAudioSettings(AudioSettings settings);
+    [[nodiscard]] juce::Result setMidiSettings(MidiSettings settings);
+    [[nodiscard]] juce::Result setUiState(ProjectUiState state);
     [[nodiscard]] juce::Result clearPad(std::size_t globalIndex);
     [[nodiscard]] juce::Result copyPad(std::size_t globalIndex);
     [[nodiscard]] juce::Result pastePad(std::size_t globalIndex);
