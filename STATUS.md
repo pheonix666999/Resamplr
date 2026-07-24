@@ -29,7 +29,9 @@ The selected-layer editor phase now has cache-backed mono/stereo waveform displa
 horizontal navigation, draggable trim and loop markers with one controller transaction per drag,
 keyboard marker nudging, fit/reset controls, reverse/loop/zero-crossing preferences, boundary-aware
 sampler audition, explicit stop, accessible control identities, and headless UI coverage. Hosted
-validation for this phase is pending; Milestone 2 is not yet complete.
+run `30082704347` reached the new sources and stopped on portable warnings-as-errors and one JUCE
+drawing API mismatch before tests; the focused remediation is tracked by `REGRESSION-M2-002`.
+Revalidation is pending, and Milestone 2 is not yet complete.
 
 The Milestone 0 repository, pinned dependency, targets, interfaces, schema-v1 skeleton, tests, smoke
 paths, packaging, and workflows remain the validated baseline. Milestone 1 adds the fixed

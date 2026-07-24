@@ -46,7 +46,8 @@ void WaveformEditor::setContent(std::shared_ptr<const WaveformCache> cache,
     sampleRate_ = sampleRate;
     analysisPending_ = analysisPending;
     sourceMissing_ = sourceMissing;
-    if (sourceChanged || visibleEnd_ <= visibleStart_ || visibleEnd_ > frameCount_)
+    if (sourceChanged || visibleEnd_ <= visibleStart_ ||
+        visibleEnd_ > static_cast<double>(frameCount_))
         fitSource();
     repaint();
 }
@@ -265,7 +266,7 @@ void WaveformEditor::focusLost(juce::Component::FocusChangeType) {
 
 void WaveformEditor::zoomAround(const float x, const double factor) {
     const auto currentLength = std::max(1.0, visibleEnd_ - visibleStart_);
-    const auto minimumLength = std::min<double>(frameCount_, 16.0);
+    const auto minimumLength = std::min(static_cast<double>(frameCount_), 16.0);
     const auto newLength =
         std::clamp(currentLength * factor, std::max(1.0, minimumLength),
                    static_cast<double>(std::max<std::uint64_t>(frameCount_, 1U)));
@@ -327,7 +328,9 @@ void WaveformEditor::paintMarker(juce::Graphics& graphics, const Marker marker,
     graphics.setColour(colour);
     graphics.drawVerticalLine(static_cast<int>(std::round(x)), 4.0F,
                               static_cast<float>(getHeight() - 4));
-    graphics.fillTriangle(x - 4.0F, 3.0F, x + 4.0F, 3.0F, x, 9.0F);
+    juce::Path markerHandle;
+    markerHandle.addTriangle(x - 4.0F, 3.0F, x + 4.0F, 3.0F, x, 9.0F);
+    graphics.fillPath(markerHandle);
     if (hasSelectedMarker_ && selectedMarker_ == marker) {
         graphics.setFont(11.0F);
         graphics.drawText(name + " " + juce::String{markerFrame(marker)},

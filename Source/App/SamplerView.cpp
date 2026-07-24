@@ -533,10 +533,11 @@ void SamplerView::refreshEditor() {
     if (layer.assetUuid.isEmpty() || reference == controller_.project().state().assets.end()) {
         waveformEditor_.clear();
         waveformInfoLabel_.setText("No editable source", juce::dontSendNotification);
-        for (auto* control :
-             {static_cast<juce::Component*>(&loopToggle_), &reverseToggle_, &snapToggle_,
-              &fitWaveformButton_, &fitSelectionButton_, &resetTrimButton_, &resetLoopButton_,
-              &auditionButton_, &stopAuditionButton_})
+        const std::array<juce::Component*, 9U> editorControls{
+            &loopToggle_,        &reverseToggle_,      &snapToggle_,
+            &fitWaveformButton_, &fitSelectionButton_, &resetTrimButton_,
+            &resetLoopButton_,   &auditionButton_,     &stopAuditionButton_};
+        for (auto* control : editorControls)
             control->setEnabled(false);
         return;
     }
@@ -563,10 +564,11 @@ void SamplerView::refreshEditor() {
     reverseToggle_.setToggleState(playback.reverseEnabled, juce::dontSendNotification);
     snapToggle_.setToggleState(playback.zeroCrossingSnap, juce::dontSendNotification);
     const auto editable = !reference->missing;
-    for (auto* control :
-         {static_cast<juce::Component*>(&loopToggle_), &reverseToggle_, &snapToggle_,
-          &fitWaveformButton_, &fitSelectionButton_, &resetTrimButton_, &resetLoopButton_,
-          &auditionButton_, &stopAuditionButton_})
+    const std::array<juce::Component*, 9U> editorControls{
+        &loopToggle_,        &reverseToggle_,      &snapToggle_,
+        &fitWaveformButton_, &fitSelectionButton_, &resetTrimButton_,
+        &resetLoopButton_,   &auditionButton_,     &stopAuditionButton_};
+    for (auto* control : editorControls)
         control->setEnabled(editable);
     if (cache == nullptr && !pending && editable)
         submitSelectedWaveform();

@@ -364,6 +364,7 @@ are rejected without mutation unless an acceptance row explicitly specifies dete
 | ID | Test | Acceptance |
 |---|---|---|
 | REGRESSION-M2-001 | Legacy raw playback snapshot bounds | A Milestone 1/raw test snapshot whose new trim fields are all zero resolves to the complete immutable asset in the callback, while initialized model snapshots remain prevalidated. |
+| REGRESSION-M2-002 | Portable waveform-editor compilation | Waveform drawing uses JUCE's supported path API, numeric domain changes are explicit, and heterogeneous controls use a typed component array under warnings-as-errors. |
 
 ## Project model — Milestone 1 unless noted
 
