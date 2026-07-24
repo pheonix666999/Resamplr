@@ -136,9 +136,9 @@ class Milestone2EditTests final : public juce::UnitTest {
         expect(ProjectSerializer::restoreCanonicalManifest(manifest, restored).wasOk());
         expect(restored.state() == controller.project().state());
 
-        beginTest("SAVE-M2-008 invalid persisted bounds reject without partial commit");
+        beginTest("SAVE-M2-008 and REGRESSION-M2-006 invalid persisted bounds reject atomically");
         auto invalidManifest =
-            manifest.replaceFirstOccurrenceOf("\"startFrame\":\"12\"", "\"startFrame\":\"99\"");
+            manifest.replaceFirstOccurrenceOf("\"startFrame\": \"12\"", "\"startFrame\": \"99\"");
         expect(invalidManifest != manifest);
         auto invalidDestination = Project::createEmpty("Unchanged", "unchanged-project");
         const auto invalidDestinationBefore = invalidDestination.state();
