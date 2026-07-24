@@ -309,6 +309,58 @@ juce::Result ApplicationController::commitImportedLayer(const JobSpec& target,
     return juce::Result::ok();
 }
 
+juce::Result ApplicationController::commitDerivedLayer(
+    const JobSpec& target, const std::size_t globalIndex, const std::size_t layerIndex,
+    const juce::String& expectedSourceAssetUuid, ExternalAssetReference derivedAsset,
+    DerivedAssetRecord provenance, SamplePlaybackSettings playback) {
+    if (!isCurrentJobTarget(target))
+        return juce::Result::fail("Derived asset completion is stale");
+    if (globalIndex >= totalPadCount || layerIndex >= minimumLayersPerPad)
+        return juce::Result::fail("Derived asset completion targets an invalid layer");
+    if (project_.pad(globalIndex).uuid != target.targetUuid)
+        return juce::Result::fail("Derived asset completion targets a different pad");
+    if (project_.pad(globalIndex).layers[layerIndex].assetUuid != expectedSourceAssetUuid)
+        return juce::Result::fail("Derived asset source assignment changed");
+    if (derivedAsset.uuid != provenance.derivedAssetUuid ||
+        derivedAsset.contentFingerprint != provenance.outputFingerprint)
+        return juce::Result::fail("Derived asset provenance does not match its output");
+    if (const auto validation = validateSamplePlaybackSettings(playback, derivedAsset.frameCount);
+        validation.failed())
+        return validation;
+
+    const auto before = project_.state();
+    auto candidate = project_.state();
+    auto& replacement = candidate.banks[globalIndex / padsPerBank].pads[globalIndex % padsPerBank];
+    replacement.layers[layerIndex].assetUuid = derivedAsset.uuid;
+    replacement.layers[layerIndex].enabled = true;
+    replacement.layers[layerIndex].playback = playback;
+
+    const auto existingAsset =
+        std::find_if(candidate.assets.begin(), candidate.assets.end(),
+                     [&](const auto& entry) { return entry.uuid == derivedAsset.uuid; });
+    if (existingAsset != candidate.assets.end())
+        *existingAsset = std::move(derivedAsset);
+    else
+        candidate.assets.push_back(std::move(derivedAsset));
+    const auto existingProvenance = std::find_if(
+        candidate.derivedAssets.begin(), candidate.derivedAssets.end(),
+        [&](const auto& entry) { return entry.derivedAssetUuid == provenance.derivedAssetUuid; });
+    if (existingProvenance != candidate.derivedAssets.end())
+        *existingProvenance = std::move(provenance);
+    else
+        candidate.derivedAssets.push_back(std::move(provenance));
+
+    if (const auto validation = validateProjectState(candidate); validation.failed())
+        return validation;
+    if (const auto result = project_.restoreState(std::move(candidate), project_.revision() + 1U);
+        result.failed())
+        return result;
+    undoHistory_.push_back(
+        ProjectEdit{before, project_.state(), "Replace layer with derived asset"});
+    redoHistory_.clear();
+    return juce::Result::ok();
+}
+
 bool ApplicationController::canUndo() const noexcept {
     return !undoHistory_.empty();
 }

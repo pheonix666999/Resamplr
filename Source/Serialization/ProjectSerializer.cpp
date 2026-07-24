@@ -156,6 +156,20 @@ juce::var assetValue(const ExternalAssetReference& asset) {
     return value;
 }
 
+juce::var derivedAssetValue(const DerivedAssetRecord& asset) {
+    auto value = makeObject();
+    setProperty(value, "algorithmVersion", static_cast<int>(asset.algorithmVersion));
+    setProperty(value, "canonicalOperationParameters", asset.canonicalOperationParameters);
+    setProperty(value, "creationMetadata", asset.creationMetadata);
+    setProperty(value, "derivedAssetUuid", asset.derivedAssetUuid);
+    setProperty(value, "operationIdentifier", asset.operationIdentifier);
+    setProperty(value, "outputFingerprint", asset.outputFingerprint);
+    setProperty(value, "parentAssetUuid", asset.parentAssetUuid);
+    setProperty(value, "projectOwnedRelativePath", asset.projectOwnedRelativePath);
+    setProperty(value, "sourceFingerprint", asset.sourceFingerprint);
+    return value;
+}
+
 juce::var audioValue(const AudioSettings& audio) {
     auto value = makeObject();
     setProperty(value, "bufferSize", static_cast<int>(audio.bufferSize));
@@ -198,6 +212,12 @@ juce::var manifestValue(const Project& project) {
     for (const auto& asset : state.assets)
         assets.push_back(assetValue(asset));
     setProperty(value, "assets", makeArray(assets));
+
+    std::vector<juce::var> derivedAssets;
+    derivedAssets.reserve(state.derivedAssets.size());
+    for (const auto& asset : state.derivedAssets)
+        derivedAssets.push_back(derivedAssetValue(asset));
+    setProperty(value, "derivedAssets", makeArray(derivedAssets));
 
     std::vector<juce::var> banks;
     banks.reserve(state.banks.size());
@@ -513,6 +533,39 @@ juce::Result readAsset(const juce::var& value, ExternalAssetReference& asset) {
     return readString(*object, "uuid", asset.uuid);
 }
 
+juce::Result readDerivedAsset(const juce::var& value, DerivedAssetRecord& asset) {
+    const juce::DynamicObject* object = nullptr;
+    if (const auto result = requireObject(value, "derived asset", object); result.failed())
+        return result;
+    if (const auto result = readInteger(*object, "algorithmVersion", asset.algorithmVersion);
+        result.failed())
+        return result;
+    if (const auto result =
+            readString(*object, "canonicalOperationParameters", asset.canonicalOperationParameters);
+        result.failed())
+        return result;
+    if (const auto result = readString(*object, "creationMetadata", asset.creationMetadata);
+        result.failed())
+        return result;
+    if (const auto result = readString(*object, "derivedAssetUuid", asset.derivedAssetUuid);
+        result.failed())
+        return result;
+    if (const auto result = readString(*object, "operationIdentifier", asset.operationIdentifier);
+        result.failed())
+        return result;
+    if (const auto result = readString(*object, "outputFingerprint", asset.outputFingerprint);
+        result.failed())
+        return result;
+    if (const auto result = readString(*object, "parentAssetUuid", asset.parentAssetUuid);
+        result.failed())
+        return result;
+    if (const auto result =
+            readString(*object, "projectOwnedRelativePath", asset.projectOwnedRelativePath);
+        result.failed())
+        return result;
+    return readString(*object, "sourceFingerprint", asset.sourceFingerprint);
+}
+
 juce::Result readAudio(const juce::var& value, AudioSettings& audio) {
     const juce::DynamicObject* object = nullptr;
     if (const auto result = requireObject(value, "audio", object); result.failed())
@@ -601,7 +654,7 @@ juce::Result parseManifest(const juce::String& text, Project& project) {
 
     const auto banksIdentifier = juce::Identifier{"banks"};
     if (!root->hasProperty(banksIdentifier)) {
-        for (const auto* property : {"assets", "audio", "midi", "ui"})
+        for (const auto* property : {"assets", "audio", "derivedAssets", "midi", "ui"})
             if (root->hasProperty(juce::Identifier{property}))
                 return juce::Result::fail("Project manifest has an incomplete model payload");
         auto legacy = Project::createEmpty(name, uuid);
@@ -631,6 +684,21 @@ juce::Result parseManifest(const juce::String& text, Project& project) {
         if (const auto result = readAsset(assetValueEntry, asset); result.failed())
             return result;
         state.assets.push_back(std::move(asset));
+    }
+
+    const auto derivedIdentifier = juce::Identifier{"derivedAssets"};
+    if (root->hasProperty(derivedIdentifier)) {
+        const auto derivedAssetsValue = root->getProperty(derivedIdentifier);
+        const auto* derivedAssets = derivedAssetsValue.getArray();
+        if (derivedAssets == nullptr)
+            return juce::Result::fail("derivedAssets must be an array");
+        state.derivedAssets.reserve(static_cast<std::size_t>(derivedAssets->size()));
+        for (const auto& derivedValue : *derivedAssets) {
+            DerivedAssetRecord derived;
+            if (const auto result = readDerivedAsset(derivedValue, derived); result.failed())
+                return result;
+            state.derivedAssets.push_back(std::move(derived));
+        }
     }
 
     if (const auto result = readAudio(root->getProperty("audio"), state.audio); result.failed())

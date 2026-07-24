@@ -31,7 +31,14 @@ keyboard marker nudging, fit/reset controls, reverse/loop/zero-crossing preferen
 sampler audition, explicit stop, accessible control identities, and headless UI coverage. Hosted
 run `30082704347` reached the new sources and stopped on portable warnings-as-errors and one JUCE
 drawing API mismatch before tests; the focused remediation is tracked by `REGRESSION-M2-002`.
-Revalidation is pending, and Milestone 2 is not yet complete.
+[Revalidation run 30082956358](https://github.com/pheonix666999/Resamplr/actions/runs/30082956358)
+passed all five jobs, including Linux Debug/Release, Windows Debug/Release and smoke/package paths,
+both macOS variants, universal architecture inspection, and cross-platform artifact verification.
+
+The derived-asset phase is in implementation: deterministic recipes, cancellable immutable PCM
+transforms, project-owned WAV publication, provenance persistence, stale-target cleanup, and unified
+assignment undo/redo are present locally. Hosted validation is pending, and Milestone 2 is not yet
+complete.
 
 The Milestone 0 repository, pinned dependency, targets, interfaces, schema-v1 skeleton, tests, smoke
 paths, packaging, and workflows remain the validated baseline. Milestone 1 adds the fixed

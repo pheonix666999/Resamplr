@@ -42,6 +42,13 @@ source range with loop and reverse disabled. Once a Milestone 2 edit is committe
 members are serialized together; partially present or invalid editing state is rejected without a
 partial project commit. Waveform caches remain optional, non-authoritative, and regenerable.
 
+Milestone 2 derived renders add a root `derivedAssets` array while retaining schema v1. Each record
+stores the output and parent UUIDs, captured source fingerprint, operation identifier and algorithm
+version, canonical parameters, output fingerprint, deterministic renderer metadata, and
+project-owned relative path. Older Milestone 0/1 manifests may omit `derivedAssets` and load it as
+an empty list. A present record must resolve both its exact parent fingerprint and its exact output
+fingerprint; incomplete or dangling provenance is rejected before project state changes.
+
 ## Musical time
 
 All musical positions use 960 PPQ. Absolute positions are `{ wholePpqTicks: int64,
@@ -62,6 +69,12 @@ Derived PCM resides under `Assets/Derived/` and stores UUID, original/source UUI
 canonical parameters, recipe hash, source/output fingerprints, and relevant creation metadata. Undo
 changes references rather than embedding PCM. Compaction removes only data proven unreferenced by the
 saved model, undo retention policy, recovery data, or an active job.
+
+The v1 derived renderer normalizes the complete immutable source, converts stereo with
+`(left + right) * 0.5`, applies linear fades only inside the active trim region, and crops the
+half-open active trim range. Crop resets trim to the complete derived asset and rebases the valid
+loop relative to the crop start. Rendering writes a sibling `.part-*` WAV and publishes it by a
+same-directory rename; failed, cancelled, or stale newly-created outputs are removed.
 
 ## Save and recovery
 

@@ -248,6 +248,28 @@ juce::Result validateProjectState(const ProjectState& state) {
             return juce::Result::fail("External asset metadata is invalid");
         addUuid(uuids, asset.uuid, result);
     }
+    for (const auto& derived : state.derivedAssets) {
+        if (derived.derivedAssetUuid.trim().isEmpty() || derived.parentAssetUuid.trim().isEmpty() ||
+            derived.sourceFingerprint.trim().isEmpty() ||
+            derived.operationIdentifier.trim().isEmpty() || derived.algorithmVersion == 0U ||
+            derived.canonicalOperationParameters.trim().isEmpty() ||
+            derived.outputFingerprint.trim().isEmpty() ||
+            derived.creationMetadata.trim().isEmpty() ||
+            derived.projectOwnedRelativePath.trim().isEmpty())
+            return juce::Result::fail("Derived asset provenance is incomplete");
+        const auto output =
+            std::find_if(state.assets.begin(), state.assets.end(), [&](const auto& asset) {
+                return asset.uuid == derived.derivedAssetUuid &&
+                       asset.contentFingerprint == derived.outputFingerprint;
+            });
+        const auto parent =
+            std::find_if(state.assets.begin(), state.assets.end(), [&](const auto& asset) {
+                return asset.uuid == derived.parentAssetUuid &&
+                       asset.contentFingerprint == derived.sourceFingerprint;
+            });
+        if (output == state.assets.end() || parent == state.assets.end())
+            return juce::Result::fail("Derived asset provenance references unknown source data");
+    }
     for (const auto& bank : state.banks)
         for (const auto& pad : bank.pads)
             for (const auto& layer : pad.layers) {

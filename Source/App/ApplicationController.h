@@ -47,6 +47,12 @@ class ApplicationController final {
     [[nodiscard]] juce::Result commitImportedLayer(const JobSpec& target, std::size_t globalIndex,
                                                    std::size_t layerIndex,
                                                    ExternalAssetReference asset);
+    [[nodiscard]] juce::Result commitDerivedLayer(const JobSpec& target, std::size_t globalIndex,
+                                                  std::size_t layerIndex,
+                                                  const juce::String& expectedSourceAssetUuid,
+                                                  ExternalAssetReference derivedAsset,
+                                                  DerivedAssetRecord provenance,
+                                                  SamplePlaybackSettings playback);
     [[nodiscard]] bool canUndo() const noexcept;
     [[nodiscard]] bool canRedo() const noexcept;
     [[nodiscard]] bool undo();

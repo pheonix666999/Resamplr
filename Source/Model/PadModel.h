@@ -106,6 +106,21 @@ struct ExternalAssetReference final {
                                          const ExternalAssetReference&) = default;
 };
 
+struct DerivedAssetRecord final {
+    juce::String derivedAssetUuid;
+    juce::String parentAssetUuid;
+    juce::String sourceFingerprint;
+    juce::String operationIdentifier;
+    std::uint32_t algorithmVersion{0U};
+    juce::String canonicalOperationParameters;
+    juce::String outputFingerprint;
+    juce::String creationMetadata;
+    juce::String projectOwnedRelativePath;
+
+    [[nodiscard]] friend bool operator==(const DerivedAssetRecord&,
+                                         const DerivedAssetRecord&) = default;
+};
+
 struct MidiSettings final {
     juce::String preferredInputIdentifier;
     std::uint8_t channelFilter{0U};
@@ -142,6 +157,7 @@ struct ProjectState final {
     juce::String projectName{"Untitled"};
     std::array<PadBank, padBankCount> banks;
     std::vector<ExternalAssetReference> assets;
+    std::vector<DerivedAssetRecord> derivedAssets;
     MidiSettings midi;
     AudioSettings audio;
     ProjectUiState ui;

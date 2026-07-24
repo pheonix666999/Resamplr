@@ -67,6 +67,8 @@ add_library(
     Source/Input/InputRouter.h
     Source/Sampling/SampleImporter.cpp
     Source/Sampling/SampleImporter.h
+    Source/Sampling/DerivedAsset.cpp
+    Source/Sampling/DerivedAsset.h
     Source/Sampling/SamplePreviewController.cpp
     Source/Sampling/SamplePreviewController.h
     Source/Smoke/SmokeScenario.cpp
