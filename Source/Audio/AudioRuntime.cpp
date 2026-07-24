@@ -71,7 +71,6 @@ juce::Result AudioRuntime::applySettings(const AudioSettings& settings) {
 }
 
 void AudioRuntime::close() {
-    engine_.panic();
     if (activeMidiIdentifier_.isNotEmpty() && activeMidiCallback_ != nullptr) {
         manager_.removeMidiInputDeviceCallback(activeMidiIdentifier_, activeMidiCallback_);
         manager_.setMidiInputDeviceEnabled(activeMidiIdentifier_, false);
@@ -80,6 +79,8 @@ void AudioRuntime::close() {
     activeMidiCallback_ = nullptr;
     if (callbackRegistered_.exchange(false, std::memory_order_acq_rel))
         manager_.removeAudioCallback(this);
+    engine_.panic();
+    preview_.panicWhenQuiescent();
     manager_.closeAudioDevice();
 }
 
@@ -171,13 +172,23 @@ const PlaybackEngine& AudioRuntime::engine() const noexcept {
     return engine_;
 }
 
+PreviewPlayer& AudioRuntime::preview() noexcept {
+    return preview_;
+}
+
+const PreviewPlayer& AudioRuntime::preview() const noexcept {
+    return preview_;
+}
+
 void AudioRuntime::audioDeviceIOCallbackWithContext(
     const float* const* const inputChannelData, const int numInputChannels,
     float* const* const outputChannelData, const int numOutputChannels, const int numSamples,
     const juce::AudioIODeviceCallbackContext& context) {
     juce::ignoreUnused(inputChannelData, numInputChannels, context);
-    if (panicRequested_.exchange(false, std::memory_order_acq_rel))
+    if (panicRequested_.exchange(false, std::memory_order_acq_rel)) {
         engine_.panic();
+        preview_.panicWhenQuiescent();
+    }
     if (outputChannelData == nullptr || numOutputChannels <= 0 || numSamples <= 0)
         return;
 
@@ -194,6 +205,7 @@ void AudioRuntime::audioDeviceIOCallbackWithContext(
                           ? outputChannelData[1] + offset
                           : rightScratch_.data();
         engine_.processBlock(left, right, static_cast<std::size_t>(count));
+        preview_.processAdd(left, right, static_cast<std::size_t>(count));
 
         if (testToneEnabled_.load(std::memory_order_relaxed)) {
             constexpr double frequency = 440.0;
@@ -218,12 +230,14 @@ void AudioRuntime::audioDeviceAboutToStart(juce::AudioIODevice* const device) {
                             ? device->getCurrentSampleRate()
                             : 48000.0;
     engine_.prepare(activeSampleRate_);
+    preview_.prepare(activeSampleRate_);
     testTonePhase_ = 0.0;
     deviceError_.store(false, std::memory_order_release);
 }
 
 void AudioRuntime::audioDeviceStopped() {
     engine_.panic();
+    preview_.panicWhenQuiescent();
     testTonePhase_ = 0.0;
 }
 

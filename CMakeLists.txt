@@ -57,10 +57,14 @@ add_library(
     Source/Audio/CaptureWriter.h
     Source/Audio/PlaybackEngine.cpp
     Source/Audio/PlaybackEngine.h
+    Source/Audio/PreviewPlayer.cpp
+    Source/Audio/PreviewPlayer.h
     Source/Input/InputRouter.cpp
     Source/Input/InputRouter.h
     Source/Sampling/SampleImporter.cpp
     Source/Sampling/SampleImporter.h
+    Source/Sampling/SamplePreviewController.cpp
+    Source/Sampling/SamplePreviewController.h
     Source/Smoke/SmokeScenario.cpp
     Source/Smoke/SmokeScenario.h)
 target_include_directories(padflow_audio PUBLIC Source)

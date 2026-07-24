@@ -7,7 +7,8 @@ target_sources(
             Unit/Milestone1AudioTests.cpp
             Unit/Milestone1DeviceTests.cpp
             Unit/Milestone1InputTests.cpp
-            Unit/Milestone1ModelTests.cpp)
+            Unit/Milestone1ModelTests.cpp
+            Unit/Milestone1PreviewTests.cpp)
 target_link_libraries(padflow_tests PRIVATE padflow_audio)
 padflow_enable_project_warnings(padflow_tests)
 padflow_set_output_directory(padflow_tests)

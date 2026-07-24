@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Audio/PlaybackEngine.h"
+#include "Audio/PreviewPlayer.h"
 #include "Model/PadModel.h"
 
 #include <juce_audio_devices/juce_audio_devices.h>
@@ -48,6 +49,8 @@ class AudioRuntime final : public juce::AudioIODeviceCallback {
 
     [[nodiscard]] PlaybackEngine& engine() noexcept;
     [[nodiscard]] const PlaybackEngine& engine() const noexcept;
+    [[nodiscard]] PreviewPlayer& preview() noexcept;
+    [[nodiscard]] const PreviewPlayer& preview() const noexcept;
 
     void
     audioDeviceIOCallbackWithContext(const float* const* inputChannelData, int numInputChannels,
@@ -63,6 +66,7 @@ class AudioRuntime final : public juce::AudioIODeviceCallback {
 
     juce::AudioDeviceManager manager_;
     PlaybackEngine engine_;
+    PreviewPlayer preview_;
     std::array<float, scratchFrames> leftScratch_{};
     std::array<float, scratchFrames> rightScratch_{};
     std::atomic<bool> callbackRegistered_{false};
