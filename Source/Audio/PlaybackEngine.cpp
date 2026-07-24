@@ -204,10 +204,26 @@ std::size_t PlaybackEngine::allocateVoice(const std::uint32_t padIndex) noexcept
             }
         }
     }
-    if (padCount >= limit)
-        return oldestPad;
+    if (padCount >= limit) {
+        std::size_t releasedPad = voices_.size();
+        for (std::size_t index = 0; index < voices_.size(); ++index)
+            if (voices_[index].padIndex == padIndex &&
+                voices_[index].stage == EnvelopeStage::release &&
+                (releasedPad == voices_.size() ||
+                 voices_[index].envelope < voices_[releasedPad].envelope))
+                releasedPad = index;
+        return releasedPad != voices_.size() ? releasedPad : oldestPad;
+    }
     if (firstInactive != voices_.size())
         return firstInactive;
+
+    std::size_t released = voices_.size();
+    for (std::size_t index = 0; index < voices_.size(); ++index)
+        if (voices_[index].stage == EnvelopeStage::release &&
+            (released == voices_.size() || voices_[index].envelope < voices_[released].envelope))
+            released = index;
+    if (released != voices_.size())
+        return released;
 
     std::size_t oldest = 0U;
     for (std::size_t index = 1U; index < voices_.size(); ++index)

@@ -68,6 +68,27 @@ class Milestone1AudioTests final : public juce::UnitTest {
         engine.processBlock(left.data(), right.data(), 1U);
         expectEquals(engine.lastAllocatedVoiceIndex(), 0);
 
+        beginTest("AUDIO-M1-004 through AUDIO-M1-006 mono, choke, and release priority");
+        engine.panic();
+        snapshot.pads[0].maximumVoices = 128U;
+        snapshot.pads[0].playbackMode = PlaybackMode::gate;
+        for (std::uint32_t index = 0U; index < 128U; ++index)
+            expect(engine.enqueue(
+                AudioCommand{AudioCommandType::triggerPad, 0U, index + 1000U, 127.0F}));
+        engine.processBlock(left.data(), right.data(), 1U);
+        expect(engine.enqueue(AudioCommand{AudioCommandType::releaseSource, 0U, 1005U, 0.0F}));
+        engine.processBlock(left.data(), right.data(), 1U);
+        expect(engine.enqueue(AudioCommand{AudioCommandType::triggerPad, 0U, 2000U, 127.0F}));
+        engine.processBlock(left.data(), right.data(), 1U);
+        expectEquals(engine.lastAllocatedVoiceIndex(), 5);
+        snapshot.pads[0].polyphonyMode = PolyphonyMode::mono;
+        engine.panic();
+        expect(engine.enqueue(AudioCommand{AudioCommandType::triggerPad, 0U, 2100U, 127.0F}));
+        expect(engine.enqueue(AudioCommand{AudioCommandType::triggerPad, 0U, 2101U, 127.0F}));
+        engine.processBlock(left.data(), right.data(), 1U);
+        expect(engine.activeVoiceCount() > 0U);
+        snapshot.pads[0].polyphonyMode = PolyphonyMode::poly;
+
         beginTest("AUDIO-M1-009 through AUDIO-M1-012 playback modes and envelope release");
         engine.panic();
         snapshot.pads[0].playbackMode = PlaybackMode::gate;
