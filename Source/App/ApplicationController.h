@@ -38,6 +38,7 @@ class ApplicationController final {
                                               juce::String keyboardKey);
     [[nodiscard]] juce::Result setAudioSettings(AudioSettings settings);
     [[nodiscard]] juce::Result setMidiSettings(MidiSettings settings);
+    [[nodiscard]] juce::Result setRecordingPreferences(RecordingPreferences preferences);
     [[nodiscard]] juce::Result setUiState(ProjectUiState state);
     [[nodiscard]] juce::Result clearPad(std::size_t globalIndex);
     [[nodiscard]] juce::Result copyPad(std::size_t globalIndex);
@@ -53,6 +54,11 @@ class ApplicationController final {
                                                   ExternalAssetReference derivedAsset,
                                                   DerivedAssetRecord provenance,
                                                   SamplePlaybackSettings playback);
+    [[nodiscard]] juce::Result commitRecordedLayer(const JobSpec& target, std::size_t globalIndex,
+                                                   std::size_t layerIndex,
+                                                   const juce::String& expectedLayerUuid,
+                                                   ExternalAssetReference recordedAsset,
+                                                   RecordedAssetRecord provenance);
     [[nodiscard]] bool canUndo() const noexcept;
     [[nodiscard]] bool canRedo() const noexcept;
     [[nodiscard]] bool undo();

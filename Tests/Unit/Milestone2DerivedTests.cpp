@@ -47,7 +47,7 @@ void assignFixture(ApplicationController& controller, SampleAssetRegistry& regis
                    const std::shared_ptr<const SampleAsset>& asset) {
     juce::ignoreUnused(registry.publish(asset));
     const auto target = JobSpec{controller.project().uuid(), controller.project().pad(0U).uuid,
-                                controller.project().revision(), 0};
+                                controller.project().revision(), 0, JobKind::derivedAsset};
     juce::ignoreUnused(
         controller.commitImportedLayer(target, 0U, 0U, makeDerivedReference(*asset)));
 }

@@ -1,4 +1,7 @@
+#include "App/ApplicationController.h"
 #include "Audio/CaptureWriter.h"
+#include "Sampling/RecordedAsset.h"
+#include "Serialization/ProjectSerializer.h"
 
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_core/juce_core.h>
@@ -206,12 +209,95 @@ class Milestone2CaptureTests final : public juce::UnitTest {
         expect(collision.completedFile() != manualDestination);
         expect(collision.completedFile().existsAsFile());
 
+        beginTest("RECORD-M2-016 through RECORD-M2-018 immutable assignment and undo");
+        ApplicationController controller;
+        controller.createEmptyProject("Recording", "recording-project");
+        SampleAssetRegistry registry;
+        const auto& destinationPad = controller.project().pad(0U);
+        const RecordedAssetRequest recordedRequest{
+            JobSpec{controller.project().uuid(), destinationPad.uuid,
+                    controller.project().revision(), 0, JobKind::recordedAsset},
+            manual.completedFile(),
+            "recording-session",
+            "recorded-asset",
+            "Recordings/manual.wav",
+            "mock-input",
+            destinationPad.layers[0].uuid,
+            0U,
+            0U,
+            registry.budgetBytes()};
+        CancellationToken decodeCancellation;
+        JobProgress decodeProgress;
+        const auto recorded =
+            RecordedAssetPublisher::decode(recordedRequest, decodeCancellation, decodeProgress);
+        expect(recorded != nullptr && recorded->succeeded);
+        expect(recorded != nullptr &&
+               RecordedAssetPublisher::commit(*recorded, controller, registry).wasOk());
+        expectEquals(controller.project().pad(0U).layers[0].assetUuid,
+                     juce::String{"recorded-asset"});
+        expectEquals(static_cast<int>(controller.project().state().recordedAssets.size()), 1);
+        expect(controller.undo());
+        expect(controller.project().pad(0U).layers[0].assetUuid.isEmpty());
+        expect(controller.redo());
+        expectEquals(controller.project().pad(0U).layers[0].assetUuid,
+                     juce::String{"recorded-asset"});
+        RecordingPreferences preferences;
+        preferences.channels = 2U;
+        preferences.thresholdMode = true;
+        preferences.thresholdDecibels = -18.0F;
+        preferences.preRollMilliseconds = 750U;
+        preferences.autoAssign = false;
+        expect(controller.setRecordingPreferences(preferences).wasOk());
+
+        beginTest("SAVE-M2-006 and SAVE-M2-007 recorded provenance round trip");
+        auto recordedState = controller.project().state();
+        recordedState.assets[0].missing = true;
+        recordedState.assets[0].originalPath = root.getChildFile("missing.wav").getFullPathName();
+        Project recordedProject =
+            Project::createEmpty("Recorded restore", controller.project().uuid());
+        expect(
+            recordedProject.restoreState(recordedState, controller.project().revision()).wasOk());
+        const auto manifest = ProjectSerializer::canonicalManifest(recordedProject);
+        auto restored = Project::createEmpty();
+        expect(ProjectSerializer::restoreCanonicalManifest(manifest, restored).wasOk());
+        expect(restored.state() == recordedProject.state());
+        expect(restored.state().assets[0].missing);
+        expectEquals(static_cast<int>(restored.state().recordedAssets.size()), 1);
+
+        beginTest("RECORD-M2-016 stale assignment leaves valid recording unassigned");
+        ApplicationController staleController;
+        staleController.createEmptyProject("Stale", "stale-recording-project");
+        const auto& stalePad = staleController.project().pad(0U);
+        const RecordedAssetRequest staleRequest{
+            JobSpec{staleController.project().uuid(), stalePad.uuid,
+                    staleController.project().revision(), 0, JobKind::recordedAsset},
+            manual.completedFile(),
+            "stale-session",
+            "stale-recorded-asset",
+            "Recordings/stale.wav",
+            "mock-input",
+            stalePad.layers[0].uuid,
+            0U,
+            0U,
+            registry.budgetBytes()};
+        CancellationToken staleCancellation;
+        JobProgress staleProgress;
+        const auto stale =
+            RecordedAssetPublisher::decode(staleRequest, staleCancellation, staleProgress);
+        expect(stale != nullptr && stale->succeeded);
+        expect(staleController.renamePad(0U, "Changed destination").wasOk());
+        expect(stale != nullptr &&
+               RecordedAssetPublisher::commit(*stale, staleController, registry).failed());
+        expect(staleController.project().pad(0U).layers[0].assetUuid.isEmpty());
+        expect(manual.completedFile().existsAsFile());
+
         manual.shutdown();
         threshold.shutdown();
         stereo.shutdown();
         overflow.shutdown();
         cancelled.shutdown();
         collision.shutdown();
+        registry.clear();
         expect(root.deleteRecursively());
     }
 };

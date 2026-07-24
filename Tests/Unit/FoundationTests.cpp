@@ -32,9 +32,9 @@ class FoundationTests final : public juce::UnitTest {
         ApplicationController controller;
         controller.createEmptyProject("Controller", "controller-project");
         expect(controller.isCurrentJobTarget(
-            JobSpec{"controller-project", "controller-project", 0U, 0}));
+            JobSpec{"controller-project", "controller-project", 0U, 0, JobKind::generic}));
         expect(!controller.isCurrentJobTarget(
-            JobSpec{"controller-project", "controller-project", 1U, 0}));
+            JobSpec{"controller-project", "controller-project", 1U, 0, JobKind::generic}));
 
         beginTest("SAVE-001 canonical manifest and semantic round trip");
         const auto temporaryDirectory = juce::File::getSpecialLocation(juce::File::tempDirectory)

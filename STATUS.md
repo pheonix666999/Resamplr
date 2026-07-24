@@ -47,6 +47,11 @@ atomic meters/counters, explicit overflow rejection, a session-specific writer t
 and shutdown cancel active capture rather than silently abandoning it. Hosted validation is
 pending, and Milestone 2 is not yet complete.
 
+Recorded-asset integration is present locally: successful WAVs decode through the immutable sample
+path, preserve schema-v1 recording provenance and stable preferences, validate fixed
+project/pad/layer/revision destinations, and commit assignment plus undo/redo as one transaction.
+Stale completions leave their valid WAV unassigned. Hosted validation is pending.
+
 The Milestone 0 repository, pinned dependency, targets, interfaces, schema-v1 skeleton, tests, smoke
 paths, packaging, and workflows remain the validated baseline. Milestone 1 adds the fixed
 four-bank/64-pad model, four immutable velocity layers per pad, stable identities, validated pad

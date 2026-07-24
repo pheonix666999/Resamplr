@@ -225,6 +225,12 @@ juce::Result ApplicationController::setMidiSettings(MidiSettings settings) {
     return commitProjectEdit(std::move(candidate), "Change MIDI settings");
 }
 
+juce::Result ApplicationController::setRecordingPreferences(RecordingPreferences preferences) {
+    auto candidate = project_.state();
+    candidate.recording = preferences;
+    return commitProjectEdit(std::move(candidate), "Change recording preferences");
+}
+
 juce::Result ApplicationController::setUiState(ProjectUiState state) {
     auto candidate = project_.state();
     candidate.ui = state;
@@ -357,6 +363,65 @@ juce::Result ApplicationController::commitDerivedLayer(
         return result;
     undoHistory_.push_back(
         ProjectEdit{before, project_.state(), "Replace layer with derived asset"});
+    redoHistory_.clear();
+    return juce::Result::ok();
+}
+
+juce::Result ApplicationController::commitRecordedLayer(const JobSpec& target,
+                                                        const std::size_t globalIndex,
+                                                        const std::size_t layerIndex,
+                                                        const juce::String& expectedLayerUuid,
+                                                        ExternalAssetReference recordedAsset,
+                                                        RecordedAssetRecord provenance) {
+    if (!isCurrentJobTarget(target))
+        return juce::Result::fail("Recorded asset completion is stale");
+    if (globalIndex >= totalPadCount || layerIndex >= minimumLayersPerPad)
+        return juce::Result::fail("Recorded asset completion targets an invalid layer");
+    const auto& currentPad = project_.pad(globalIndex);
+    if (currentPad.uuid != target.targetUuid)
+        return juce::Result::fail("Recorded asset completion targets a different pad");
+    if (currentPad.layers[layerIndex].uuid != expectedLayerUuid ||
+        provenance.targetLayerUuid != expectedLayerUuid ||
+        provenance.targetProjectUuid != target.ownerUuid ||
+        provenance.targetPadUuid != currentPad.uuid ||
+        provenance.targetProjectRevision != target.targetRevision)
+        return juce::Result::fail("Recorded asset destination changed");
+    if (recordedAsset.uuid != provenance.recordedAssetUuid ||
+        recordedAsset.contentFingerprint != provenance.contentFingerprint ||
+        recordedAsset.channels != provenance.channels ||
+        recordedAsset.sourceSampleRate != provenance.sampleRate ||
+        recordedAsset.frameCount != provenance.frameCount)
+        return juce::Result::fail("Recorded asset provenance does not match its output");
+
+    const auto before = project_.state();
+    auto candidate = project_.state();
+    auto& replacement = candidate.banks[globalIndex / padsPerBank].pads[globalIndex % padsPerBank];
+    replacement.layers[layerIndex].assetUuid = recordedAsset.uuid;
+    replacement.layers[layerIndex].enabled = true;
+    replacement.layers[layerIndex].playback =
+        resolveSamplePlaybackSettings(replacement.layers[layerIndex], recordedAsset.frameCount);
+
+    const auto existingAsset =
+        std::find_if(candidate.assets.begin(), candidate.assets.end(),
+                     [&](const auto& entry) { return entry.uuid == recordedAsset.uuid; });
+    if (existingAsset != candidate.assets.end())
+        *existingAsset = std::move(recordedAsset);
+    else
+        candidate.assets.push_back(std::move(recordedAsset));
+    const auto existingProvenance = std::find_if(
+        candidate.recordedAssets.begin(), candidate.recordedAssets.end(),
+        [&](const auto& entry) { return entry.recordedAssetUuid == provenance.recordedAssetUuid; });
+    if (existingProvenance != candidate.recordedAssets.end())
+        *existingProvenance = std::move(provenance);
+    else
+        candidate.recordedAssets.push_back(std::move(provenance));
+
+    if (const auto validation = validateProjectState(candidate); validation.failed())
+        return validation;
+    if (const auto result = project_.restoreState(std::move(candidate), project_.revision() + 1U);
+        result.failed())
+        return result;
+    undoHistory_.push_back(ProjectEdit{before, project_.state(), "Assign recorded sample"});
     redoHistory_.clear();
     return juce::Result::ok();
 }

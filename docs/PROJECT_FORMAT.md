@@ -49,6 +49,15 @@ project-owned relative path. Older Milestone 0/1 manifests may omit `derivedAsse
 an empty list. A present record must resolve both its exact parent fingerprint and its exact output
 fingerprint; incomplete or dangling provenance is rejected before project state changes.
 
+Milestone 2 recordings add optional root `recordedAssets` and `recording` members. Each recording
+record stores the immutable asset UUID and fingerprint, capture-session UUID, project-owned relative
+WAV path, input-device identifier, exact channel/rate/frame metadata, and the originally targeted
+project/pad/layer/revision. The preferences object stores only stable user choices: mono/stereo layout,
+manual/threshold mode, threshold dBFS, 0–2000 ms pre-roll, and automatic assignment. Device runtime
+internals are not persisted there. Older manifests may omit both members and receive deterministic
+defaults. Missing recorded files retain their asset and provenance records with the asset's explicit
+missing flag; malformed or dangling provenance rejects the candidate project before commit.
+
 ## Musical time
 
 All musical positions use 960 PPQ. Absolute positions are `{ wholePpqTicks: int64,
@@ -75,6 +84,12 @@ The v1 derived renderer normalizes the complete immutable source, converts stere
 half-open active trim range. Crop resets trim to the complete derived asset and rebases the valid
 loop relative to the crop start. Rendering writes a sibling `.part-*` WAV and publishes it by a
 same-directory rename; failed, cancelled, or stale newly-created outputs are removed.
+
+Input recordings reside under `Assets/Recorded/` (or the equivalent project-owned working
+directory before collection). The callback writes only into preallocated FIFO/pre-roll memory. A
+session-specific writer thread owns sibling `.part` creation, 24-bit WAV encoding, header
+finalization, validation, and collision-safe publication. Only a completed and decoded immutable
+asset may be committed to a layer; a stale destination leaves the valid file unassigned.
 
 ## Save and recovery
 

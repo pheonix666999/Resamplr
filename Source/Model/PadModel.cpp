@@ -270,6 +270,45 @@ juce::Result validateProjectState(const ProjectState& state) {
         if (output == state.assets.end() || parent == state.assets.end())
             return juce::Result::fail("Derived asset provenance references unknown source data");
     }
+    for (const auto& recorded : state.recordedAssets) {
+        if (recorded.recordedAssetUuid.trim().isEmpty() || recorded.sessionUuid.trim().isEmpty() ||
+            recorded.contentFingerprint.trim().isEmpty() ||
+            recorded.projectOwnedRelativePath.trim().isEmpty() ||
+            recorded.targetProjectUuid.trim().isEmpty() ||
+            recorded.targetPadUuid.trim().isEmpty() || recorded.targetLayerUuid.trim().isEmpty() ||
+            (recorded.channels != 1U && recorded.channels != 2U) ||
+            !std::isfinite(recorded.sampleRate) || recorded.sampleRate <= 0.0 ||
+            recorded.frameCount == 0U)
+            return juce::Result::fail("Recorded asset provenance is incomplete");
+        const auto output =
+            std::find_if(state.assets.begin(), state.assets.end(), [&](const auto& asset) {
+                return asset.uuid == recorded.recordedAssetUuid &&
+                       asset.contentFingerprint == recorded.contentFingerprint &&
+                       asset.channels == recorded.channels &&
+                       asset.sourceSampleRate == recorded.sampleRate &&
+                       asset.frameCount == recorded.frameCount;
+            });
+        if (output == state.assets.end())
+            return juce::Result::fail("Recorded asset provenance references unknown source data");
+        if (recorded.targetProjectUuid != state.projectUuid)
+            return juce::Result::fail("Recorded asset provenance targets a different project");
+        const auto targetPad =
+            std::find_if(state.banks.begin(), state.banks.end(), [&](const auto& bank) {
+                return std::any_of(bank.pads.begin(), bank.pads.end(), [&](const auto& pad) {
+                    return pad.uuid == recorded.targetPadUuid &&
+                           std::any_of(pad.layers.begin(), pad.layers.end(),
+                                       [&](const auto& layer) {
+                                           return layer.uuid == recorded.targetLayerUuid;
+                                       });
+                });
+            });
+        if (targetPad == state.banks.end())
+            return juce::Result::fail("Recorded asset provenance targets an unknown layer");
+    }
+    if ((state.recording.channels != 1U && state.recording.channels != 2U) ||
+        !isFiniteInRange(state.recording.thresholdDecibels, -96.0F, 0.0F) ||
+        state.recording.preRollMilliseconds > 2000U)
+        return juce::Result::fail("Recording preferences are outside their supported range");
     for (const auto& bank : state.banks)
         for (const auto& pad : bank.pads)
             for (const auto& layer : pad.layers) {

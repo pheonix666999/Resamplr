@@ -121,6 +121,35 @@ struct DerivedAssetRecord final {
                                          const DerivedAssetRecord&) = default;
 };
 
+struct RecordedAssetRecord final {
+    juce::String recordedAssetUuid;
+    juce::String sessionUuid;
+    juce::String contentFingerprint;
+    juce::String projectOwnedRelativePath;
+    juce::String inputDeviceIdentifier;
+    juce::String targetProjectUuid;
+    juce::String targetPadUuid;
+    juce::String targetLayerUuid;
+    std::uint64_t targetProjectRevision{0U};
+    std::uint32_t channels{0U};
+    double sampleRate{0.0};
+    std::uint64_t frameCount{0U};
+
+    [[nodiscard]] friend bool operator==(const RecordedAssetRecord&,
+                                         const RecordedAssetRecord&) = default;
+};
+
+struct RecordingPreferences final {
+    std::uint32_t channels{1U};
+    bool thresholdMode{false};
+    float thresholdDecibels{-24.0F};
+    std::uint32_t preRollMilliseconds{0U};
+    bool autoAssign{true};
+
+    [[nodiscard]] friend bool operator==(const RecordingPreferences&,
+                                         const RecordingPreferences&) = default;
+};
+
 struct MidiSettings final {
     juce::String preferredInputIdentifier;
     std::uint8_t channelFilter{0U};
@@ -158,6 +187,8 @@ struct ProjectState final {
     std::array<PadBank, padBankCount> banks;
     std::vector<ExternalAssetReference> assets;
     std::vector<DerivedAssetRecord> derivedAssets;
+    std::vector<RecordedAssetRecord> recordedAssets;
+    RecordingPreferences recording;
     MidiSettings midi;
     AudioSettings audio;
     ProjectUiState ui;

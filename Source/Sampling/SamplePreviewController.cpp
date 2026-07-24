@@ -24,7 +24,7 @@ std::optional<JobHandle> SamplePreviewController::begin(BackgroundJobSystem& job
     ++revision_;
 
     SampleImportRequest request{
-        JobSpec{previewOwnerUuid, previewTargetUuid, revision_, 1},
+        JobSpec{previewOwnerUuid, previewTargetUuid, revision_, 1, JobKind::samplePreview},
         sourceFile,
         "preview-" + juce::String{static_cast<juce::int64>(revision_)},
         0U,

@@ -132,7 +132,8 @@ class Milestone2WaveformTests final : public juce::UnitTest {
         expect(controller.commitImportedLayer(importTarget, 0U, 0U, reference).wasOk());
 
         const WaveformCacheRequest request{JobSpec{controller.project().uuid(), reference.uuid,
-                                                   controller.project().revision(), 0},
+                                                   controller.project().revision(), 0,
+                                                   JobKind::waveformCache},
                                            stereo};
         CancellationToken buildCancellation;
         JobProgress buildProgress;

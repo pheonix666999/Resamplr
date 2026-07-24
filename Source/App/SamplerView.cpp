@@ -676,8 +676,9 @@ void SamplerView::submitSelectedWaveform() {
         waveformJob_->cancel();
     const auto revision = controller_.project().revision();
     auto handle = WaveformCacheGenerator::submit(
-        jobs_, WaveformCacheRequest{
-                   JobSpec{controller_.project().uuid(), layer.assetUuid, revision, -1}, asset});
+        jobs_, WaveformCacheRequest{JobSpec{controller_.project().uuid(), layer.assetUuid, revision,
+                                            -1, JobKind::waveformCache},
+                                    asset});
     if (!handle.has_value()) {
         setOperationMessage("Waveform analysis queue is full", true);
         return;
@@ -891,7 +892,8 @@ void SamplerView::submitNextImport() {
     const auto& queued = importQueue_.front();
     const auto& pad = controller_.project().pad(queued.globalPadIndex);
     SampleImportRequest request{
-        JobSpec{controller_.project().uuid(), pad.uuid, controller_.project().revision(), 0},
+        JobSpec{controller_.project().uuid(), pad.uuid, controller_.project().revision(), 0,
+                JobKind::sampleImport},
         queued.file,
         juce::Uuid().toString(),
         queued.globalPadIndex,
@@ -913,7 +915,8 @@ void SamplerView::resolveProjectAssets() {
         if (asset.missing || asset.uuid.isEmpty())
             continue;
         SampleImportRequest request{
-            JobSpec{"padflow-resolve", asset.uuid, controller_.project().revision(), 0},
+            JobSpec{"padflow-resolve", asset.uuid, controller_.project().revision(), 0,
+                    JobKind::sampleResolve},
             juce::File{asset.originalPath},
             asset.uuid,
             0U,

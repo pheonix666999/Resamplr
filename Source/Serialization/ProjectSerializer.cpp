@@ -170,6 +170,33 @@ juce::var derivedAssetValue(const DerivedAssetRecord& asset) {
     return value;
 }
 
+juce::var recordedAssetValue(const RecordedAssetRecord& asset) {
+    auto value = makeObject();
+    setProperty(value, "channels", static_cast<int>(asset.channels));
+    setProperty(value, "contentFingerprint", asset.contentFingerprint);
+    setProperty(value, "frameCount", decimalString(asset.frameCount));
+    setProperty(value, "inputDeviceIdentifier", asset.inputDeviceIdentifier);
+    setProperty(value, "projectOwnedRelativePath", asset.projectOwnedRelativePath);
+    setProperty(value, "recordedAssetUuid", asset.recordedAssetUuid);
+    setProperty(value, "sampleRate", asset.sampleRate);
+    setProperty(value, "sessionUuid", asset.sessionUuid);
+    setProperty(value, "targetLayerUuid", asset.targetLayerUuid);
+    setProperty(value, "targetPadUuid", asset.targetPadUuid);
+    setProperty(value, "targetProjectUuid", asset.targetProjectUuid);
+    setProperty(value, "targetProjectRevision", decimalString(asset.targetProjectRevision));
+    return value;
+}
+
+juce::var recordingValue(const RecordingPreferences& recording) {
+    auto value = makeObject();
+    setProperty(value, "autoAssign", recording.autoAssign);
+    setProperty(value, "channels", static_cast<int>(recording.channels));
+    setProperty(value, "preRollMilliseconds", static_cast<int>(recording.preRollMilliseconds));
+    setProperty(value, "thresholdDecibels", static_cast<double>(recording.thresholdDecibels));
+    setProperty(value, "thresholdMode", recording.thresholdMode);
+    return value;
+}
+
 juce::var audioValue(const AudioSettings& audio) {
     auto value = makeObject();
     setProperty(value, "bufferSize", static_cast<int>(audio.bufferSize));
@@ -219,6 +246,12 @@ juce::var manifestValue(const Project& project) {
         derivedAssets.push_back(derivedAssetValue(asset));
     setProperty(value, "derivedAssets", makeArray(derivedAssets));
 
+    std::vector<juce::var> recordedAssets;
+    recordedAssets.reserve(state.recordedAssets.size());
+    for (const auto& asset : state.recordedAssets)
+        recordedAssets.push_back(recordedAssetValue(asset));
+    setProperty(value, "recordedAssets", makeArray(recordedAssets));
+
     std::vector<juce::var> banks;
     banks.reserve(state.banks.size());
     for (const auto& bank : state.banks)
@@ -232,6 +265,7 @@ juce::var manifestValue(const Project& project) {
     setProperty(value, "product", juce::String{product::name.data()});
     setProperty(value, "projectName", project.name());
     setProperty(value, "projectUuid", project.uuid());
+    setProperty(value, "recording", recordingValue(state.recording));
     setProperty(value, "revision", decimalString(project.revision()));
     setProperty(value, "schemaVersion", project.schemaVersion());
     setProperty(value, "ui", uiValue(state.ui));
@@ -566,6 +600,63 @@ juce::Result readDerivedAsset(const juce::var& value, DerivedAssetRecord& asset)
     return readString(*object, "sourceFingerprint", asset.sourceFingerprint);
 }
 
+juce::Result readRecordedAsset(const juce::var& value, RecordedAssetRecord& asset) {
+    const juce::DynamicObject* object = nullptr;
+    if (const auto result = requireObject(value, "recorded asset", object); result.failed())
+        return result;
+    if (const auto result = readInteger(*object, "channels", asset.channels); result.failed())
+        return result;
+    if (const auto result = readString(*object, "contentFingerprint", asset.contentFingerprint);
+        result.failed())
+        return result;
+    if (const auto result = readDecimalString(*object, "frameCount", asset.frameCount);
+        result.failed())
+        return result;
+    if (const auto result =
+            readString(*object, "inputDeviceIdentifier", asset.inputDeviceIdentifier);
+        result.failed())
+        return result;
+    if (const auto result =
+            readString(*object, "projectOwnedRelativePath", asset.projectOwnedRelativePath);
+        result.failed())
+        return result;
+    if (const auto result = readString(*object, "recordedAssetUuid", asset.recordedAssetUuid);
+        result.failed())
+        return result;
+    if (const auto result = readDouble(*object, "sampleRate", asset.sampleRate); result.failed())
+        return result;
+    if (const auto result = readString(*object, "sessionUuid", asset.sessionUuid); result.failed())
+        return result;
+    if (const auto result = readString(*object, "targetLayerUuid", asset.targetLayerUuid);
+        result.failed())
+        return result;
+    if (const auto result = readString(*object, "targetPadUuid", asset.targetPadUuid);
+        result.failed())
+        return result;
+    if (const auto result = readString(*object, "targetProjectUuid", asset.targetProjectUuid);
+        result.failed())
+        return result;
+    return readDecimalString(*object, "targetProjectRevision", asset.targetProjectRevision);
+}
+
+juce::Result readRecording(const juce::var& value, RecordingPreferences& recording) {
+    const juce::DynamicObject* object = nullptr;
+    if (const auto result = requireObject(value, "recording", object); result.failed())
+        return result;
+    if (const auto result = readBool(*object, "autoAssign", recording.autoAssign); result.failed())
+        return result;
+    if (const auto result = readInteger(*object, "channels", recording.channels); result.failed())
+        return result;
+    if (const auto result =
+            readInteger(*object, "preRollMilliseconds", recording.preRollMilliseconds);
+        result.failed())
+        return result;
+    if (const auto result = readFloat(*object, "thresholdDecibels", recording.thresholdDecibels);
+        result.failed())
+        return result;
+    return readBool(*object, "thresholdMode", recording.thresholdMode);
+}
+
 juce::Result readAudio(const juce::var& value, AudioSettings& audio) {
     const juce::DynamicObject* object = nullptr;
     if (const auto result = requireObject(value, "audio", object); result.failed())
@@ -654,7 +745,8 @@ juce::Result parseManifest(const juce::String& text, Project& project) {
 
     const auto banksIdentifier = juce::Identifier{"banks"};
     if (!root->hasProperty(banksIdentifier)) {
-        for (const auto* property : {"assets", "audio", "derivedAssets", "midi", "ui"})
+        for (const auto* property :
+             {"assets", "audio", "derivedAssets", "midi", "recordedAssets", "recording", "ui"})
             if (root->hasProperty(juce::Identifier{property}))
                 return juce::Result::fail("Project manifest has an incomplete model payload");
         auto legacy = Project::createEmpty(name, uuid);
@@ -701,10 +793,31 @@ juce::Result parseManifest(const juce::String& text, Project& project) {
         }
     }
 
+    const auto recordedIdentifier = juce::Identifier{"recordedAssets"};
+    if (root->hasProperty(recordedIdentifier)) {
+        const auto recordedAssetsValue = root->getProperty(recordedIdentifier);
+        const auto* recordedAssets = recordedAssetsValue.getArray();
+        if (recordedAssets == nullptr)
+            return juce::Result::fail("recordedAssets must be an array");
+        state.recordedAssets.reserve(static_cast<std::size_t>(recordedAssets->size()));
+        for (const auto& recordedValue : *recordedAssets) {
+            RecordedAssetRecord recorded;
+            if (const auto result = readRecordedAsset(recordedValue, recorded); result.failed())
+                return result;
+            state.recordedAssets.push_back(std::move(recorded));
+        }
+    }
+
     if (const auto result = readAudio(root->getProperty("audio"), state.audio); result.failed())
         return result;
     if (const auto result = readMidi(root->getProperty("midi"), state.midi); result.failed())
         return result;
+    const auto recordingIdentifier = juce::Identifier{"recording"};
+    if (root->hasProperty(recordingIdentifier))
+        if (const auto result =
+                readRecording(root->getProperty(recordingIdentifier), state.recording);
+            result.failed())
+            return result;
     if (const auto result = readUi(root->getProperty("ui"), state.ui); result.failed())
         return result;
     return project.restoreState(std::move(state), revision);
