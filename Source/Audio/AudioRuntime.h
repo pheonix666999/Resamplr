@@ -36,12 +36,12 @@ class AudioRuntime final : public juce::AudioIODeviceCallback {
     void close();
     [[nodiscard]] juce::Result restart();
 
-    [[nodiscard]] std::vector<AudioOutputDeviceInfo> outputDevices() const;
+    [[nodiscard]] std::vector<AudioOutputDeviceInfo> outputDevices();
     [[nodiscard]] static std::vector<juce::MidiDeviceInfo> midiInputDevices();
     void setMidiInputEnabled(const juce::String& identifier, bool enabled,
                              juce::MidiInputCallback* callback);
     [[nodiscard]] AudioSettings currentSettings() const;
-    [[nodiscard]] AudioRuntimeStatus status() const;
+    [[nodiscard]] AudioRuntimeStatus status();
     void resetDropoutCount() noexcept;
     void setTestToneEnabled(bool enabled) noexcept;
     [[nodiscard]] bool isTestToneEnabled() const noexcept;

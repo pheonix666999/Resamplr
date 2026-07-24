@@ -92,7 +92,7 @@ juce::Result AudioRuntime::restart() {
     return juce::Result::ok();
 }
 
-std::vector<AudioOutputDeviceInfo> AudioRuntime::outputDevices() const {
+std::vector<AudioOutputDeviceInfo> AudioRuntime::outputDevices() {
     std::vector<AudioOutputDeviceInfo> result;
     for (const auto* type : manager_.getAvailableDeviceTypes())
         if (type != nullptr)
@@ -133,7 +133,7 @@ AudioSettings AudioRuntime::currentSettings() const {
     return settings;
 }
 
-AudioRuntimeStatus AudioRuntime::status() const {
+AudioRuntimeStatus AudioRuntime::status() {
     AudioRuntimeStatus value;
     const auto* device = manager_.getCurrentAudioDevice();
     value.deviceOpen = device != nullptr && !deviceError_.load(std::memory_order_acquire);

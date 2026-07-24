@@ -83,7 +83,8 @@ void InputRouter::mouseCaptureLost() noexcept {
 }
 
 int InputRouter::findKeyboardPad(const int keyCode) const noexcept {
-    const auto keyText = juce::KeyPress{keyCode}.getTextDescription().toUpperCase();
+    const auto keyText =
+        juce::String::charToString(static_cast<juce::juce_wchar>(keyCode)).toUpperCase();
     const auto offset = activeBankOffset();
     for (std::size_t index = 0; index < padsPerBank; ++index)
         if (controller_.project().pad(offset + index).keyboardKey.toUpperCase() == keyText)
