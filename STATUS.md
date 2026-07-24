@@ -21,7 +21,15 @@ accounting, and stale completion rejection. Hosted validation passed in
 compiled the trim/loop/reverse implementation and passed every new Milestone 2 test, but legacy
 device/input fixtures constructed raw snapshots with zero-valued Milestone 2 bounds and therefore
 terminated voices immediately. The full-asset compatibility fallback and focused coverage are
-tracked by `REGRESSION-M2-001`; hosted revalidation is pending.
+tracked by `REGRESSION-M2-001`. Hosted
+[revalidation run 30081191847](https://github.com/pheonix666999/Resamplr/actions/runs/30081191847)
+passed all five jobs.
+
+The selected-layer editor phase now has cache-backed mono/stereo waveform display, bounded zoom and
+horizontal navigation, draggable trim and loop markers with one controller transaction per drag,
+keyboard marker nudging, fit/reset controls, reverse/loop/zero-crossing preferences, boundary-aware
+sampler audition, explicit stop, accessible control identities, and headless UI coverage. Hosted
+validation for this phase is pending; Milestone 2 is not yet complete.
 
 The Milestone 0 repository, pinned dependency, targets, interfaces, schema-v1 skeleton, tests, smoke
 paths, packaging, and workflows remain the validated baseline. Milestone 1 adds the fixed

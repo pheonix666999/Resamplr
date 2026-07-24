@@ -86,7 +86,9 @@ add_library(
     Source/App/MainWindow.cpp
     Source/App/MainWindow.h
     Source/App/SamplerView.cpp
-    Source/App/SamplerView.h)
+    Source/App/SamplerView.h
+    Source/App/WaveformEditor.cpp
+    Source/App/WaveformEditor.h)
 target_include_directories(padflow_ui PUBLIC Source)
 target_link_libraries(padflow_ui PUBLIC padflow_audio juce::juce_gui_basics)
 padflow_enable_project_warnings(padflow_ui)

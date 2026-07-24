@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <utility>
 
 namespace padflow {
@@ -78,9 +79,10 @@ void SamplerView::configureControls() {
     productLabel_.setTitle("PadFlow product name");
     addAndMakeVisible(productLabel_);
 
-    for (auto* label : {&projectLabel_, &modifiedLabel_, &cpuLabel_, &audioStateLabel_,
-                        &selectedPadLabel_, &sampleNameLabel_, &deviceStatusLabel_,
-                        &midiStatusLabel_, &memoryStatusLabel_, &operationStatusLabel_}) {
+    for (auto* label :
+         {&projectLabel_, &modifiedLabel_, &cpuLabel_, &audioStateLabel_, &selectedPadLabel_,
+          &sampleNameLabel_, &waveformInfoLabel_, &deviceStatusLabel_, &midiStatusLabel_,
+          &memoryStatusLabel_, &operationStatusLabel_}) {
         styleLabel(*label, juce::Justification::centredLeft);
         addAndMakeVisible(*label);
     }
@@ -92,7 +94,9 @@ void SamplerView::configureControls() {
 
     for (auto* button :
          {&newButton_, &openButton_, &saveButton_, &undoButton_, &redoButton_, &audioButton_,
-          &midiButton_, &importButton_, &clearLayerButton_, &clearPadButton_, &auditionButton_}) {
+          &midiButton_, &importButton_, &clearLayerButton_, &clearPadButton_, &auditionButton_,
+          &stopAuditionButton_, &fitWaveformButton_, &fitSelectionButton_, &resetTrimButton_,
+          &resetLoopButton_}) {
         styleButton(*button);
         addAndMakeVisible(*button);
         button->setTitle(button->getButtonText());
@@ -102,6 +106,15 @@ void SamplerView::configureControls() {
     saveButton_.setComponentID("save-project");
     audioButton_.setComponentID("audio-settings");
     midiButton_.setComponentID("midi-settings");
+    auditionButton_.setComponentID("waveform-audition");
+    stopAuditionButton_.setComponentID("waveform-stop");
+    fitWaveformButton_.setComponentID("waveform-fit");
+    fitSelectionButton_.setComponentID("waveform-fit-selection");
+    resetTrimButton_.setComponentID("waveform-reset-trim");
+    resetLoopButton_.setComponentID("waveform-reset-loop");
+    waveformInfoLabel_.setComponentID("waveform-info");
+    waveformInfoLabel_.setColour(juce::Label::textColourId, juce::Colour{mutedTextColour});
+    waveformInfoLabel_.setFont(juce::FontOptions{11.0F});
 
     newButton_.onClick = [this] {
         jobs_.cancelOwner(controller_.project().uuid());
@@ -112,6 +125,10 @@ void SamplerView::configureControls() {
         input_.panic();
         juce::ignoreUnused(preview_.stop());
         assets_.clear();
+        waveformCaches_.clear();
+        waveformJob_.reset();
+        waveformPendingAssetUuid_.clear();
+        waveformPendingRevision_ = 0U;
         controller_.createEmptyProject();
         modified_ = false;
         publishModel(false);
@@ -188,6 +205,43 @@ void SamplerView::configureControls() {
     layerSelector_.onChange = [this] { refreshEditor(); };
     addAndMakeVisible(layerSelector_);
 
+    addAndMakeVisible(waveformEditor_);
+    waveformEditor_.onMarkerCommit = [this](const WaveformEditor::Marker marker,
+                                            const std::uint64_t frame) {
+        commitWaveformMarker(marker, frame);
+    };
+    waveformEditor_.onAuditionFromFrame = [this](const std::uint64_t) { auditionSelectedLayer(); };
+
+    for (auto* toggle : {&loopToggle_, &reverseToggle_, &snapToggle_}) {
+        toggle->setColour(juce::ToggleButton::textColourId, juce::Colour{textColour});
+        toggle->setColour(juce::ToggleButton::tickColourId, juce::Colour{tealColour});
+        addAndMakeVisible(*toggle);
+    }
+    loopToggle_.setComponentID("waveform-loop");
+    reverseToggle_.setComponentID("waveform-reverse");
+    snapToggle_.setComponentID("waveform-zero-crossing");
+    loopToggle_.setTitle("Enable loop for the selected layer");
+    reverseToggle_.setTitle("Reverse new triggers for the selected layer");
+    snapToggle_.setTitle("Remember zero-crossing snap preference");
+    loopToggle_.onClick = [this] {
+        applyEditorResult(controller_.setLayerLoopEnabled(selectedGlobalPad(), selectedLayerIndex(),
+                                                          loopToggle_.getToggleState()),
+                          loopToggle_.getToggleState() ? "Enabled loop" : "Disabled loop");
+    };
+    reverseToggle_.onClick = [this] {
+        applyEditorResult(controller_.setLayerReverseEnabled(selectedGlobalPad(),
+                                                             selectedLayerIndex(),
+                                                             reverseToggle_.getToggleState()),
+                          reverseToggle_.getToggleState() ? "Enabled reverse" : "Disabled reverse");
+    };
+    snapToggle_.onClick = [this] {
+        applyEditorResult(controller_.setLayerZeroCrossingSnap(selectedGlobalPad(),
+                                                               selectedLayerIndex(),
+                                                               snapToggle_.getToggleState()),
+                          snapToggle_.getToggleState() ? "Enabled zero-crossing preference"
+                                                       : "Disabled zero-crossing preference");
+    };
+
     configureEditorControl(gainSlider_, "Gain decibels", -60.0, 12.0, 0.1);
     configureEditorControl(panSlider_, "Pan", -1.0, 1.0, 0.01);
     configureEditorControl(coarseSlider_, "Coarse pitch semitones", -48.0, 48.0, 1.0);
@@ -232,6 +286,17 @@ void SamplerView::configureControls() {
         }
     };
     auditionButton_.onClick = [this] { auditionSelectedLayer(); };
+    stopAuditionButton_.onClick = [this] { stopAudition(); };
+    fitWaveformButton_.onClick = [this] { waveformEditor_.fitSource(); };
+    fitSelectionButton_.onClick = [this] { waveformEditor_.fitTrimSelection(); };
+    resetTrimButton_.onClick = [this] {
+        applyEditorResult(controller_.resetLayerTrim(selectedGlobalPad(), selectedLayerIndex()),
+                          "Reset trim");
+    };
+    resetLoopButton_.onClick = [this] {
+        applyEditorResult(controller_.resetLayerLoop(selectedGlobalPad(), selectedLayerIndex()),
+                          "Reset loop");
+    };
 }
 
 void SamplerView::configureEditorControl(juce::Slider& slider, juce::String name,
@@ -253,7 +318,7 @@ void SamplerView::paint(juce::Graphics& graphics) {
     auto bounds = getLocalBounds().reduced(12);
     bounds.removeFromTop(58);
     bounds.removeFromBottom(42);
-    auto editor = bounds.removeFromLeft(std::min(390, bounds.getWidth() / 3));
+    auto editor = bounds.removeFromLeft(std::min(470, bounds.getWidth() * 2 / 5));
     bounds.removeFromLeft(12);
     graphics.setColour(juce::Colour{panelColour});
     graphics.fillRoundedRectangle(editor.toFloat(), 10.0F);
@@ -285,32 +350,51 @@ void SamplerView::resized() {
     operationStatusLabel_.setBounds(status);
     bounds.removeFromBottom(8);
 
-    auto editor = bounds.removeFromLeft(std::min(390, bounds.getWidth() / 3)).reduced(14);
+    auto editor = bounds.removeFromLeft(std::min(470, bounds.getWidth() * 2 / 5)).reduced(14);
     bounds.removeFromLeft(12);
     auto grid = bounds.reduced(14);
 
-    selectedPadLabel_.setBounds(editor.removeFromTop(28));
-    padNameEditor_.setBounds(editor.removeFromTop(30));
-    editor.removeFromTop(6);
-    layerSelector_.setBounds(editor.removeFromTop(28));
-    sampleNameLabel_.setBounds(editor.removeFromTop(28));
-    auto actions = editor.removeFromTop(32);
-    importButton_.setBounds(actions.removeFromLeft(130).reduced(1));
-    clearLayerButton_.setBounds(actions.removeFromLeft(104).reduced(1));
-    auditionButton_.setBounds(actions.removeFromLeft(82).reduced(1));
-    clearPadButton_.setBounds(editor.removeFromTop(28).removeFromLeft(100).reduced(1));
-    editor.removeFromTop(6);
+    selectedPadLabel_.setBounds(editor.removeFromTop(24));
+    padNameEditor_.setBounds(editor.removeFromTop(28));
+    editor.removeFromTop(4);
+    layerSelector_.setBounds(editor.removeFromTop(26));
+    sampleNameLabel_.setBounds(editor.removeFromTop(24));
+    auto actions = editor.removeFromTop(30);
+    importButton_.setBounds(actions.removeFromLeft(122).reduced(1));
+    clearLayerButton_.setBounds(actions.removeFromLeft(94).reduced(1));
+    auditionButton_.setBounds(actions.removeFromLeft(80).reduced(1));
+    stopAuditionButton_.setBounds(actions.removeFromLeft(56).reduced(1));
+    clearPadButton_.setBounds(actions.removeFromLeft(80).reduced(1));
+    editor.removeFromTop(5);
+    waveformEditor_.setBounds(editor.removeFromTop(145));
+    waveformInfoLabel_.setBounds(editor.removeFromTop(18));
+    auto toggles = editor.removeFromTop(28);
+    loopToggle_.setBounds(toggles.removeFromLeft(80));
+    reverseToggle_.setBounds(toggles.removeFromLeft(90));
+    snapToggle_.setBounds(toggles.removeFromLeft(105));
+    auto waveformActions = editor.removeFromTop(28);
+    fitWaveformButton_.setBounds(waveformActions.removeFromLeft(52).reduced(1));
+    fitSelectionButton_.setBounds(waveformActions.removeFromLeft(76).reduced(1));
+    resetTrimButton_.setBounds(waveformActions.removeFromLeft(88).reduced(1));
+    resetLoopButton_.setBounds(waveformActions.removeFromLeft(88).reduced(1));
+    editor.removeFromTop(4);
 
-    for (auto* slider : {&gainSlider_, &panSlider_, &coarseSlider_, &fineSlider_, &attackSlider_,
-                         &decaySlider_, &sustainSlider_, &releaseSlider_})
-        slider->setBounds(editor.removeFromTop(28));
+    const auto setSliderPair = [&editor](juce::Slider& first, juce::Slider& second) {
+        auto row = editor.removeFromTop(28);
+        first.setBounds(row.removeFromLeft(row.getWidth() / 2).reduced(1));
+        second.setBounds(row.reduced(1));
+    };
+    setSliderPair(gainSlider_, panSlider_);
+    setSliderPair(coarseSlider_, fineSlider_);
+    setSliderPair(attackSlider_, decaySlider_);
+    setSliderPair(sustainSlider_, releaseSlider_);
     auto modes = editor.removeFromTop(30);
     playbackModeBox_.setBounds(modes.removeFromLeft(modes.getWidth() / 2).reduced(1));
     polyphonyBox_.setBounds(modes.reduced(1));
-    chokeSlider_.setBounds(editor.removeFromTop(28));
-    voicesSlider_.setBounds(editor.removeFromTop(28));
-    midiNoteSlider_.setBounds(editor.removeFromTop(28));
-    keyboardEditor_.setBounds(editor.removeFromTop(28).removeFromLeft(100));
+    setSliderPair(chokeSlider_, voicesSlider_);
+    auto mapping = editor.removeFromTop(28);
+    midiNoteSlider_.setBounds(mapping.removeFromLeft(mapping.getWidth() * 2 / 3).reduced(1));
+    keyboardEditor_.setBounds(mapping.reduced(1));
 
     auto banks = grid.removeFromTop(38);
     const auto bankWidth = banks.getWidth() / static_cast<int>(bankButtons_.size());
@@ -440,6 +524,165 @@ void SamplerView::refreshEditor() {
                                    juce::dontSendNotification);
     polyphonyBox_.setSelectedId(static_cast<int>(parameters.polyphonyMode) + 1,
                                 juce::dontSendNotification);
+
+    const auto layerIndex = selectedLayerIndex();
+    const auto& layer = pad.layers[layerIndex];
+    const auto reference = std::find_if(
+        controller_.project().state().assets.begin(), controller_.project().state().assets.end(),
+        [&](const auto& entry) { return entry.uuid == layer.assetUuid; });
+    if (layer.assetUuid.isEmpty() || reference == controller_.project().state().assets.end()) {
+        waveformEditor_.clear();
+        waveformInfoLabel_.setText("No editable source", juce::dontSendNotification);
+        for (auto* control :
+             {static_cast<juce::Component*>(&loopToggle_), &reverseToggle_, &snapToggle_,
+              &fitWaveformButton_, &fitSelectionButton_, &resetTrimButton_, &resetLoopButton_,
+              &auditionButton_, &stopAuditionButton_})
+            control->setEnabled(false);
+        return;
+    }
+
+    const auto playback = resolveSamplePlaybackSettings(layer, reference->frameCount);
+    WaveformCacheKey key;
+    key.assetUuid = reference->uuid;
+    key.sourceFingerprint = reference->contentFingerprint;
+    key.channelCount = reference->channels;
+    key.sourceFrameCount = reference->frameCount;
+    auto cache = waveformCaches_.find(key);
+    const auto pending = waveformPendingAssetUuid_ == reference->uuid && waveformJob_.has_value() &&
+                         waveformPendingRevision_ == controller_.project().revision();
+    waveformEditor_.setContent(cache, playback, reference->frameCount, reference->sourceSampleRate,
+                               pending, reference->missing);
+    waveformInfoLabel_.setText(juce::String{reference->channels} + " ch · " +
+                                   juce::String{reference->sourceSampleRate, 0} + " Hz · " +
+                                   juce::String{reference->frameCount} + " frames" +
+                                   (cache != nullptr ? " · cached"
+                                    : pending        ? " · analysing"
+                                                     : ""),
+                               juce::dontSendNotification);
+    loopToggle_.setToggleState(playback.loopEnabled, juce::dontSendNotification);
+    reverseToggle_.setToggleState(playback.reverseEnabled, juce::dontSendNotification);
+    snapToggle_.setToggleState(playback.zeroCrossingSnap, juce::dontSendNotification);
+    const auto editable = !reference->missing;
+    for (auto* control :
+         {static_cast<juce::Component*>(&loopToggle_), &reverseToggle_, &snapToggle_,
+          &fitWaveformButton_, &fitSelectionButton_, &resetTrimButton_, &resetLoopButton_,
+          &auditionButton_, &stopAuditionButton_})
+        control->setEnabled(editable);
+    if (cache == nullptr && !pending && editable)
+        submitSelectedWaveform();
+}
+
+bool SamplerView::editSelectedTrim(const std::uint64_t startFrame, const std::uint64_t endFrame) {
+    const auto result =
+        controller_.setLayerTrim(selectedGlobalPad(), selectedLayerIndex(), startFrame, endFrame);
+    applyEditorResult(result, "Updated trim");
+    return result.wasOk();
+}
+
+bool SamplerView::editSelectedLoop(const std::uint64_t startFrame, const std::uint64_t endFrame) {
+    const auto result =
+        controller_.setLayerLoop(selectedGlobalPad(), selectedLayerIndex(), startFrame, endFrame);
+    applyEditorResult(result, "Updated loop");
+    return result.wasOk();
+}
+
+bool SamplerView::setSelectedLoopEnabled(const bool enabled) {
+    const auto result =
+        controller_.setLayerLoopEnabled(selectedGlobalPad(), selectedLayerIndex(), enabled);
+    applyEditorResult(result, enabled ? "Enabled loop" : "Disabled loop");
+    return result.wasOk();
+}
+
+bool SamplerView::setSelectedReverseEnabled(const bool enabled) {
+    const auto result =
+        controller_.setLayerReverseEnabled(selectedGlobalPad(), selectedLayerIndex(), enabled);
+    applyEditorResult(result, enabled ? "Enabled reverse" : "Disabled reverse");
+    return result.wasOk();
+}
+
+void SamplerView::applyEditorResult(juce::Result result, juce::String successMessage) {
+    if (result.wasOk()) {
+        publishModel(true);
+        setOperationMessage(std::move(successMessage), false);
+    } else {
+        setOperationMessage(result.getErrorMessage(), true);
+        refreshEditor();
+    }
+}
+
+void SamplerView::commitWaveformMarker(const WaveformEditor::Marker marker,
+                                       const std::uint64_t requestedFrame) {
+    const auto& layer = controller_.project().pad(selectedGlobalPad()).layers[selectedLayerIndex()];
+    auto frame =
+        layer.playback.zeroCrossingSnap ? snapFrameToZeroCrossing(requestedFrame) : requestedFrame;
+    const auto playback = waveformEditor_.playback();
+    switch (marker) {
+    case WaveformEditor::Marker::trimStart:
+        frame = std::min(frame, playback.endFrame - 1U);
+        juce::ignoreUnused(editSelectedTrim(frame, playback.endFrame));
+        break;
+    case WaveformEditor::Marker::trimEnd:
+        frame = std::clamp(frame, playback.startFrame + 1U, waveformEditor_.frameCount());
+        juce::ignoreUnused(editSelectedTrim(playback.startFrame, frame));
+        break;
+    case WaveformEditor::Marker::loopStart:
+        frame = std::clamp(frame, playback.startFrame, playback.loopEndFrame - 1U);
+        juce::ignoreUnused(editSelectedLoop(frame, playback.loopEndFrame));
+        break;
+    case WaveformEditor::Marker::loopEnd:
+        frame = std::clamp(frame, playback.loopStartFrame + 1U, playback.endFrame);
+        juce::ignoreUnused(editSelectedLoop(playback.loopStartFrame, frame));
+        break;
+    }
+}
+
+std::uint64_t SamplerView::snapFrameToZeroCrossing(const std::uint64_t frame) const noexcept {
+    constexpr std::uint64_t searchRadius = 2048U;
+    const auto& layer = controller_.project().pad(selectedGlobalPad()).layers[selectedLayerIndex()];
+    const auto asset = assets_.find(layer.assetUuid);
+    if (asset == nullptr || asset->metadata().frameCount == 0U ||
+        asset->metadata().channelCount == 0U)
+        return frame;
+    const auto frames = asset->metadata().frameCount;
+    const auto channels = asset->metadata().channelCount;
+    const auto target = std::min(frame, frames - 1U);
+    const auto first = target > searchRadius ? target - searchRadius : 0U;
+    const auto last = std::min(frames - 1U, target + std::min(searchRadius, frames - 1U - target));
+    const auto pcm = asset->interleavedPcm();
+    auto bestFrame = target;
+    auto bestScore = std::numeric_limits<float>::infinity();
+    for (auto candidate = first; candidate <= last; ++candidate) {
+        auto score = 0.0F;
+        for (std::uint32_t channel = 0U; channel < channels; ++channel)
+            score += std::abs(pcm[static_cast<std::size_t>(candidate * channels + channel)]);
+        const auto distance = candidate > target ? candidate - target : target - candidate;
+        const auto bestDistance = bestFrame > target ? bestFrame - target : target - bestFrame;
+        if (score < bestScore || (score == bestScore && distance < bestDistance)) {
+            bestFrame = candidate;
+            bestScore = score;
+        }
+    }
+    return bestFrame;
+}
+
+void SamplerView::submitSelectedWaveform() {
+    const auto& layer = controller_.project().pad(selectedGlobalPad()).layers[selectedLayerIndex()];
+    const auto asset = assets_.find(layer.assetUuid);
+    if (asset == nullptr)
+        return;
+    if (waveformJob_.has_value())
+        waveformJob_->cancel();
+    const auto revision = controller_.project().revision();
+    auto handle = WaveformCacheGenerator::submit(
+        jobs_, WaveformCacheRequest{
+                   JobSpec{controller_.project().uuid(), layer.assetUuid, revision, -1}, asset});
+    if (!handle.has_value()) {
+        setOperationMessage("Waveform analysis queue is full", true);
+        return;
+    }
+    waveformJob_ = std::move(handle);
+    waveformPendingAssetUuid_ = layer.assetUuid;
+    waveformPendingRevision_ = revision;
 }
 
 void SamplerView::refreshStatus() {
@@ -720,6 +963,24 @@ void SamplerView::handleCompletedJob(const JobResult& result) {
         return;
     }
 
+    const auto waveformAsset = std::find_if(
+        controller_.project().state().assets.begin(), controller_.project().state().assets.end(),
+        [&](const auto& asset) { return asset.uuid == result.target.targetUuid; });
+    if (waveformAsset != controller_.project().state().assets.end()) {
+        const auto commit = WaveformCacheGenerator::commit(result, controller_, waveformCaches_);
+        if (result.target.targetUuid == waveformPendingAssetUuid_) {
+            waveformJob_.reset();
+            waveformPendingAssetUuid_.clear();
+            waveformPendingRevision_ = 0U;
+        }
+        if (commit.wasOk())
+            setOperationMessage("Waveform analysis complete", false);
+        else if (!result.message.containsIgnoreCase("cancel"))
+            setOperationMessage(commit.getErrorMessage(), true);
+        refreshEditor();
+        return;
+    }
+
     importActive_ = false;
     const auto commit = SampleImporter::commit(result, controller_, assets_);
     if (commit.wasOk()) {
@@ -815,6 +1076,10 @@ void SamplerView::showOpenChooser() {
                     safe->input_.panic();
                     juce::ignoreUnused(safe->preview_.stop());
                     safe->assets_.clear();
+                    safe->waveformCaches_.clear();
+                    safe->waveformJob_.reset();
+                    safe->waveformPendingAssetUuid_.clear();
+                    safe->waveformPendingRevision_ = 0U;
                     const auto missing = safe->controller_.refreshExternalAssetAvailability();
                     safe->modified_ = false;
                     safe->publishModel(false);
@@ -1062,24 +1327,31 @@ void SamplerView::auditionSelectedLayer() {
         setOperationMessage("Selected layer has no sample", true);
         return;
     }
-    const auto reference = std::find_if(
-        controller_.project().state().assets.begin(), controller_.project().state().assets.end(),
-        [&](const auto& entry) { return entry.uuid == layer.assetUuid; });
-    if (reference == controller_.project().state().assets.end() ||
-        !juce::File{reference->originalPath}.existsAsFile()) {
-        setOperationMessage("Preview source is missing", true);
+    if (assets_.find(layer.assetUuid) == nullptr) {
+        setOperationMessage("Selected sample is not decoded", true);
         return;
     }
-    if (!preview_.begin(jobs_, juce::File{reference->originalPath}).has_value())
-        setOperationMessage(preview_.lastError(), true);
+    ++auditionSourceId_;
+    if (auditionSourceId_ < 0x70000000U)
+        auditionSourceId_ = 0x70000000U;
+    const auto velocity = controller_.project().state().ui.fixedTriggerVelocity;
+    if (input_.triggerPad(selectedGlobalPad(), auditionSourceId_, velocity))
+        setOperationMessage("Auditioning selected pad with layer edit boundaries", false);
     else
-        setOperationMessage("Preparing preview", false);
+        setOperationMessage("Audio command queue is full", true);
+}
+
+void SamplerView::stopAudition() {
+    input_.panic();
+    juce::ignoreUnused(preview_.stop());
+    setOperationMessage("Audition stopped", false);
 }
 
 void SamplerView::clearSelectedLayer() {
     auto layer = controller_.project().pad(selectedGlobalPad()).layers[selectedLayerIndex()];
     layer.assetUuid.clear();
     layer.enabled = false;
+    layer.playback = {};
     const auto result =
         controller_.setLayer(selectedGlobalPad(), selectedLayerIndex(), std::move(layer));
     if (result.wasOk()) {

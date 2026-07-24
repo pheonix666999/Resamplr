@@ -1,10 +1,12 @@
 #pragma once
 
 #include "App/ApplicationController.h"
+#include "App/WaveformEditor.h"
 #include "Audio/AudioRuntime.h"
 #include "Audio/PlaybackStatePublisher.h"
 #include "Input/InputRouter.h"
 #include "Sampling/SamplePreviewController.h"
+#include "Sampling/WaveformCache.h"
 #include "Serialization/ProjectSerializer.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -15,6 +17,7 @@
 #include <deque>
 #include <functional>
 #include <memory>
+#include <optional>
 
 namespace padflow {
 class SamplerView final : public juce::Component,
@@ -41,6 +44,10 @@ class SamplerView final : public juce::Component,
     [[nodiscard]] bool queueImportFiles(const juce::StringArray& files,
                                         std::size_t firstGlobalPadIndex, bool overwriteConfirmed);
     void processPendingJobs();
+    [[nodiscard]] bool editSelectedTrim(std::uint64_t startFrame, std::uint64_t endFrame);
+    [[nodiscard]] bool editSelectedLoop(std::uint64_t startFrame, std::uint64_t endFrame);
+    [[nodiscard]] bool setSelectedLoopEnabled(bool enabled);
+    [[nodiscard]] bool setSelectedReverseEnabled(bool enabled);
 
   private:
     using juce::Component::keyPressed;
@@ -87,7 +94,12 @@ class SamplerView final : public juce::Component,
     void showAudioSettings();
     void showMidiSettings();
     void auditionSelectedLayer();
+    void stopAudition();
     void clearSelectedLayer();
+    void submitSelectedWaveform();
+    void commitWaveformMarker(WaveformEditor::Marker marker, std::uint64_t frame);
+    [[nodiscard]] std::uint64_t snapFrameToZeroCrossing(std::uint64_t frame) const noexcept;
+    void applyEditorResult(juce::Result result, juce::String successMessage);
     void confirmAndQueueFiles(juce::StringArray files, std::size_t firstGlobalPadIndex);
     [[nodiscard]] int padAtPosition(juce::Point<int> position) const noexcept;
     [[nodiscard]] static bool isSupportedAudioFile(const juce::File& file);
@@ -102,6 +114,7 @@ class SamplerView final : public juce::Component,
     PlaybackStatePublisher& publisher_;
     InputRouter& input_;
     SamplePreviewController& preview_;
+    WaveformCacheRegistry waveformCaches_;
 
     juce::Label productLabel_;
     juce::Label projectLabel_;
@@ -126,7 +139,17 @@ class SamplerView final : public juce::Component,
     juce::TextButton importButton_{"Import / Replace"};
     juce::TextButton clearLayerButton_{"Clear Layer"};
     juce::TextButton clearPadButton_{"Clear Pad"};
-    juce::TextButton auditionButton_{"Audition"};
+    juce::TextButton auditionButton_{"Play Trim"};
+    juce::TextButton stopAuditionButton_{"Stop"};
+    WaveformEditor waveformEditor_;
+    juce::Label waveformInfoLabel_;
+    juce::ToggleButton loopToggle_{"Loop"};
+    juce::ToggleButton reverseToggle_{"Reverse"};
+    juce::ToggleButton snapToggle_{"Snap zero"};
+    juce::TextButton fitWaveformButton_{"Fit"};
+    juce::TextButton fitSelectionButton_{"Selection"};
+    juce::TextButton resetTrimButton_{"Reset Trim"};
+    juce::TextButton resetLoopButton_{"Reset Loop"};
     juce::Slider gainSlider_;
     juce::Slider panSlider_;
     juce::Slider coarseSlider_;
@@ -149,7 +172,11 @@ class SamplerView final : public juce::Component,
 
     std::deque<QueuedImport> importQueue_;
     std::unique_ptr<juce::FileChooser> fileChooser_;
+    std::optional<JobHandle> waveformJob_;
+    juce::String waveformPendingAssetUuid_;
+    std::uint64_t waveformPendingRevision_{0U};
     std::array<bool, 256U> heldUiKeys_{};
+    std::uint32_t auditionSourceId_{0x70000000U};
     juce::String operationMessage_{"Ready"};
     std::uint64_t lastSeenRevision_{0U};
     bool importActive_{false};
