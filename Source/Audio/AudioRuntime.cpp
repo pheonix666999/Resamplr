@@ -30,15 +30,17 @@ AudioRuntime::~AudioRuntime() {
 juce::Result AudioRuntime::initialise(const AudioSettings& preferred) {
     juce::AudioDeviceManager::AudioDeviceSetup setup;
     setup.outputDeviceName = preferred.outputDeviceIdentifier;
-    setup.inputDeviceName.clear();
+    setup.inputDeviceName = preferred.inputDeviceIdentifier;
     setup.sampleRate = preferred.sampleRate;
     setup.bufferSize = static_cast<int>(preferred.bufferSize);
-    setup.useDefaultInputChannels = false;
-    setup.inputChannels.clear();
+    setup.useDefaultInputChannels =
+        preferred.inputDeviceIdentifier.isNotEmpty() && preferred.inputChannelMask == 0U;
+    setup.inputChannels = channelMask(preferred.inputChannelMask);
     setup.useDefaultOutputChannels = preferred.outputChannelMask == 0U;
     setup.outputChannels = channelMask(preferred.outputChannelMask);
 
-    auto error = manager_.initialise(0, 2, nullptr, true, {}, &setup);
+    const auto requestedInputChannels = preferred.inputDeviceIdentifier.isNotEmpty() ? 2 : 0;
+    auto error = manager_.initialise(requestedInputChannels, 2, nullptr, true, {}, &setup);
     if (error.isNotEmpty()) {
         error = manager_.initialiseWithDefaultDevices(0, 2);
         if (error.isNotEmpty())
@@ -54,11 +56,12 @@ juce::Result AudioRuntime::initialise(const AudioSettings& preferred) {
 juce::Result AudioRuntime::applySettings(const AudioSettings& settings) {
     auto setup = manager_.getAudioDeviceSetup();
     setup.outputDeviceName = settings.outputDeviceIdentifier;
-    setup.inputDeviceName.clear();
+    setup.inputDeviceName = settings.inputDeviceIdentifier;
     setup.sampleRate = settings.sampleRate;
     setup.bufferSize = static_cast<int>(settings.bufferSize);
-    setup.useDefaultInputChannels = false;
-    setup.inputChannels.clear();
+    setup.useDefaultInputChannels =
+        settings.inputDeviceIdentifier.isNotEmpty() && settings.inputChannelMask == 0U;
+    setup.inputChannels = channelMask(settings.inputChannelMask);
     setup.useDefaultOutputChannels = settings.outputChannelMask == 0U;
     setup.outputChannels = channelMask(settings.outputChannelMask);
     const auto callbackWasRegistered = callbackRegistered_.load(std::memory_order_acquire);
@@ -109,11 +112,20 @@ juce::Result AudioRuntime::restart() {
     return juce::Result::ok();
 }
 
-std::vector<AudioOutputDeviceInfo> AudioRuntime::outputDevices() {
-    std::vector<AudioOutputDeviceInfo> result;
+std::vector<AudioDeviceInfo> AudioRuntime::outputDevices() {
+    std::vector<AudioDeviceInfo> result;
     for (const auto* type : manager_.getAvailableDeviceTypes())
         if (type != nullptr)
             for (const auto& name : type->getDeviceNames(false))
+                result.push_back({type->getTypeName(), name});
+    return result;
+}
+
+std::vector<AudioDeviceInfo> AudioRuntime::inputDevices() {
+    std::vector<AudioDeviceInfo> result;
+    for (const auto* type : manager_.getAvailableDeviceTypes())
+        if (type != nullptr)
+            for (const auto& name : type->getDeviceNames(true))
                 result.push_back({type->getTypeName(), name});
     return result;
 }
@@ -143,8 +155,11 @@ AudioSettings AudioRuntime::currentSettings() const {
     AudioSettings settings;
     const auto setup = manager_.getAudioDeviceSetup();
     settings.outputDeviceIdentifier = setup.outputDeviceName;
+    settings.inputDeviceIdentifier = setup.inputDeviceName;
     settings.outputChannelMask =
         setup.useDefaultOutputChannels ? 0U : channelMask(setup.outputChannels);
+    settings.inputChannelMask =
+        setup.useDefaultInputChannels ? 0U : channelMask(setup.inputChannels);
     settings.sampleRate = setup.sampleRate;
     settings.bufferSize = setup.bufferSize > 0 ? static_cast<std::uint32_t>(setup.bufferSize) : 0U;
     return settings;

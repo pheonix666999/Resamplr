@@ -74,12 +74,20 @@ class DeferredSampleAssetReclaimer final {
                                                  std::uint32_t channels) noexcept;
 
 inline constexpr std::uint64_t defaultDecodedSampleBudgetBytes = 2ULL * 1024ULL * 1024ULL * 1024ULL;
-inline constexpr std::uint64_t defaultMilestone1DecodedBudgetBytes = 256ULL * 1024ULL * 1024ULL;
+inline constexpr std::uint64_t minimumDecodedSampleBudgetBytes = 256ULL * 1024ULL * 1024ULL;
+inline constexpr std::uint64_t maximumDecodedSampleBudgetBytes =
+    16ULL * 1024ULL * 1024ULL * 1024ULL;
+inline constexpr std::uint64_t defaultMilestone1DecodedBudgetBytes =
+    defaultDecodedSampleBudgetBytes;
+
+[[nodiscard]] std::uint64_t maximumPlatformDecodedSampleBudgetBytes() noexcept;
+[[nodiscard]] std::uint64_t
+clampConfiguredDecodedSampleBudgetBytes(std::uint64_t requestedBytes) noexcept;
 
 class SampleAssetRegistry final {
   public:
-    explicit SampleAssetRegistry(
-        std::uint64_t budgetBytes = defaultMilestone1DecodedBudgetBytes) noexcept;
+    SampleAssetRegistry() noexcept;
+    explicit SampleAssetRegistry(std::uint64_t budgetBytes) noexcept;
 
     [[nodiscard]] bool publish(std::shared_ptr<const SampleAsset> asset);
     [[nodiscard]] std::shared_ptr<const SampleAsset> find(const juce::String& assetUuid) const;

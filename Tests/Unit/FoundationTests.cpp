@@ -12,6 +12,7 @@
 #include <juce_core/juce_core.h>
 
 #include <atomic>
+#include <limits>
 #include <memory>
 #include <vector>
 
@@ -122,6 +123,13 @@ class FoundationTests final : public juce::UnitTest {
         expectEquals(static_cast<juce::int64>(estimateDecodedBytes(4U, 2U)), juce::int64{32});
         expectEquals(static_cast<juce::int64>(defaultDecodedSampleBudgetBytes),
                      juce::int64{2147483648LL});
+        SampleAssetRegistry defaultRegistry;
+        expectEquals(static_cast<juce::int64>(defaultRegistry.budgetBytes()),
+                     static_cast<juce::int64>(
+                         clampConfiguredDecodedSampleBudgetBytes(defaultDecodedSampleBudgetBytes)));
+        expect(clampConfiguredDecodedSampleBudgetBytes(1U) >= minimumDecodedSampleBudgetBytes);
+        expect(clampConfiguredDecodedSampleBudgetBytes(std::numeric_limits<std::uint64_t>::max()) <=
+               maximumDecodedSampleBudgetBytes);
         const auto view = asset->view();
         expect(view.interleavedData != nullptr && view.frameCount == 4U && view.channelCount == 2U);
         DeferredSampleAssetReclaimer reclaimer;

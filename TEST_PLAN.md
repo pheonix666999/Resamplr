@@ -197,6 +197,8 @@ must be used; physical audio and MIDI hardware are never required.
 | REGRESSION-M1-005 | Active playback asset lifetime | A voice started from an older snapshot keeps its immutable sample owner alive after registry replacement until the callback reports that the voice no longer references that generation. |
 | REGRESSION-M1-006 | Loaded external asset availability | Project load refreshes persisted missing flags from the filesystem without clearing layer references and asynchronously resolves every available external asset. |
 | REGRESSION-M1-007 | Device transition callback quiescence | Apply/restart removes the audio callback before directly resetting playback/preview state and reinstalls it after the device transition. |
+| REGRESSION-M1-008 | Production decoded-memory default | The default registry requests 2 GiB and clamps configured production values to 256 MiB through `min(16 GiB, 50% physical RAM)` while injected test registries retain explicit limits. |
+| REGRESSION-M1-009 | Explicit audio-input activation | Playback starts with zero input channels; input device/channel persistence is applied only after explicit user selection, while output routing remains independently configurable. |
 
 ### UI-independent and GUI-headless integration
 

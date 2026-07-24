@@ -13,7 +13,7 @@
 #include <vector>
 
 namespace padflow {
-struct AudioOutputDeviceInfo final {
+struct AudioDeviceInfo final {
     juce::String type;
     juce::String name;
 };
@@ -37,7 +37,8 @@ class AudioRuntime final : public juce::AudioIODeviceCallback {
     void close();
     [[nodiscard]] juce::Result restart();
 
-    [[nodiscard]] std::vector<AudioOutputDeviceInfo> outputDevices();
+    [[nodiscard]] std::vector<AudioDeviceInfo> outputDevices();
+    [[nodiscard]] std::vector<AudioDeviceInfo> inputDevices();
     [[nodiscard]] static std::vector<juce::MidiDeviceInfo> midiInputDevices();
     void setMidiInputEnabled(const juce::String& identifier, bool enabled,
                              juce::MidiInputCallback* callback);

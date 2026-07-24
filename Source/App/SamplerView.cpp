@@ -893,22 +893,46 @@ void SamplerView::showPadMenu(const std::size_t globalPadIndex) {
 }
 
 void SamplerView::showAudioSettings() {
-    auto* alert = new juce::AlertWindow{"Audio Settings", "Select the playback output and format.",
-                                        juce::MessageBoxIconType::InfoIcon};
-    juce::StringArray devices;
+    const auto status = runtime_.status();
+    auto* alert = new juce::AlertWindow{
+        "Audio Settings",
+        "Select playback routing and format. Audio input stays disabled unless explicitly "
+        "selected.\nCPU: " +
+            juce::String{status.cpuUsage * 100.0, 1} +
+            "%  Dropouts: " + juce::String{static_cast<juce::int64>(status.dropoutCount)},
+        juce::MessageBoxIconType::InfoIcon};
+    const auto current = runtime_.currentSettings();
+    juce::StringArray outputDevices;
+    outputDevices.add("System default");
     for (const auto& device : runtime_.outputDevices())
-        devices.add(device.name);
-    if (devices.isEmpty())
-        devices.add("System default");
-    alert->addComboBox("device", devices, "Output device");
-    alert->addTextEditor("rate", juce::String{runtime_.currentSettings().sampleRate, 0},
-                         "Sample rate");
-    alert->addTextEditor("buffer",
-                         juce::String{static_cast<int>(runtime_.currentSettings().bufferSize)},
+        outputDevices.addIfNotAlreadyThere(device.name);
+    juce::StringArray inputDevices;
+    inputDevices.add("Disabled");
+    for (const auto& device : runtime_.inputDevices())
+        inputDevices.addIfNotAlreadyThere(device.name);
+    alert->addComboBox("output-device", outputDevices, "Output device");
+    alert->addComboBox("input-device", inputDevices, "Input device");
+    if (auto* output = alert->getComboBoxComponent("output-device"))
+        output->setText(current.outputDeviceIdentifier.isNotEmpty() ? current.outputDeviceIdentifier
+                                                                    : "System default",
+                        juce::dontSendNotification);
+    if (auto* input = alert->getComboBoxComponent("input-device"))
+        input->setText(current.inputDeviceIdentifier.isNotEmpty() ? current.inputDeviceIdentifier
+                                                                  : "Disabled",
+                       juce::dontSendNotification);
+    alert->addTextEditor("output-mask",
+                         juce::String{static_cast<juce::int64>(current.outputChannelMask)},
+                         "Output channel mask (0 = default)");
+    alert->addTextEditor("input-mask",
+                         juce::String{static_cast<juce::int64>(current.inputChannelMask)},
+                         "Input channel mask (0 = default)");
+    alert->addTextEditor("rate", juce::String{current.sampleRate, 0}, "Sample rate");
+    alert->addTextEditor("buffer", juce::String{static_cast<int>(current.bufferSize)},
                          "Buffer size");
     alert->addButton("Apply", 1, juce::KeyPress{juce::KeyPress::returnKey});
     alert->addButton("Restart", 2);
     alert->addButton(runtime_.isTestToneEnabled() ? "Stop Test Tone" : "Start Test Tone", 3);
+    alert->addButton("Reset Dropouts", 4);
     alert->addButton("Cancel", 0, juce::KeyPress{juce::KeyPress::escapeKey});
     alert->enterModalState(
         true,
@@ -924,6 +948,11 @@ void SamplerView::showAudioSettings() {
                                           false);
                 return;
             }
+            if (result == 4) {
+                safe->runtime_.resetDropoutCount();
+                safe->setOperationMessage("Audio dropout counter reset", false);
+                return;
+            }
             if (result == 2) {
                 const auto restart = safe->runtime_.restart();
                 safe->setOperationMessage(restart.wasOk() ? "Audio restarted"
@@ -934,10 +963,26 @@ void SamplerView::showAudioSettings() {
             if (result != 1)
                 return;
             auto settings = safe->runtime_.currentSettings();
-            const auto* combo = ownedAlert->getComboBoxComponent("device");
-            if (combo != nullptr && combo->getSelectedItemIndex() >= 0 &&
-                combo->getText() != "System default")
-                settings.outputDeviceIdentifier = combo->getText();
+            const auto* output = ownedAlert->getComboBoxComponent("output-device");
+            settings.outputDeviceIdentifier =
+                output != nullptr && output->getText() != "System default" ? output->getText()
+                                                                           : juce::String{};
+            const auto* input = ownedAlert->getComboBoxComponent("input-device");
+            settings.inputDeviceIdentifier = input != nullptr && input->getText() != "Disabled"
+                                                 ? input->getText()
+                                                 : juce::String{};
+            const auto outputMask =
+                ownedAlert->getTextEditorContents("output-mask").getLargeIntValue();
+            const auto inputMask =
+                ownedAlert->getTextEditorContents("input-mask").getLargeIntValue();
+            if (outputMask < 0 || inputMask < 0) {
+                safe->setOperationMessage("Audio channel masks cannot be negative", true);
+                return;
+            }
+            settings.outputChannelMask = static_cast<std::uint64_t>(outputMask);
+            settings.inputChannelMask = settings.inputDeviceIdentifier.isNotEmpty()
+                                            ? static_cast<std::uint64_t>(inputMask)
+                                            : std::uint64_t{0U};
             settings.sampleRate = ownedAlert->getTextEditorContents("rate").getDoubleValue();
             settings.bufferSize = static_cast<std::uint32_t>(
                 std::max(0, ownedAlert->getTextEditorContents("buffer").getIntValue()));

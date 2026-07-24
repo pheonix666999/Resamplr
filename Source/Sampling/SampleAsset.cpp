@@ -1,5 +1,6 @@
 #include "SampleAsset.h"
 
+#include <algorithm>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -39,6 +40,26 @@ SampleAssetView SampleAsset::view() const noexcept {
     return {interleavedPcm_.data(), metadata_.frameCount, metadata_.channelCount,
             metadata_.sampleRate};
 }
+
+std::uint64_t maximumPlatformDecodedSampleBudgetBytes() noexcept {
+    constexpr auto bytesPerMebibyte = std::uint64_t{1024U} * 1024U;
+    const auto physicalMemoryMiB = juce::SystemStats::getMemorySizeInMegabytes();
+    if (physicalMemoryMiB <= 0)
+        return maximumDecodedSampleBudgetBytes;
+    const auto halfPhysicalBytes =
+        static_cast<std::uint64_t>(physicalMemoryMiB) * bytesPerMebibyte / 2U;
+    return std::clamp(halfPhysicalBytes, minimumDecodedSampleBudgetBytes,
+                      maximumDecodedSampleBudgetBytes);
+}
+
+std::uint64_t clampConfiguredDecodedSampleBudgetBytes(const std::uint64_t requestedBytes) noexcept {
+    return std::clamp(requestedBytes, minimumDecodedSampleBudgetBytes,
+                      maximumPlatformDecodedSampleBudgetBytes());
+}
+
+SampleAssetRegistry::SampleAssetRegistry() noexcept
+    : SampleAssetRegistry(
+          clampConfiguredDecodedSampleBudgetBytes(defaultDecodedSampleBudgetBytes)) {}
 
 SampleAssetRegistry::SampleAssetRegistry(const std::uint64_t budgetBytes) noexcept
     : budgetBytes_(budgetBytes) {}
