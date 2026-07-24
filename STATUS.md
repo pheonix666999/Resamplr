@@ -34,7 +34,9 @@ asset metadata was added. The explicit fixture initialization fix is tracked by
 The deterministic playback slice now has a 128-voice fixed pool, bounded trigger/release/panic
 commands, immutable snapshots, deterministic local/global allocation, Hermite interpolation,
 source-rate conversion, ADSR, gain/pan/tuning/velocity, playback/polyphony/choke behavior, finite
-guards, safe silence, and atomic meters. Hosted validation for this slice is pending.
+guards, safe silence, and atomic meters. Hosted validation passed in
+[run 30065256470](https://github.com/pheonix666999/Resamplr/actions/runs/30065256470) on commit
+`32c0bc8512f2ef2bc1894e87f06b9c3af91b71b0`; all five jobs passed.
 
 Feature-branch CI was enabled and validated independently in
 [run 30062883832](https://github.com/pheonix666999/Resamplr/actions/runs/30062883832) on commit
