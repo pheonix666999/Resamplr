@@ -370,6 +370,7 @@ are rejected without mutation unless an acceptance row explicitly specifies dete
 | REGRESSION-M2-004 | Portable recording-control suffixes | Recording sliders use JUCE's supported `setTextValueSuffix` API and every aggregate job target carries an explicit operation kind under warnings-as-errors. |
 | REGRESSION-M2-005 | Nested recording controls in headless UI | UI acceptance checks traverse the component hierarchy, and showing a recording panel without a desktop peer never attempts to take keyboard focus. |
 | REGRESSION-M2-006 | Canonical persisted-bound corruption fixture | The invalid-boundary regression mutates the actual pretty-printed canonical JSON token before checking diagnostic rejection and atomic destination preservation. |
+| REGRESSION-M2-007 | Looped one-shot isolation in integration smoke | The shared smoke path explicitly clears a deliberately persistent looped one-shot before measuring Gate voice release, preventing valid loop lifetime from contaminating the next mode assertion. |
 
 ## Project model — Milestone 1 unless noted
 

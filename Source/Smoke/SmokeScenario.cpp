@@ -253,6 +253,11 @@ SmokeResult runSmokeScenario() {
     InputRouter input{controller, engine};
     if (!input.mouseDown(0U) || !renderFiniteSignal(engine, 512U, true) || !input.mouseUp(0U))
         return {false, "SMOKE failure: one-shot mouse playback was invalid"};
+    // REGRESSION-M2-007: a looped one-shot intentionally survives mouse-up, so clear it before
+    // measuring the lifetime of the following Gate voice.
+    input.panic();
+    if (!renderFiniteSignal(engine, 256U, false) || engine.activeVoiceCount() != 0U)
+        return {false, "SMOKE failure: looped one-shot did not clear before Gate validation"};
 
     parameters.playbackMode = PlaybackMode::gate;
     if (controller.setPadParameters(0U, parameters).failed())

@@ -153,7 +153,7 @@ class FoundationTests final : public juce::UnitTest {
         expect(readData != nullptr && readData[0] == 0.5F);
         expect(fifo.releaseReadBlock(descriptor.blockIndex));
 
-        beginTest("UIHEADLESS-001 shared deterministic smoke scenario");
+        beginTest("UIHEADLESS-001 and REGRESSION-M2-007 shared deterministic smoke scenario");
         const auto smoke = runSmokeScenario();
         expect(smoke.succeeded, smoke.diagnostics);
     }
