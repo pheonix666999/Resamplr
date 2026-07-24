@@ -7,8 +7,14 @@ in progress on `feature/milestone-1-playable-sampler`**.
 
 The Milestone 0 repository, pinned dependency, targets, interfaces, schema-v1 skeleton, tests, smoke
 paths, packaging, and workflows remain the validated baseline. The Milestone 1 authority now has
-phased delivery tasks in `PLANS.md` and granular acceptance IDs in `TEST_PLAN.md`. Product code has
-not yet been changed on this branch.
+phased delivery tasks in `PLANS.md` and granular acceptance IDs in `TEST_PLAN.md`. The first
+implementation slice adds the fixed four-bank/64-pad model, four layers per pad, stable identities,
+parameter validation, copy/paste/duplicate/clear commands, and undo/redo coverage. It is awaiting
+hosted compilation and test validation before the next phase begins.
+
+Feature-branch CI was enabled and validated independently in
+[run 30062883832](https://github.com/pheonix666999/Resamplr/actions/runs/30062883832) on commit
+`ee8df6b9fe0299871a3fee72a76e4834a5d7d825`; all five jobs passed.
 
 This Windows host still has no supported native compiler, so local native builds remain blocked.
 GitHub Actions remains the authoritative native compiler/test environment for each implementation

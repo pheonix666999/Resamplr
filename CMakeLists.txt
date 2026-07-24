@@ -32,6 +32,8 @@ add_library(
     Source/App/ApplicationController.cpp
     Source/App/ApplicationController.h
     Source/Model/MusicalTime.h
+    Source/Model/PadModel.cpp
+    Source/Model/PadModel.h
     Source/Model/Project.cpp
     Source/Model/Project.h
     Source/Sampling/SampleAsset.cpp

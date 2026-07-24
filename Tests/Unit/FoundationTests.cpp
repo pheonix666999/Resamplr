@@ -30,8 +30,10 @@ class FoundationTests final : public juce::UnitTest {
         expect(MusicalTime{12, 34U} == MusicalTime{12, 34U});
         ApplicationController controller;
         controller.createEmptyProject("Controller", "controller-project");
-        expect(controller.isCurrentJobTarget(JobSpec{"controller-project", "target", 0U, 0}));
-        expect(!controller.isCurrentJobTarget(JobSpec{"controller-project", "target", 1U, 0}));
+        expect(controller.isCurrentJobTarget(
+            JobSpec{"controller-project", "controller-project", 0U, 0}));
+        expect(!controller.isCurrentJobTarget(
+            JobSpec{"controller-project", "controller-project", 1U, 0}));
 
         beginTest("SAVE-001 canonical manifest and semantic round trip");
         const auto temporaryDirectory = juce::File::getSpecialLocation(juce::File::tempDirectory)
