@@ -136,6 +136,22 @@ class Milestone2EditTests final : public juce::UnitTest {
         expect(ProjectSerializer::restoreCanonicalManifest(manifest, restored).wasOk());
         expect(restored.state() == controller.project().state());
 
+        beginTest("SAVE-M2-008 invalid persisted bounds reject without partial commit");
+        auto invalidManifest =
+            manifest.replaceFirstOccurrenceOf("\"startFrame\":\"12\"", "\"startFrame\":\"99\"");
+        expect(invalidManifest != manifest);
+        auto invalidDestination = Project::createEmpty("Unchanged", "unchanged-project");
+        const auto invalidDestinationBefore = invalidDestination.state();
+        expect(ProjectSerializer::restoreCanonicalManifest(invalidManifest, invalidDestination)
+                   .failed());
+        expect(invalidDestination.state() == invalidDestinationBefore);
+
+        beginTest("SAVE-M2-009 waveform caches remain optional and non-authoritative");
+        expect(!manifest.contains("waveformCache"));
+        auto cacheFreeRestore = Project::createEmpty();
+        expect(ProjectSerializer::restoreCanonicalManifest(manifest, cacheFreeRestore).wasOk());
+        expect(cacheFreeRestore.state() == controller.project().state());
+
         beginTest("SAVE-M2-001 Milestone 1 layer payload remains loadable");
         auto legacy = Project::createEmpty("Legacy", "legacy-edit-project");
         auto legacyState = legacy.state();
@@ -249,6 +265,16 @@ class Milestone2EditTests final : public juce::UnitTest {
         snapshot.pads[0].layers[0].reverseEnabled = true;
         engine.processBlock(left.data(), right.data(), 1U);
         expectWithinAbsoluteError(left[0], expectedRenderedSample(1U), 0.00001F);
+
+        beginTest("AUDIO-M2-014 publishes and clears bounded UI playhead position");
+        const auto activePosition = engine.playbackPosition(0U);
+        expect(activePosition.has_value());
+        if (activePosition.has_value())
+            expect(*activePosition >= snapshot.pads[0].layers[0].startFrame &&
+                   *activePosition < snapshot.pads[0].layers[0].endFrame);
+        engine.panic();
+        expect(!engine.playbackPosition(0U).has_value());
+        expect(!engine.playbackPosition(totalPadCount).has_value());
 
         beginTest("REGRESSION-M2-001 legacy raw snapshot resolves complete asset bounds");
         PlaybackSnapshot legacySnapshot;

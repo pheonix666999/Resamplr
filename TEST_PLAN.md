@@ -268,6 +268,7 @@ are rejected without mutation unless an acceptance row explicitly specifies dete
 | AUDIO-M2-011 | Guarded fixtures detect no source read outside `[0, sourceFrameCount)`. |
 | AUDIO-M2-012 | Reverse and boundary edits affect new triggers only; active voices retain their published state. |
 | AUDIO-M2-013 | Every Milestone 1 playback, voice-allocation, trigger, and panic test remains valid. |
+| AUDIO-M2-014 | The callback publishes a bounded selected-pad frame for the UI playhead and clears it when playback stops. |
 
 ### Derived immutable assets
 

@@ -8,6 +8,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 
 namespace padflow {
 struct PlaybackLayerSnapshot final {
@@ -65,6 +66,8 @@ class PlaybackEngine final {
     [[nodiscard]] std::size_t activeVoiceCount() const noexcept;
     [[nodiscard]] int lastAllocatedVoiceIndex() const noexcept;
     [[nodiscard]] std::uint64_t acknowledgedSnapshotGeneration() const noexcept;
+    [[nodiscard]] std::optional<std::uint64_t>
+    playbackPosition(std::size_t padIndex) const noexcept;
 
   private:
     enum class EnvelopeStage : std::uint8_t { inactive, attack, decay, sustain, release };
@@ -115,6 +118,7 @@ class PlaybackEngine final {
     std::atomic<std::uint64_t> renderedBlocks_{0U};
     std::atomic<int> lastAllocatedVoice_{-1};
     std::atomic<std::uint64_t> reclaimableSnapshotGeneration_{0U};
+    std::array<std::atomic<std::uint64_t>, totalPadCount> playbackPositions_{};
 };
 
 [[nodiscard]] PlaybackSnapshot makePlaybackSnapshot(const ProjectState& project,

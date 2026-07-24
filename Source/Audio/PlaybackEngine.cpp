@@ -34,6 +34,8 @@ bool PlaybackEngine::enqueue(const AudioCommand& command) noexcept {
 void PlaybackEngine::panic() noexcept {
     for (auto& voice : voices_)
         voice = {};
+    for (auto& position : playbackPositions_)
+        position.store(std::numeric_limits<std::uint64_t>::max(), std::memory_order_relaxed);
     activeVoices_.store(0U, std::memory_order_release);
     lastAllocatedVoice_.store(-1, std::memory_order_release);
 }
@@ -66,6 +68,8 @@ void PlaybackEngine::processBlock(float* const left, float* const right,
     while (commands_.tryPop(command))
         handleCommand(command);
 
+    for (auto& position : playbackPositions_)
+        position.store(std::numeric_limits<std::uint64_t>::max(), std::memory_order_relaxed);
     float peakLeft = 0.0F;
     float peakRight = 0.0F;
     std::uint32_t active = 0U;
@@ -95,8 +99,13 @@ void PlaybackEngine::processBlock(float* const left, float* const right,
             peakRight = std::max(peakRight, std::abs(right[frame]));
             advancePosition(voice);
         }
-        if (voice.stage != EnvelopeStage::inactive)
+        if (voice.stage != EnvelopeStage::inactive) {
             ++active;
+            const auto frame = static_cast<std::uint64_t>(
+                std::clamp(voice.position, static_cast<double>(voice.startFrame),
+                           static_cast<double>(voice.endFrame - 1U)));
+            playbackPositions_[voice.padIndex].store(frame, std::memory_order_release);
+        }
     }
     activeVoices_.store(active, std::memory_order_release);
     peakLeft_.store(peakLeft, std::memory_order_release);
@@ -356,6 +365,16 @@ int PlaybackEngine::lastAllocatedVoiceIndex() const noexcept {
 
 std::uint64_t PlaybackEngine::acknowledgedSnapshotGeneration() const noexcept {
     return reclaimableSnapshotGeneration_.load(std::memory_order_acquire);
+}
+
+std::optional<std::uint64_t>
+PlaybackEngine::playbackPosition(const std::size_t padIndex) const noexcept {
+    if (padIndex >= playbackPositions_.size())
+        return std::nullopt;
+    const auto position = playbackPositions_[padIndex].load(std::memory_order_acquire);
+    return position == std::numeric_limits<std::uint64_t>::max()
+               ? std::nullopt
+               : std::optional<std::uint64_t>{position};
 }
 
 PlaybackSnapshot makePlaybackSnapshot(const ProjectState& project,

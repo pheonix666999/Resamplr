@@ -11,6 +11,7 @@ constexpr auto editorBorder = 0xff3b4957U;
 constexpr auto editorWave = 0xff8ba5b5U;
 constexpr auto editorTrim = 0xff50c8bbU;
 constexpr auto editorLoop = 0xffe1aa55U;
+constexpr auto editorPlayhead = 0xffe27868U;
 constexpr auto editorText = 0xffd8e1e8U;
 constexpr float markerHitRadius = 10.0F;
 
@@ -61,9 +62,19 @@ void WaveformEditor::clear() {
     visibleEnd_ = 1.0;
     analysisPending_ = false;
     sourceMissing_ = false;
+    playbackPosition_.reset();
     draggingMarker_ = false;
     panning_ = false;
     hasSelectedMarker_ = false;
+    repaint();
+}
+
+void WaveformEditor::setPlaybackPosition(std::optional<std::uint64_t> frame) {
+    if (frame.has_value() && *frame >= frameCount_)
+        frame.reset();
+    if (playbackPosition_ == frame)
+        return;
+    playbackPosition_ = frame;
     repaint();
 }
 
@@ -356,6 +367,14 @@ void WaveformEditor::paint(juce::Graphics& graphics) {
         paintMarker(graphics, Marker::trimEnd, juce::Colour{editorTrim}, "End");
         paintMarker(graphics, Marker::loopStart, juce::Colour{editorLoop}, "Loop in");
         paintMarker(graphics, Marker::loopEnd, juce::Colour{editorLoop}, "Loop out");
+        if (playbackPosition_.has_value()) {
+            const auto playheadX = static_cast<float>(frameToX(*playbackPosition_));
+            if (playheadX >= 0.0F && playheadX <= static_cast<float>(getWidth())) {
+                graphics.setColour(juce::Colour{editorPlayhead});
+                graphics.drawVerticalLine(static_cast<int>(std::round(playheadX)), 1.0F,
+                                          static_cast<float>(getHeight() - 1));
+            }
+        }
     }
 
     graphics.setColour(juce::Colour{editorText});

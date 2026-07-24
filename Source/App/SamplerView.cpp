@@ -1369,6 +1369,7 @@ void SamplerView::handleCompletedJob(std::shared_ptr<const JobResult> result) {
 void SamplerView::timerCallback() {
     juce::ignoreUnused(input_.flushMidiCommands());
     processPendingJobs();
+    waveformEditor_.setPlaybackPosition(runtime_.engine().playbackPosition(selectedGlobalPad()));
     juce::ignoreUnused(preview_.collectRetired());
     juce::ignoreUnused(publisher_.collectAcknowledged());
     if (controller_.project().revision() != lastSeenRevision_) {

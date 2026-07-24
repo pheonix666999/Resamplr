@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 
 namespace padflow {
 class WaveformEditor final : public juce::Component {
@@ -32,6 +33,7 @@ class WaveformEditor final : public juce::Component {
     void clear();
     void fitSource();
     void fitTrimSelection();
+    void setPlaybackPosition(std::optional<std::uint64_t> frame);
 
     [[nodiscard]] std::uint64_t frameCount() const noexcept;
     [[nodiscard]] SamplePlaybackSettings playback() const noexcept;
@@ -68,5 +70,6 @@ class WaveformEditor final : public juce::Component {
     bool panning_{false};
     bool analysisPending_{false};
     bool sourceMissing_{false};
+    std::optional<std::uint64_t> playbackPosition_;
 };
 } // namespace padflow
