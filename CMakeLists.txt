@@ -38,6 +38,8 @@ add_library(
     Source/Model/Project.h
     Source/Sampling/SampleAsset.cpp
     Source/Sampling/SampleAsset.h
+    Source/Sampling/WaveformCache.cpp
+    Source/Sampling/WaveformCache.h
     Source/Serialization/ProjectSerializer.cpp
     Source/Serialization/ProjectSerializer.h
     Source/Utilities/BackgroundJobSystem.cpp
