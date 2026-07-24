@@ -18,6 +18,12 @@ struct PlaybackLayerSnapshot final {
     float gainLinear{1.0F};
     float pan{-0.0F};
     float tuningCents{0.0F};
+    std::uint64_t startFrame{0U};
+    std::uint64_t endFrame{0U};
+    std::uint64_t loopStartFrame{0U};
+    std::uint64_t loopEndFrame{0U};
+    bool loopEnabled{false};
+    bool reverseEnabled{false};
 };
 
 struct PlaybackPadSnapshot final {
@@ -72,6 +78,11 @@ class PlaybackEngine final {
         EnvelopeStage stage{EnvelopeStage::inactive};
         double position{0.0};
         double increment{1.0};
+        std::uint64_t startFrame{0U};
+        std::uint64_t endFrame{0U};
+        std::uint64_t loopStartFrame{0U};
+        std::uint64_t loopEndFrame{0U};
+        bool loopEnabled{false};
         float envelope{0.0F};
         float sustain{1.0F};
         float attackStep{1.0F};
@@ -90,6 +101,7 @@ class PlaybackEngine final {
     [[nodiscard]] std::size_t allocateVoice(std::uint32_t padIndex) noexcept;
     [[nodiscard]] static float interpolate(const SampleAssetView& asset, std::uint32_t channel,
                                            double position) noexcept;
+    static void advancePosition(Voice& voice) noexcept;
     [[nodiscard]] float advanceEnvelope(Voice& voice) const noexcept;
 
     std::array<Voice, voiceCount> voices_{};

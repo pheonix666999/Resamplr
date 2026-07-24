@@ -30,6 +30,18 @@ default banks, pads, layers, mappings, audio/MIDI settings, and UI state derived
 project UUID. A partially present Milestone 1 payload is invalid rather than silently defaulted.
 Loading parses and validates a complete candidate state before committing it to the live project.
 
+## Milestone 2 additive layer editing payload
+
+Schema v1 remains active. An assigned layer edited or imported by Milestone 2 carries an `editing`
+object with decimal-string `startFrame`, `endFrame`, `loopStartFrame`, and `loopEndFrame` values plus
+loop, reverse, and zero-crossing-snap booleans. Starts are inclusive and ends are exclusive. Trim
+must be non-empty inside the referenced source frame count, and loop must be non-empty inside trim.
+
+Milestone 1 layer records without `editing` remain valid and resolve at runtime to the complete
+source range with loop and reverse disabled. Once a Milestone 2 edit is committed, all editing
+members are serialized together; partially present or invalid editing state is rejected without a
+partial project commit. Waveform caches remain optional, non-authoritative, and regenerable.
+
 ## Musical time
 
 All musical positions use 960 PPQ. Absolute positions are `{ wholePpqTicks: int64,

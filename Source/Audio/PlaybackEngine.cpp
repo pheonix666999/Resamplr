@@ -76,7 +76,8 @@ void PlaybackEngine::processBlock(float* const left, float* const right,
         for (std::size_t frame = 0; frame < frameCount; ++frame) {
             if (voice.stage == EnvelopeStage::inactive)
                 break;
-            if (voice.position >= static_cast<double>(voice.asset.frameCount)) {
+            if (voice.position < static_cast<double>(voice.startFrame) ||
+                voice.position >= static_cast<double>(voice.endFrame)) {
                 voice = {};
                 break;
             }
@@ -92,7 +93,7 @@ void PlaybackEngine::processBlock(float* const left, float* const right,
             right[frame] += std::isfinite(renderedRight) ? renderedRight : 0.0F;
             peakLeft = std::max(peakLeft, std::abs(left[frame]));
             peakRight = std::max(peakRight, std::abs(right[frame]));
-            voice.position += voice.increment;
+            advancePosition(voice);
         }
         if (voice.stage != EnvelopeStage::inactive)
             ++active;
@@ -158,10 +159,18 @@ void PlaybackEngine::trigger(const std::uint32_t padIndex, const std::uint32_t s
         voice.chokeGroup = pad.chokeGroup;
         voice.playbackMode = pad.playbackMode;
         voice.stage = EnvelopeStage::attack;
-        voice.increment =
+        const auto playbackRate =
             (layer.asset.sampleRate / outputSampleRate_) *
             std::pow(2.0, static_cast<double>(pad.coarseSemitones) / 12.0 +
                               static_cast<double>(pad.fineCents + layer.tuningCents) / 1200.0);
+        voice.increment = layer.reverseEnabled ? -playbackRate : playbackRate;
+        voice.startFrame = layer.startFrame;
+        voice.endFrame = layer.endFrame;
+        voice.loopStartFrame = layer.loopStartFrame;
+        voice.loopEndFrame = layer.loopEndFrame;
+        voice.loopEnabled = layer.loopEnabled;
+        voice.position = layer.reverseEnabled ? static_cast<double>(layer.endFrame - 1U)
+                                              : static_cast<double>(layer.startFrame);
         voice.sustain = pad.envelope.sustainLevel;
         voice.attackStep = secondsStep(pad.envelope.attackSeconds, outputSampleRate_);
         voice.decayStep =
@@ -267,6 +276,31 @@ float PlaybackEngine::interpolate(const SampleAssetView& asset, const std::uint3
     return ((c3 * fraction + c2) * fraction + c1) * fraction + c0;
 }
 
+void PlaybackEngine::advancePosition(Voice& voice) noexcept {
+    voice.position += voice.increment;
+    if (!voice.loopEnabled)
+        return;
+
+    const auto loopStart = static_cast<double>(voice.loopStartFrame);
+    const auto loopEnd = static_cast<double>(voice.loopEndFrame);
+    const auto loopLength = loopEnd - loopStart;
+    if (!(loopLength > 0.0) || !std::isfinite(voice.position)) {
+        voice = {};
+        return;
+    }
+    if (voice.increment >= 0.0 && voice.position >= loopEnd) {
+        auto remainder = std::fmod(voice.position - loopStart, loopLength);
+        if (remainder < 0.0)
+            remainder += loopLength;
+        voice.position = loopStart + remainder;
+    } else if (voice.increment < 0.0 && voice.position < loopStart) {
+        auto remainder = std::fmod(loopStart - voice.position, loopLength);
+        if (remainder < 0.0)
+            remainder += loopLength;
+        voice.position = remainder == 0.0 ? loopStart : loopEnd - remainder;
+    }
+}
+
 float PlaybackEngine::advanceEnvelope(Voice& voice) const noexcept {
     switch (voice.stage) {
     case EnvelopeStage::attack:
@@ -337,8 +371,17 @@ PlaybackSnapshot makePlaybackSnapshot(const ProjectState& project,
                 destinationLayer.pan = sourceLayer.pan;
                 destinationLayer.tuningCents = sourceLayer.tuningCents;
                 const auto asset = assets.find(sourceLayer.assetUuid);
-                if (asset != nullptr)
+                if (asset != nullptr) {
                     destinationLayer.asset = asset->view();
+                    const auto playback =
+                        resolveSamplePlaybackSettings(sourceLayer, asset->metadata().frameCount);
+                    destinationLayer.startFrame = playback.startFrame;
+                    destinationLayer.endFrame = playback.endFrame;
+                    destinationLayer.loopStartFrame = playback.loopStartFrame;
+                    destinationLayer.loopEndFrame = playback.loopEndFrame;
+                    destinationLayer.loopEnabled = playback.loopEnabled;
+                    destinationLayer.reverseEnabled = playback.reverseEnabled;
+                }
             }
         }
     return snapshot;

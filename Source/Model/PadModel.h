@@ -26,6 +26,20 @@ struct EnvelopeParameters final {
                                          const EnvelopeParameters&) = default;
 };
 
+struct SamplePlaybackSettings final {
+    std::uint64_t startFrame{0U};
+    std::uint64_t endFrame{0U};
+    std::uint64_t loopStartFrame{0U};
+    std::uint64_t loopEndFrame{0U};
+    bool loopEnabled{false};
+    bool reverseEnabled{false};
+    bool zeroCrossingSnap{false};
+    bool initialized{false};
+
+    [[nodiscard]] friend bool operator==(const SamplePlaybackSettings&,
+                                         const SamplePlaybackSettings&) = default;
+};
+
 struct SampleLayer final {
     juce::String uuid;
     juce::String assetUuid;
@@ -35,6 +49,7 @@ struct SampleLayer final {
     float gainDecibels{0.0F};
     float pan{0.0F};
     float tuningCents{0.0F};
+    SamplePlaybackSettings playback;
 
     [[nodiscard]] friend bool operator==(const SampleLayer&, const SampleLayer&) = default;
 };
@@ -141,6 +156,10 @@ struct ProjectState final {
 void regeneratePadIdentity(Pad& pad);
 
 [[nodiscard]] juce::Result validateLayer(const SampleLayer& layer);
+[[nodiscard]] juce::Result validateSamplePlaybackSettings(const SamplePlaybackSettings& settings,
+                                                          std::uint64_t sourceFrameCount);
+[[nodiscard]] SamplePlaybackSettings
+resolveSamplePlaybackSettings(const SampleLayer& layer, std::uint64_t sourceFrameCount) noexcept;
 [[nodiscard]] juce::Result validatePad(const Pad& pad);
 [[nodiscard]] juce::Result validateProjectState(const ProjectState& state);
 [[nodiscard]] std::size_t toGlobalPadIndex(std::size_t bankIndex, std::size_t padIndex) noexcept;

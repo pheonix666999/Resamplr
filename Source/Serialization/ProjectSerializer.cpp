@@ -65,9 +65,23 @@ juce::var envelopeValue(const EnvelopeParameters& envelope) {
     return value;
 }
 
+juce::var samplePlaybackValue(const SamplePlaybackSettings& playback) {
+    auto value = makeObject();
+    setProperty(value, "endFrame", decimalString(playback.endFrame));
+    setProperty(value, "loopEnabled", playback.loopEnabled);
+    setProperty(value, "loopEndFrame", decimalString(playback.loopEndFrame));
+    setProperty(value, "loopStartFrame", decimalString(playback.loopStartFrame));
+    setProperty(value, "reverseEnabled", playback.reverseEnabled);
+    setProperty(value, "startFrame", decimalString(playback.startFrame));
+    setProperty(value, "zeroCrossingSnap", playback.zeroCrossingSnap);
+    return value;
+}
+
 juce::var layerValue(const SampleLayer& layer) {
     auto value = makeObject();
     setProperty(value, "assetUuid", layer.assetUuid);
+    if (layer.playback.initialized)
+        setProperty(value, "editing", samplePlaybackValue(layer.playback));
     setProperty(value, "enabled", layer.enabled);
     setProperty(value, "gainDecibels", static_cast<double>(layer.gainDecibels));
     setProperty(value, "pan", static_cast<double>(layer.pan));
@@ -310,12 +324,46 @@ juce::Result readEnvelope(const juce::var& value, EnvelopeParameters& envelope) 
     return readFloat(*object, "sustainLevel", envelope.sustainLevel);
 }
 
+juce::Result readSamplePlayback(const juce::var& value, SamplePlaybackSettings& playback) {
+    const juce::DynamicObject* object = nullptr;
+    if (const auto result = requireObject(value, "editing", object); result.failed())
+        return result;
+    if (const auto result = readDecimalString(*object, "endFrame", playback.endFrame);
+        result.failed())
+        return result;
+    if (const auto result = readBool(*object, "loopEnabled", playback.loopEnabled); result.failed())
+        return result;
+    if (const auto result = readDecimalString(*object, "loopEndFrame", playback.loopEndFrame);
+        result.failed())
+        return result;
+    if (const auto result = readDecimalString(*object, "loopStartFrame", playback.loopStartFrame);
+        result.failed())
+        return result;
+    if (const auto result = readBool(*object, "reverseEnabled", playback.reverseEnabled);
+        result.failed())
+        return result;
+    if (const auto result = readDecimalString(*object, "startFrame", playback.startFrame);
+        result.failed())
+        return result;
+    if (const auto result = readBool(*object, "zeroCrossingSnap", playback.zeroCrossingSnap);
+        result.failed())
+        return result;
+    playback.initialized = true;
+    return juce::Result::ok();
+}
+
 juce::Result readLayer(const juce::var& value, SampleLayer& layer) {
     const juce::DynamicObject* object = nullptr;
     if (const auto result = requireObject(value, "layer", object); result.failed())
         return result;
     if (const auto result = readString(*object, "assetUuid", layer.assetUuid); result.failed())
         return result;
+    const auto editingIdentifier = juce::Identifier{"editing"};
+    if (object->hasProperty(editingIdentifier))
+        if (const auto result =
+                readSamplePlayback(object->getProperty(editingIdentifier), layer.playback);
+            result.failed())
+            return result;
     if (const auto result = readBool(*object, "enabled", layer.enabled); result.failed())
         return result;
     if (const auto result = readFloat(*object, "gainDecibels", layer.gainDecibels); result.failed())

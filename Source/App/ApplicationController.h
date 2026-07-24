@@ -22,6 +22,18 @@ class ApplicationController final {
     [[nodiscard]] juce::Result setPadParameters(std::size_t globalIndex, PadParameters parameters);
     [[nodiscard]] juce::Result setLayer(std::size_t globalIndex, std::size_t layerIndex,
                                         SampleLayer layer);
+    [[nodiscard]] juce::Result setLayerTrim(std::size_t globalIndex, std::size_t layerIndex,
+                                            std::uint64_t startFrame, std::uint64_t endFrame);
+    [[nodiscard]] juce::Result setLayerLoop(std::size_t globalIndex, std::size_t layerIndex,
+                                            std::uint64_t startFrame, std::uint64_t endFrame);
+    [[nodiscard]] juce::Result setLayerLoopEnabled(std::size_t globalIndex, std::size_t layerIndex,
+                                                   bool enabled);
+    [[nodiscard]] juce::Result setLayerReverseEnabled(std::size_t globalIndex,
+                                                      std::size_t layerIndex, bool enabled);
+    [[nodiscard]] juce::Result setLayerZeroCrossingSnap(std::size_t globalIndex,
+                                                        std::size_t layerIndex, bool enabled);
+    [[nodiscard]] juce::Result resetLayerTrim(std::size_t globalIndex, std::size_t layerIndex);
+    [[nodiscard]] juce::Result resetLayerLoop(std::size_t globalIndex, std::size_t layerIndex);
     [[nodiscard]] juce::Result setPadMappings(std::size_t globalIndex, std::uint8_t midiNote,
                                               juce::String keyboardKey);
     [[nodiscard]] juce::Result setAudioSettings(AudioSettings settings);
@@ -51,6 +63,11 @@ class ApplicationController final {
                                              juce::String description);
     [[nodiscard]] juce::Result commitProjectEdit(ProjectState replacement,
                                                  juce::String description);
+    [[nodiscard]] const ExternalAssetReference*
+    assetForLayer(std::size_t globalIndex, std::size_t layerIndex) const noexcept;
+    [[nodiscard]] juce::Result commitLayerPlayback(std::size_t globalIndex, std::size_t layerIndex,
+                                                   SamplePlaybackSettings playback,
+                                                   juce::String description);
 
     Project project_;
     std::optional<Pad> clipboard_;

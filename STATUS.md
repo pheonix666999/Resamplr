@@ -11,6 +11,12 @@ passed validation, Windows x64, macOS universal, macOS Intel smoke, and cross-pl
 verification before the Milestone 2 branch was created. Milestone 2 acceptance authorities are now
 defined in `PLANS.md` and `TEST_PLAN.md`; product implementation has not yet been claimed complete.
 
+The immutable waveform-cache slice provides cancellable bounded-worker generation, mono/stereo
+multi-resolution min/max summaries, source-identity validation, separate unique-cache memory
+accounting, and stale completion rejection. Hosted validation passed in
+[run 30079156560](https://github.com/pheonix666999/Resamplr/actions/runs/30079156560) on commit
+`5688575506258ffa234ffd51cebf1f144d53e8e7`; all five jobs passed.
+
 The Milestone 0 repository, pinned dependency, targets, interfaces, schema-v1 skeleton, tests, smoke
 paths, packaging, and workflows remain the validated baseline. Milestone 1 adds the fixed
 four-bank/64-pad model, four immutable velocity layers per pad, stable identities, validated pad

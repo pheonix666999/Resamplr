@@ -11,6 +11,7 @@ target_sources(
             Unit/Milestone1PreviewTests.cpp)
 target_sources(padflow_tests PRIVATE Unit/Milestone1UiTests.cpp)
 target_sources(padflow_tests PRIVATE Unit/Milestone2WaveformTests.cpp)
+target_sources(padflow_tests PRIVATE Unit/Milestone2EditTests.cpp)
 target_link_libraries(padflow_tests PRIVATE padflow_audio padflow_ui)
 padflow_enable_project_warnings(padflow_tests)
 padflow_set_output_directory(padflow_tests)
