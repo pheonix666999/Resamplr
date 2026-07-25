@@ -389,7 +389,7 @@ bool ChoppingWorkspace::submitTransientAnalysis(TransientAnalysisParameters para
     analysisJob_ = std::move(handle);
     mode_ = SliceAlgorithm::transient;
     juce::ignoreUnused(session_.markAnalysing());
-    status_ = "Analysing transients…";
+    status_ = "Analysing transients...";
     refresh();
     return true;
 }
@@ -531,7 +531,7 @@ bool ChoppingWorkspace::startLazy(const LazyCaptureSettings settings) {
     }
     lazySettings_ = settings;
     mode_ = SliceAlgorithm::lazy;
-    status_ = "Lazy chop active — pads, keys, MIDI, and Place Marker add boundaries";
+    status_ = "Lazy chop active - pads, keys, MIDI, and Place Marker add boundaries";
     refresh();
     return true;
 }
@@ -652,7 +652,7 @@ void ChoppingWorkspace::cancel() {
     assignmentPlan_.reset();
     session_.cancel();
     publishSlices();
-    status_ = "Chopping cancelled — project unchanged";
+    status_ = "Chopping cancelled - project unchanged";
     refresh();
     if (onCancel)
         onCancel();
@@ -663,7 +663,7 @@ void ChoppingWorkspace::service() {
     if (lazyCapture_.active())
         juce::ignoreUnused(drainLazyMarkers());
     if (analysisJob_.has_value()) {
-        status_ = "Analysing transients… " +
+        status_ = "Analysing transients... " +
                   juce::String{static_cast<int>(analysisJob_->progress->snapshot() * 100.0F)} + "%";
         refresh();
     }

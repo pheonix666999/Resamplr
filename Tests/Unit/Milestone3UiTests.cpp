@@ -186,6 +186,10 @@ class Milestone3UiTests final : public juce::UnitTest {
         expect(!workspace.analysisPending());
         expect(workspace.session().provisionalSliceSet().has_value());
         expect(workspace.session().provisionalSliceSet()->slices.size() > 1U);
+        const auto transientStatus = workspace.statusText();
+        expect(std::all_of(transientStatus.begin(), transientStatus.end(),
+                           [](const auto character) { return character < 128; }),
+               "REGRESSION-M3-003 status text must remain ASCII-safe");
         if (evidencePath.isNotEmpty())
             expect(writeUiEvidence(view,
                                    evidenceDirectory.getChildFile("padflow-chop-transient.png")));
@@ -211,13 +215,13 @@ class Milestone3UiTests final : public juce::UnitTest {
         workspace.stopAudition();
         runtime.preview().processAdd(left.data(), right.data(), left.size());
 
-        beginTest("UIHEADLESS-M3-007 drains bounded lazy marker events");
+        beginTest("UIHEADLESS-M3-007 and REGRESSION-M3-002 drain cross-input lazy marker events");
         expect(workspace.startLazy({128, 3968, 32, 0}));
         left.fill(0.0F);
         right.fill(0.0F);
-        runtime.preview().processAdd(left.data(), right.data(), left.size());
+        runtime.preview().processAdd(left.data(), right.data(), 128U);
         expect(workspace.captureLazyMarker(LazyMarkerSource::mouse));
-        runtime.preview().processAdd(left.data(), right.data(), left.size());
+        runtime.preview().processAdd(left.data(), right.data(), 128U);
         expect(workspace.captureLazyMarker(LazyMarkerSource::keyboard));
         runtime.preview().processAdd(left.data(), right.data(), left.size());
         expect(input.handleMidi(juce::MidiMessage::noteOn(1, 36, juce::uint8{100U})));

@@ -560,6 +560,8 @@ Every defect discovered during Milestone 3 implementation or hosted remediation 
 | ID | Regression contract |
 | --- | --- |
 | REGRESSION-M3-001 | Lazy-marker nearest-grid quantization remains trim-bounded without signed overflow near the maximum source-frame value. |
+| REGRESSION-M3-002 | Mouse, keyboard, and MIDI lazy markers share one minimum-distance rule; the deterministic UI fixture places all three far enough apart to test accepted cross-input capture. |
+| REGRESSION-M3-003 | Chopping status strings use JUCE-safe ASCII literals and headless execution raises no invalid narrow-string assertion. |
 
 ## Sequencer and timing — Milestones 4–5
 
