@@ -565,7 +565,8 @@ Every defect discovered during Milestone 3 implementation or hosted remediation 
 | REGRESSION-M3-004 | The populated smoke path keeps its additional Milestone 3 playback engine off the process stack instead of adding another fixed voice pool to the shared integration frame. |
 | REGRESSION-M3-005 | ASCII status validation walks JUCE character pointers explicitly so the regression test compiles consistently with GCC, Clang, and MSVC. |
 | REGRESSION-M3-006 | The monolithic populated smoke fixture heap-owns full project, playback-engine, capture-session, and copied-project lifetimes, reducing its Debug frame while preserving default-stack product GUI smoke coverage. |
-| REGRESSION-M3-007 | MSVC console-smoke and unit-test hosts reserve a 4 MiB stack for deliberately broad Debug integration fixtures; the production GUI target retains its normal stack configuration and headless smoke coverage. |
+| REGRESSION-M3-007 | Windows console/unit hosts retain their default stack configuration; smoke reliability must come from bounded fixtures and memory-safe lifetimes rather than a larger linker reserve. |
+| REGRESSION-M3-008 | The populated smoke path copies external-asset metadata before any project-state replacement and never retains a pointer into the old project's asset vector. |
 
 ## Sequencer and timing — Milestones 4–5
 

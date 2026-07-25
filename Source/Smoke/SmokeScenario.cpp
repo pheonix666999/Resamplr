@@ -214,10 +214,13 @@ SmokeResult runSmokeScenario() {
     editedPublisher.clearWhenAudioIsStopped();
     reportSmokeStage("edited-playback");
 
-    const auto* sourceReference =
+    const auto* sourceReferenceResult =
         findReference(controller.project().state(), sourceAsset->metadata().assetUuid);
-    if (sourceReference == nullptr)
+    if (sourceReferenceResult == nullptr)
         return {false, "SMOKE failure: source metadata is unavailable"};
+    // REGRESSION-M3-008: project edits replace ProjectState, so retain a value instead of a
+    // pointer into the pre-edit asset vector.
+    const auto sourceReference = *sourceReferenceResult;
 
     auto occupiedLayer = controller.project().pad(0U).layers[0U];
     occupiedLayer.uuid = controller.project().pad(1U).layers[0U].uuid;
@@ -232,7 +235,7 @@ SmokeResult runSmokeScenario() {
                                                controller.project().pad(0U).layers[0U].uuid,
                                                sourceRevision,
                                                sourceAsset->metadata().assetUuid,
-                                               sourceReference->contentFingerprint,
+                                               sourceReference.contentFingerprint,
                                                128,
                                                1920};
     if (chopping.begin(choppingTarget).failed() || chopping.regenerateEqual(4).failed())
@@ -276,7 +279,7 @@ SmokeResult runSmokeScenario() {
         {controller.project().uuid(), sourceAsset->metadata().assetUuid, sourceRevision, 0,
          JobKind::transientAnalysis},
         {makeStableUuid("smoke-chopping-session:slice-set"), sourceAsset->metadata().assetUuid,
-         sourceReference->contentFingerprint, controller.project().pad(0U).layers[0U].uuid, 128,
+         sourceReference.contentFingerprint, controller.project().pad(0U).layers[0U].uuid, 128,
          1920, 1, SliceRemainderPolicy::include, SliceDisplayUnit::frames},
         {0.5F, 128, 0, 0.0F},
         sourceAsset};
