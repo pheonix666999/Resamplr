@@ -236,8 +236,63 @@ locks, effects, song mode, resampling, skipback, or export.
 
 ## Milestone 4 — transport and sequencing
 
-960 PPQ/Q16 scheduling, runtime sample conversion, tempo/metre, stateless probability, swing,
-ratchets, nudge, recording, and panic.
+Milestone 4 adds an original deterministic internal transport and functional pattern sequencer
+which schedules the existing sampler engine. It retains all Milestone 1–3 behavior and schema-v1
+compatibility. It does not add Milestone 5 parameter locks, per-step slice/reverse overrides,
+16 Levels, Roll, performance automation, effects, song mode, resampling, skipback, or export.
+
+### Phase 1 — timing, tempo, and pattern contract
+
+- Complete signed 960 PPQ/Q16 musical time, checked ties-to-even frame conversion, step-change
+  micro-BPM tempo maps, supported metres, and bar/beat/tick conversion.
+- Add schema-backed patterns and stable events with musical duration, velocity, probability,
+  ratchets, and Q16 microtiming. Persist no sample offsets or floating-point BPM.
+- Add every `SEQ-M4-*`, `RECORD-M4-*`, `SAVE-M4-*`, `THREAD-M4-*`, and `UIHEADLESS-M4-*`
+  authority before production implementation.
+
+### Phase 2 — transport, metronome, and count-in
+
+- Add stopped/playing/recording/count-in states, play/stop/record/return-to-start/loop/BPM/tap,
+  metronome, configurable count-in, atomic position snapshots, loop iteration, and panic.
+- Generate accented synthetic clicks through fixed-capacity state; stop and device changes clear
+  future sequencer gates and sampler voices without callback allocation, locks, files, or GUI work.
+
+### Phase 3 — deterministic scheduler
+
+- Publish immutable pattern and tempo snapshots outside the callback. Resolve events using fixed
+  buffers in base-position, swing, microtiming, ratchet, and frame-conversion order.
+- Use stateless `siphash24-v1` probability keyed by project seed, pattern/event UUIDs, zero
+  Milestone 4 song sentinels, and pattern loop iteration.
+- Preserve deterministic ordering and absolute positions across callback sizes, sample rates,
+  container order, pattern boundaries, ratchets, and large blocks. Report bounded overflows through
+  atomics.
+
+### Phase 4 — pattern editing and recording
+
+- Add create/select/rename/duplicate/delete/clear, length, metre, resolution, swing, quantize,
+  event create/edit/copy/delete, and unified undo/redo.
+- Add step recording without transport and bounded live mouse/keyboard/MIDI capture with count-in,
+  overdub/replace, gate duration, straight/triplet quantization, take-level commit/cancel, and one
+  undo entry per completed take.
+
+### Phase 5 — functional sequencer workspace
+
+- Add an original transport bar, pattern header, scrollable pad-lane step grid, playhead, event
+  editor, accessible keyboard navigation, and high-DPI-safe controls.
+- Expose velocity, probability, ratchets, and nudge only; do not expose Milestone 5 controls.
+- Generate actual CI screenshots for the main grid, probability/ratchet editing, and
+  live-record/count-in state.
+
+### Phase 6 — persistence, integration, and hosted remediation
+
+- Extend schema v1 additively for the tempo map, probability seed/algorithm, transport preferences,
+  patterns, events, selected pattern, and sequencer UI state while retaining Milestone 0–3 fixtures.
+- Extend console/GUI smoke with multi-buffer deterministic scheduling, loop/probability/ratchet/
+  nudge playback, step/live recording, undo/redo, save/load/replay, finite audio, and cleanup.
+- Run static checks, clean Debug/Release builds, CTest, both smoke paths, unsigned packaging,
+  architecture inspection, and artifact verification on Linux, Windows, macOS universal, and macOS
+  Intel. Every discovered project defect receives a stable `REGRESSION-M4-*` authority.
+- Finish only after the full hosted matrix is green and `STATUS.md` records the evidence.
 
 ## Milestone 5 — performance sequencing
 

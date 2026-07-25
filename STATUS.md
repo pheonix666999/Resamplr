@@ -2,8 +2,15 @@
 
 ## Current milestone
 
-Milestone 3 — sample chopping: **complete and ready for review on
-`feature/milestone-3-sample-chopping`**.
+Milestone 4 — transport and sequencing: **started on
+`feature/milestone-4-transport-sequencer`**.
+
+Milestone 3 was merged into `main` at `e26d60e8827af5897c8902d5fc917245288542fe`.
+[Post-merge run 30159899858](https://github.com/pheonix666999/Resamplr/actions/runs/30159899858)
+passed Linux Debug/Release, Windows Debug/Release and packaging, macOS universal tests/package,
+macOS Intel smoke, and cross-platform artifact verification before the Milestone 4 branch was
+created. Milestone 4 acceptance authorities are being defined in `PLANS.md` and `TEST_PLAN.md`;
+transport or sequencer completion is not yet claimed.
 
 Milestone 2 was merged into `main` at `5cfd0f4942ff02da621f7e086f62e4d8b095d43f`.
 [Post-merge run 30135505455](https://github.com/pheonix666999/Resamplr/actions/runs/30135505455)

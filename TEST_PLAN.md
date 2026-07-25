@@ -569,6 +569,176 @@ Every defect discovered during Milestone 3 implementation or hosted remediation 
 | REGRESSION-M3-008 | The populated smoke path copies external-asset metadata before any project-state replacement and never retains a pointer into the old project's asset vector. |
 | REGRESSION-M3-009 | Each named CI chopping screenshot explicitly selects its matching mode, and equal-slice evidence waits for a completed waveform cache before capture. |
 
+## Transport and sequencer — Milestone 4
+
+Milestone 4 tests use synthetic samples, simulated input, immutable playback snapshots, and
+deterministic scheduler simulation. No physical audio or MIDI device is required. Persisted musical
+positions use signed 960 PPQ ticks plus Q16 fractions; runtime frame offsets are never serialized.
+Parameter locks, per-step slice/reverse overrides, 16 Levels, Roll, performance automation, effects,
+song mode, resampling, skipback, and export remain outside this milestone.
+
+### Milestone 4 time and tempo
+
+| ID | Test |
+|---|---|
+| SEQ-M4-001 | Quarter-note conversion uses exactly 960 PPQ ticks. |
+| SEQ-M4-002 | Q16 fractional timing converts and compares deterministically. |
+| SEQ-M4-003 | PPQ resolves correctly at 44.1 kHz. |
+| SEQ-M4-004 | PPQ resolves correctly at 48 kHz. |
+| SEQ-M4-005 | PPQ resolves correctly at 88.2 kHz. |
+| SEQ-M4-006 | PPQ resolves correctly at 96 kHz. |
+| SEQ-M4-007 | Callback buffer size does not alter absolute event frames. |
+| SEQ-M4-008 | Step tempo changes preserve PPQ and resolve correct frames. |
+| SEQ-M4-009 | Frame conversion uses round-to-nearest, ties-to-even. |
+| SEQ-M4-010 | Large musical positions use checked overflow-safe arithmetic. |
+
+### Milestone 4 transport, meter, and count-in
+
+| ID | Test |
+|---|---|
+| SEQ-M4-020 | Transport plays from pattern start. |
+| SEQ-M4-021 | Transport plays from a selected position. |
+| SEQ-M4-022 | Stop clears pending events and held sequencer gates. |
+| SEQ-M4-023 | Return-to-start resolves position zero. |
+| SEQ-M4-024 | Loop iteration increments exactly at each pattern wrap. |
+| SEQ-M4-025 | One large block may cross multiple loop boundaries deterministically. |
+| SEQ-M4-026 | Panic clears future events, gates, and sampler voices. |
+| SEQ-M4-027 | Device change stops transport and panics before reconfiguration. |
+| SEQ-M4-028 | Immutable snapshot swaps occur at the documented callback/loop boundary. |
+| SEQ-M4-030 | A 4/4 metronome accents the first of four beats. |
+| SEQ-M4-031 | A 3/4 metronome accents the first of three beats. |
+| SEQ-M4-032 | A 6/8 metronome respects denominator-derived beat length. |
+| SEQ-M4-033 | One-bar count-in lasts exactly one pattern-metre bar. |
+| SEQ-M4-034 | Two-bar count-in lasts exactly two pattern-metre bars. |
+| SEQ-M4-035 | Live recording begins exactly after count-in completes. |
+
+### Milestone 4 pattern model and scheduler
+
+| ID | Test |
+|---|---|
+| SEQ-M4-040 | Create a valid pattern with stable identity and deterministic defaults. |
+| SEQ-M4-041 | Duplicate a pattern with new pattern/event UUIDs and equivalent content. |
+| SEQ-M4-042 | Delete a pattern while retaining a valid selected-pattern state. |
+| SEQ-M4-043 | Pattern length enforces one-step minimum and 128-bar maximum. |
+| SEQ-M4-044 | 2/4, 3/4, 4/4, 5/4, 6/4, 7/4, 6/8, 9/8, and 12/8 validate. |
+| SEQ-M4-045 | Events order by start time, stable pad order, then event UUID. |
+| SEQ-M4-046 | Duplicating an event creates a new UUID. |
+| SEQ-M4-047 | Event duration must be positive and within supported limits. |
+| SEQ-M4-048 | Event velocity accepts 1–127 and rejects other values. |
+| SEQ-M4-060 | An event at block start schedules at offset zero. |
+| SEQ-M4-061 | An event inside a block resolves its exact signed offset. |
+| SEQ-M4-062 | An event at the half-open block end belongs to the following block. |
+| SEQ-M4-063 | Gate events crossing blocks produce one trigger and one release. |
+| SEQ-M4-064 | Events crossing a pattern loop preserve ordering and loop iteration. |
+| SEQ-M4-065 | Large blocks spanning multiple loops schedule every valid occurrence once. |
+| SEQ-M4-066 | Scheduler output ordering is deterministic. |
+| SEQ-M4-067 | Fixed event-buffer overflow is counted and follows documented truncation order. |
+| SEQ-M4-068 | Stop clears pending scheduler output. |
+| SEQ-M4-069 | Scheduled sampler rendering remains finite and non-silent. |
+
+### Milestone 4 probability, swing, ratchets, and microtiming
+
+| ID | Test |
+|---|---|
+| SEQ-M4-080 | Probability zero always rejects. |
+| SEQ-M4-081 | Maximum `ProbabilityQ32` always accepts. |
+| SEQ-M4-082 | `siphash24-v1` decisions repeat identically. |
+| SEQ-M4-083 | Probability is callback-buffer-size independent. |
+| SEQ-M4-084 | Probability is sample-rate independent. |
+| SEQ-M4-085 | Probability is container-order and unrelated-event independent. |
+| SEQ-M4-086 | Pattern loop iteration participates in the probability tuple. |
+| SEQ-M4-087 | A duplicated event UUID intentionally changes its probability sequence. |
+| SEQ-M4-088 | Real-time and offline simulations return identical decisions. |
+| SEQ-M4-100 | Zero swing leaves event positions unchanged. |
+| SEQ-M4-101 | Swing delays alternating subdivisions deterministically. |
+| SEQ-M4-102 | Maximum supported swing remains inside the next subdivision. |
+| SEQ-M4-103 | The first subdivision remains unchanged. |
+| SEQ-M4-104 | Scheduling applies base position, swing, then nudge. |
+| SEQ-M4-105 | Swing remains bounded at a pattern-loop boundary. |
+| SEQ-M4-120 | Ratchet count one schedules an ordinary event. |
+| SEQ-M4-121 | Multiple ratchets expand into the requested count. |
+| SEQ-M4-122 | Ratchet spacing and ordering are deterministic. |
+| SEQ-M4-123 | Ratchets crossing callback blocks schedule once. |
+| SEQ-M4-124 | Valid ratchets at pattern end wrap with their parent loop decision. |
+| SEQ-M4-125 | Ratchets never produce invalid or duplicate timing. |
+| SEQ-M4-126 | One parent probability decision controls every expanded ratchet. |
+| SEQ-M4-127 | Stop clears pending ratchets and releases. |
+| SEQ-M4-140 | Positive Q16 nudge delays an event. |
+| SEQ-M4-141 | Negative Q16 nudge advances an event. |
+| SEQ-M4-142 | Reset restores a zero nudge. |
+| SEQ-M4-143 | Signed Q16 nudge round-trips exactly. |
+| SEQ-M4-144 | Non-looping negative pattern-start timing clamps to zero. |
+| SEQ-M4-145 | Looping negative pattern-start timing wraps consistently. |
+
+### Milestone 4 step and live recording
+
+| ID | Test |
+|---|---|
+| RECORD-M4-001 | Step input inserts an event without transport playback. |
+| RECORD-M4-002 | Step cursor advances by the selected resolution. |
+| RECORD-M4-003 | Step/live MIDI recording preserves velocity. |
+| RECORD-M4-004 | Live mouse input records through the common capture path. |
+| RECORD-M4-005 | Live keyboard input records through the common capture path. |
+| RECORD-M4-006 | Live MIDI input records through the common capture path. |
+| RECORD-M4-007 | Note-off determines a positive gate duration. |
+| RECORD-M4-008 | Input during count-in auditions but is not recorded. |
+| RECORD-M4-009 | Overdub preserves existing events. |
+| RECORD-M4-010 | Replace removes only events in the recorded lanes/range. |
+| RECORD-M4-011 | Quantization Off preserves captured musical time. |
+| RECORD-M4-012 | Straight quantization resolves to the selected grid. |
+| RECORD-M4-013 | Triplet quantization resolves to the selected triplet grid. |
+| RECORD-M4-014 | Quantize strength deterministically interpolates toward the grid. |
+| RECORD-M4-015 | Stop finalizes held notes deterministically. |
+| RECORD-M4-016 | Cancel restores the pre-take pattern exactly. |
+| RECORD-M4-017 | One completed take creates one unified undo entry. |
+
+### Milestone 4 persistence
+
+| ID | Test |
+|---|---|
+| SAVE-M4-001 | Tempo-map micro-BPM points round-trip. |
+| SAVE-M4-002 | Patterns and deterministic order round-trip. |
+| SAVE-M4-003 | Event UUIDs round-trip. |
+| SAVE-M4-004 | Whole PPQ and Q16 positions round-trip. |
+| SAVE-M4-005 | Canonical probability values and algorithm round-trip. |
+| SAVE-M4-006 | Ratchet count and spacing round-trip. |
+| SAVE-M4-007 | Signed Q16 microtiming round-trips. |
+| SAVE-M4-008 | A Milestone 1 project loads with deterministic sequencer defaults. |
+| SAVE-M4-009 | A Milestone 2 project loads with deterministic sequencer defaults. |
+| SAVE-M4-010 | A Milestone 3 project loads with deterministic sequencer defaults. |
+| SAVE-M4-011 | No sample offset or mutable RNG state is serialized. |
+| SAVE-M4-012 | A populated Milestone 4 project is semantically equal after save/load. |
+
+### Milestone 4 threading and GUI-headless integration
+
+| ID | Test |
+|---|---|
+| THREAD-M4-001 | Pattern playback snapshots publish immutably off callback. |
+| THREAD-M4-002 | The input-record queue has deterministic bounded-full behavior. |
+| THREAD-M4-003 | The scheduler event buffer has deterministic bounded-full behavior. |
+| THREAD-M4-004 | Transport/scheduler callback paths allocate no memory. |
+| THREAD-M4-005 | Audio and MIDI callbacks never mutate the project model. |
+| THREAD-M4-006 | Stop during recording safely finalizes or cancels the active take. |
+| THREAD-M4-007 | Project close stops playback and releases snapshot ownership off callback. |
+| THREAD-M4-008 | Device restart stops transport and clears gates before reinitialization. |
+| UIHEADLESS-M4-001 | Construct the sequencer workspace without audio hardware. |
+| UIHEADLESS-M4-002 | Exercise play, stop, record, loop, BPM, metronome, count-in, and panic controls. |
+| UIHEADLESS-M4-003 | Create, duplicate, rename, delete, and select patterns. |
+| UIHEADLESS-M4-004 | Create and select a grid event. |
+| UIHEADLESS-M4-005 | Edit event velocity. |
+| UIHEADLESS-M4-006 | Edit event probability. |
+| UIHEADLESS-M4-007 | Edit event ratchet settings. |
+| UIHEADLESS-M4-008 | Edit and reset event nudge. |
+| UIHEADLESS-M4-009 | Update the playhead from an atomic transport snapshot. |
+| UIHEADLESS-M4-010 | Perform step recording. |
+| UIHEADLESS-M4-011 | Simulate live recording with count-in. |
+| UIHEADLESS-M4-012 | Save, load, schedule, and replay a populated pattern. |
+
+### Milestone 4 regressions
+
+Every testable defect discovered during Milestone 4 implementation or hosted remediation receives a
+stable `REGRESSION-M4-*` row here before the fix is claimed.
+
 ## Sequencer and timing — Milestones 4–5
 
 | ID | Test |
