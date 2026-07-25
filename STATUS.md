@@ -2,14 +2,77 @@
 
 ## Current milestone
 
-Milestone 3 — sample chopping: **started on `feature/milestone-3-sample-chopping`**.
+Milestone 3 — sample chopping: **complete and ready for review on
+`feature/milestone-3-sample-chopping`**.
 
 Milestone 2 was merged into `main` at `5cfd0f4942ff02da621f7e086f62e4d8b095d43f`.
 [Post-merge run 30135505455](https://github.com/pheonix666999/Resamplr/actions/runs/30135505455)
 passed Linux Debug/Release, Windows Debug/Release and packaging, macOS universal tests/package,
 macOS Intel smoke, and cross-platform artifact verification before the Milestone 3 branch was
-created. Milestone 3 acceptance authorities are defined in `PLANS.md` and `TEST_PLAN.md`; chopping
-product implementation is not yet claimed complete.
+created.
+
+Milestone 3 adds an original non-destructive chopping workflow with equal, fixed-length, manual,
+transient, and lazy modes; session-local marker history; selected/all-slice audition; immutable
+assignment previews; occupied-destination decisions; atomic consecutive-pad/layer assignment;
+shared-PCM slice playback; unified project undo/redo; and additive schema-v1 persistence. Temporary
+analysis and assignment state never mutates the project. The audio callback continues to use only
+prepublished immutable state, bounded queues, preallocated voices, and atomics.
+
+## Milestone 3 final validation — 2026-07-25
+
+[Final run 30142316700](https://github.com/pheonix666999/Resamplr/actions/runs/30142316700)
+completed successfully on validated implementation commit
+`733edf27efff1373c9239ab94fbd8a2124b3230d`. All five required jobs passed:
+
+- `validation`: Linux GCC Debug and Release, static checks, six CTest registrations, and both
+  explicit Debug smoke invocations.
+- `windows-x64`: MSVC Debug and Release, six CTest registrations, both explicit Release smoke
+  invocations, four actual offscreen UI screenshots, unsigned packaging, and archive verification.
+- `macos-universal`: Release tests and both smoke paths, arm64/x86_64 `lipo` inspection, unsigned
+  packaging, and archive verification.
+- `macos-intel-smoke`: x86_64 Release tests, both smoke paths, and architecture inspection.
+- `artifact-verification`: cross-platform verification of both development archives.
+
+That is 18/18 CTest registrations across six native configurations, eight additional successful
+console/GUI smoke invocations, and 144 named unit-test groups. The final artifacts are
+`windows-development` (`8615020405`), `macos-development` (`8614952968`), and
+`milestone3-ui-screenshots` (`8615019804`). The inspected CI-generated evidence is preserved in:
+
+- [`docs/images/padflow-chop-equal.png`](docs/images/padflow-chop-equal.png)
+- [`docs/images/padflow-chop-transient.png`](docs/images/padflow-chop-transient.png)
+- [`docs/images/padflow-chop-lazy.png`](docs/images/padflow-chop-lazy.png)
+- [`docs/images/padflow-chop-assignment.png`](docs/images/padflow-chop-assignment.png)
+
+Milestone 3 Actions and remediation history:
+
+| Run | Result | Scope or diagnosis |
+|---|---|---|
+| `30136198827` | success | Milestone 3 contract and test authorities |
+| `30137037888` | success | Slice model and session state |
+| `30137697305` | success | Transient and lazy marker workflows |
+| `30138397688` | success | Transactional pad/layer assignment |
+| `30139070707` | success | Slice-set and provenance persistence |
+| `30140405026` | failure | Cross-input lazy fixture spacing, unsafe narrow status literals, and Windows pre-diagnostic smoke crash |
+| `30140619283` | cancelled | Superseded remediation run |
+| `30140679072` | failure | Non-portable JUCE UTF-8 pointer iteration and remaining Windows smoke crash |
+| `30140882071` | failure | Windows integration hosts still crashed before phase diagnostics |
+| `30141113080` | failure | GUI headless passed; Windows console/unit integration registrations still crashed |
+| `30141364098` | failure | Larger linker stack did not correct the Windows crash |
+| `30141698917` | success | Memory-safe external-asset lifetime remediation; all five jobs green |
+| `30142316700` | success | Final named-mode and waveform-ready screenshot regression; all five jobs green |
+
+The hosted defects are covered by `REGRESSION-M3-002` through `REGRESSION-M3-009`. The corrections
+standardized the cross-input minimum-spacing fixture, kept UI status text JUCE-safe, used portable
+JUCE character iteration, heap-owned large integration fixtures, restored default Windows stack
+settings after disproving the stack-reserve hypothesis, copied external-asset metadata before
+project replacement instead of retaining a dangling vector pointer, and made every CI screenshot
+select its named mode and wait for waveform-cache completion. No compiler diagnostic, test,
+platform, or warnings-as-errors policy was suppressed.
+
+Milestone 1 and Milestone 2 schema fixtures, sampler playback, import, editing, recording, undo/redo,
+smoke scenarios, and packaging remain in the final hosted matrix. `BLOCKED_REFERENCE_ASSET` remains
+unchanged; exact Resamplr UI, interaction, transient, or chopping parity is not claimed. Milestone 4
+sequencing and transport work was not started.
 
 Milestone 1 was merged into `main` at `e11eb4e45b6b04ab6504f070f1ffd646a18f1389`.
 [Post-merge run 30076870715](https://github.com/pheonix666999/Resamplr/actions/runs/30076870715)

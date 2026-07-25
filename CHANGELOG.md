@@ -22,3 +22,12 @@
   states, fixed destination validation, assignment, and schema-v1 recording provenance.
 - Hardware-independent integration smoke coverage, CI-generated waveform/recording screenshots,
   and green Linux, Windows, macOS universal, macOS Intel, packaging, and artifact validation.
+- Non-destructive equal, fixed-length, transient, manual, and lazy chopping inside the active trim
+  region, with deterministic 64-bit half-open slice boundaries and stable slice identities.
+- Session-local marker editing/undo, asynchronous deterministic transient analysis, bounded
+  mouse/keyboard/MIDI lazy-marker capture, and shared-PCM selected or sequential slice audition.
+- Immutable assignment previews, explicit occupied-destination decisions, transactional
+  consecutive-pad/layer assignment, one-step project undo/redo, shared-PCM slice playback, and
+  schema-v1-compatible slice/provenance persistence.
+- Milestone 3 synthetic integration smoke coverage and inspected CI-generated Equal, Transient,
+  Lazy, and Assignment evidence across green Linux, Windows, macOS universal, and macOS Intel jobs.
