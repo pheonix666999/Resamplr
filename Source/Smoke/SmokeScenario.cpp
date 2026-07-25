@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdio>
 #include <memory>
 #include <utility>
 
@@ -142,9 +143,15 @@ SampleImportRequest makeImportRequest(const ApplicationController& controller,
         defaultMilestone1DecodedBudgetBytes,
     };
 }
+
+void reportSmokeStage(const char* stage) {
+    std::fprintf(stderr, "SMOKE stage: %s\n", stage);
+    std::fflush(stderr);
+}
 } // namespace
 
 SmokeResult runSmokeScenario() {
+    reportSmokeStage("begin");
     auto temporaryDirectory = juce::File::getSpecialLocation(juce::File::tempDirectory)
                                   .getNonexistentChildFile("padflow-m2-smoke", {}, true);
     if (!temporaryDirectory.createDirectory())
@@ -185,6 +192,7 @@ SmokeResult runSmokeScenario() {
     WaveformCacheRegistry waveformRegistry;
     if (waveform == nullptr || !waveformRegistry.publish(waveform))
         return {false, "SMOKE failure: waveform cache generation failed: " + waveformError};
+    reportSmokeStage("import-and-waveform");
 
     if (controller.setLayerTrim(0U, 0U, 128U, 1920U).failed() ||
         controller.setLayerLoop(0U, 0U, 256U, 512U).failed() ||
@@ -204,6 +212,7 @@ SmokeResult runSmokeScenario() {
     editedInput.panic();
     juce::ignoreUnused(renderFiniteSignal(editedEngine, 64U, false));
     editedPublisher.clearWhenAudioIsStopped();
+    reportSmokeStage("edited-playback");
 
     const auto* sourceReference =
         findReference(controller.project().state(), sourceAsset->metadata().assetUuid);
@@ -311,6 +320,7 @@ SmokeResult runSmokeScenario() {
     if (lazyDrain.accepted != 3U || lazyDrain.rejected != 0U ||
         chopping.markCurrentSetLazy(32, 16).failed())
         return {false, "SMOKE failure: lazy markers did not commit provisionally"};
+    reportSmokeStage("chopping-generation");
 
     AssignmentRequest assignmentRequest{choppingTarget.sessionUuid,
                                         choppingTarget.projectUuid,
@@ -377,6 +387,7 @@ SmokeResult runSmokeScenario() {
     if (controller.project().state() != *committedChoppingState)
         return {false, "SMOKE failure: cancelled chopping session mutated the project"};
     choppedPublisher.clearWhenAudioIsStopped();
+    reportSmokeStage("assignment");
 
     auto submitDerived = [&](const DerivedAssetOperation operation) {
         const auto globalPad = std::size_t{0U};
@@ -415,6 +426,7 @@ SmokeResult runSmokeScenario() {
     juce::MemoryBlock currentSourceBytes;
     if (!sampleFile.loadFileAsData(currentSourceBytes) || currentSourceBytes != originalSourceBytes)
         return {false, "SMOKE failure: derived operations changed source bytes"};
+    reportSmokeStage("derived-assets");
 
     auto ui = controller.project().state().ui;
     ui.selectedBank = 0U;
@@ -498,6 +510,7 @@ SmokeResult runSmokeScenario() {
         !loaded.pad(0U).layers[0].playback.reverseEnabled || loaded.pad(0U).keyboardKey != "K" ||
         loaded.pad(0U).midiNote != 48U)
         return {false, "SMOKE failure: populated schema-v1 round trip failed"};
+    reportSmokeStage("playback-and-round-trip");
 
     auto restoredControllerStorage = std::make_unique<ApplicationController>();
     auto& restoredController = *restoredControllerStorage;
@@ -562,6 +575,7 @@ SmokeResult runSmokeScenario() {
         !restoredController.redo() ||
         restoredController.project().pad(9U).layers[0].assetUuid != "smoke-recorded-asset")
         return {false, "SMOKE failure: recording assignment undo/redo failed"};
+    reportSmokeStage("recording");
 
     auto restoredEngineStorage = std::make_unique<PlaybackEngine>();
     auto& restoredEngine = *restoredEngineStorage;
@@ -597,6 +611,7 @@ SmokeResult runSmokeScenario() {
     assets.clear();
     restoredAssets.clear();
     juce::ignoreUnused(cleanup);
+    reportSmokeStage("complete");
     return {true,
             "SMOKE success: import, waveform cache, trim/reverse/loop, equal/fixed/transient/"
             "manual/lazy chopping, bounded audition, occupied preview, transactional assignment, "
