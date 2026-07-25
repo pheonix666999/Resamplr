@@ -557,6 +557,10 @@ slice-set assignment enters the permanent model and unified project undo history
 Every defect discovered during Milestone 3 implementation or hosted remediation receives a stable
 `REGRESSION-M3-*` row here and a focused automated check where reasonably testable.
 
+| ID | Regression contract |
+| --- | --- |
+| REGRESSION-M3-001 | Lazy-marker nearest-grid quantization remains trim-bounded without signed overflow near the maximum source-frame value. |
+
 ## Sequencer and timing — Milestones 4–5
 
 | ID | Test |

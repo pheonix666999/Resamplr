@@ -1,6 +1,7 @@
 #pragma once
 
 #include "SliceModel.h"
+#include "Utilities/BackgroundJobSystem.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -49,6 +50,7 @@ class ChoppingSession final {
     [[nodiscard]] juce::Result deleteMarker(std::int64_t sourceFrame);
     [[nodiscard]] juce::Result moveMarker(std::int64_t sourceFrame, std::int64_t requestedFrame);
     [[nodiscard]] juce::Result clearInternalMarkers();
+    [[nodiscard]] juce::Result acceptTransientResult(const JobResult& result);
     [[nodiscard]] bool undoSessionEdit();
     [[nodiscard]] bool redoSessionEdit();
 

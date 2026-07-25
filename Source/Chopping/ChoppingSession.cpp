@@ -1,5 +1,6 @@
 #include "ChoppingSession.h"
 
+#include "Chopping/TransientAnalysis.h"
 #include "Model/PadModel.h"
 
 #include <algorithm>
@@ -111,6 +112,21 @@ juce::Result ChoppingSession::clearInternalMarkers() {
     if (!provisional_.has_value())
         return fail("Chopping session is not ready");
     return applyManualBoundaries({target_.trimStart, target_.trimEnd});
+}
+
+juce::Result ChoppingSession::acceptTransientResult(const JobResult& result) {
+    if (!provisional_.has_value())
+        return fail("Chopping session is not ready");
+    if (!result.succeeded || result.target.kind != JobKind::transientAnalysis ||
+        !isCurrentTarget(result.target.ownerUuid, result.target.targetUuid, target_.targetLayerUuid,
+                         result.target.targetRevision))
+        return fail("Transient result is cancelled or stale");
+    const auto* payload =
+        static_cast<const TransientAnalysisPayload*>(result.immutablePayload.get());
+    if (payload == nullptr || payload->targetLayerUuid != target_.targetLayerUuid ||
+        payload->sourceFingerprint != target_.sourceFingerprint)
+        return fail("Transient result identity does not match the active session");
+    return applyProvisional(payload->sliceSet);
 }
 
 bool ChoppingSession::undoSessionEdit() {
