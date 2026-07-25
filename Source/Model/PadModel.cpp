@@ -138,6 +138,13 @@ juce::Result validateLayer(const SampleLayer& layer) {
         return juce::Result::fail("Layer tuning must be within -1200..1200 cents");
     if (layer.enabled && layer.assetUuid.trim().isEmpty())
         return juce::Result::fail("An enabled layer must reference an asset");
+    const auto hasSliceReference = layer.sliceUuid.isNotEmpty() ||
+                                   layer.sliceSetUuid.isNotEmpty() ||
+                                   layer.assignmentSessionUuid.isNotEmpty();
+    if (hasSliceReference &&
+        (layer.sliceUuid.isEmpty() || layer.sliceSetUuid.isEmpty() ||
+         layer.assignmentSessionUuid.isEmpty() || !layer.enabled || !layer.playback.initialized))
+        return juce::Result::fail("Layer slice assignment provenance is incomplete");
     if (!layer.playback.initialized &&
         (layer.playback.startFrame != 0U || layer.playback.endFrame != 0U ||
          layer.playback.loopStartFrame != 0U || layer.playback.loopEndFrame != 0U ||
@@ -305,6 +312,33 @@ juce::Result validateProjectState(const ProjectState& state) {
         if (targetPad == state.banks.end())
             return juce::Result::fail("Recorded asset provenance targets an unknown layer");
     }
+    for (const auto& sliceSet : state.sliceSets) {
+        if (const auto sliceResult = validateSliceSet(
+                sliceSet, sliceSet.algorithm != SliceAlgorithm::fixedLength ||
+                              sliceSet.parameters.remainderPolicy != SliceRemainderPolicy::discard);
+            sliceResult.failed())
+            return sliceResult;
+        const auto sourceAsset =
+            std::find_if(state.assets.begin(), state.assets.end(), [&](const auto& asset) {
+                return asset.uuid == sliceSet.sourceAssetUuid &&
+                       asset.contentFingerprint == sliceSet.sourceFingerprint;
+            });
+        if (sourceAsset == state.assets.end())
+            return juce::Result::fail("Slice set references unknown immutable source data");
+        const auto sourceLayerExists =
+            std::any_of(state.banks.begin(), state.banks.end(), [&](const auto& bank) {
+                return std::any_of(bank.pads.begin(), bank.pads.end(), [&](const auto& pad) {
+                    return std::any_of(
+                        pad.layers.begin(), pad.layers.end(),
+                        [&](const auto& layer) { return layer.uuid == sliceSet.sourceLayerUuid; });
+                });
+            });
+        if (!sourceLayerExists)
+            return juce::Result::fail("Slice set references an unknown source layer");
+        addUuid(uuids, sliceSet.uuid, result);
+        for (const auto& slice : sliceSet.slices)
+            addUuid(uuids, slice.uuid, result);
+    }
     if ((state.recording.channels != 1U && state.recording.channels != 2U) ||
         !isFiniteInRange(state.recording.thresholdDecibels, -96.0F, 0.0F) ||
         state.recording.preRollMilliseconds > 2000U)
@@ -324,6 +358,24 @@ juce::Result validateProjectState(const ProjectState& state) {
                         validateSamplePlaybackSettings(layer.playback, asset->frameCount);
                     playbackResult.failed())
                     return playbackResult;
+                if (layer.sliceUuid.isNotEmpty()) {
+                    const auto sliceSet = std::find_if(
+                        state.sliceSets.begin(), state.sliceSets.end(),
+                        [&](const auto& set) { return set.uuid == layer.sliceSetUuid; });
+                    if (sliceSet == state.sliceSets.end() ||
+                        sliceSet->sourceAssetUuid != layer.assetUuid)
+                        return juce::Result::fail(
+                            "Layer slice reference targets an unknown slice set");
+                    const auto slice = std::find_if(
+                        sliceSet->slices.begin(), sliceSet->slices.end(),
+                        [&](const auto& region) { return region.uuid == layer.sliceUuid; });
+                    if (slice == sliceSet->slices.end() ||
+                        layer.playback.startFrame !=
+                            static_cast<std::uint64_t>(slice->startFrame) ||
+                        layer.playback.endFrame != static_cast<std::uint64_t>(slice->endFrame))
+                        return juce::Result::fail(
+                            "Layer playback does not match its assigned slice");
+                }
             }
     return result;
 }

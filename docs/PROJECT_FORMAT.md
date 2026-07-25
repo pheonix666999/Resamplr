@@ -58,6 +58,26 @@ internals are not persisted there. Older manifests may omit both members and rec
 defaults. Missing recorded files retain their asset and provenance records with the asset's explicit
 missing flag; malformed or dangling provenance rejects the candidate project before commit.
 
+## Milestone 3 additive chopping payload
+
+Schema v1 remains active. Committed non-destructive chopping data is stored in the optional root
+`sliceSets` array. Each set records its stable UUID, immutable source asset UUID and fingerprint,
+source-layer UUID, half-open signed-64-bit trim range, algorithm identifier/version, canonical
+parameters, and ordered slice records. Slice starts are inclusive, ends are exclusive, and all
+signed 64-bit frame values are canonical decimal strings. Slice records retain stable UUIDs, names,
+and optional ARGB colours.
+
+Assigned layers add an optional `sliceAssignment` object containing the slice-set UUID, slice UUID,
+and assignment-session UUID. Their ordinary Milestone 2 `editing` bounds must exactly match the
+referenced slice; loop and reverse default off when assigned. All layers continue to reference the
+same immutable asset UUID, so chopping does not duplicate decoded PCM. Missing assets retain both
+the slice set and assignment metadata.
+
+Milestone 0/1/2 manifests may omit `sliceSets` and `sliceAssignment` and load with empty chopping
+state. A malformed, zero-length, overlapping, dangling, fingerprint-mismatched, or
+playback-mismatched slice reference rejects the complete candidate state without partial project
+mutation.
+
 ## Musical time
 
 All musical positions use 960 PPQ. Absolute positions are `{ wholePpqTicks: int64,

@@ -22,7 +22,8 @@ enum class JobKind : std::uint8_t {
     samplePreview,
     waveformCache,
     derivedAsset,
-    recordedAsset
+    recordedAsset,
+    transientAnalysis
 };
 
 class CancellationToken final {

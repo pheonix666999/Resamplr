@@ -56,6 +56,30 @@ const char* polyphonyModeName(const PolyphonyMode mode) noexcept {
     return "poly";
 }
 
+const char* sliceAlgorithmName(const SliceAlgorithm algorithm) noexcept {
+    switch (algorithm) {
+    case SliceAlgorithm::equal:
+        return "equal";
+    case SliceAlgorithm::fixedLength:
+        return "fixed-length";
+    case SliceAlgorithm::transient:
+        return "transient";
+    case SliceAlgorithm::manual:
+        return "manual";
+    case SliceAlgorithm::lazy:
+        return "lazy";
+    }
+    return "manual";
+}
+
+const char* sliceDisplayUnitName(const SliceDisplayUnit unit) noexcept {
+    return unit == SliceDisplayUnit::milliseconds ? "milliseconds" : "frames";
+}
+
+const char* sliceRemainderPolicyName(const SliceRemainderPolicy policy) noexcept {
+    return policy == SliceRemainderPolicy::discard ? "discard" : "include";
+}
+
 juce::var envelopeValue(const EnvelopeParameters& envelope) {
     auto value = makeObject();
     setProperty(value, "attackSeconds", static_cast<double>(envelope.attackSeconds));
@@ -85,10 +109,64 @@ juce::var layerValue(const SampleLayer& layer) {
     setProperty(value, "enabled", layer.enabled);
     setProperty(value, "gainDecibels", static_cast<double>(layer.gainDecibels));
     setProperty(value, "pan", static_cast<double>(layer.pan));
+    if (layer.sliceUuid.isNotEmpty()) {
+        auto assignment = makeObject();
+        setProperty(assignment, "assignmentSessionUuid", layer.assignmentSessionUuid);
+        setProperty(assignment, "sliceSetUuid", layer.sliceSetUuid);
+        setProperty(assignment, "sliceUuid", layer.sliceUuid);
+        setProperty(value, "sliceAssignment", assignment);
+    }
     setProperty(value, "tuningCents", static_cast<double>(layer.tuningCents));
     setProperty(value, "uuid", layer.uuid);
     setProperty(value, "velocityMaximum", static_cast<int>(layer.velocityMaximum));
     setProperty(value, "velocityMinimum", static_cast<int>(layer.velocityMinimum));
+    return value;
+}
+
+juce::var sliceRegionValue(const SliceRegion& slice) {
+    auto value = makeObject();
+    if (slice.colourArgb.has_value())
+        setProperty(value, "colourArgb", decimalString(*slice.colourArgb));
+    setProperty(value, "endFrame", decimalString(slice.endFrame));
+    setProperty(value, "name", slice.name);
+    setProperty(value, "startFrame", decimalString(slice.startFrame));
+    setProperty(value, "uuid", slice.uuid);
+    return value;
+}
+
+juce::var sliceParametersValue(const SliceAlgorithmParameters& parameters) {
+    auto value = makeObject();
+    setProperty(value, "attackLookBackFrames", decimalString(parameters.attackLookBackFrames));
+    setProperty(value, "displayUnit", sliceDisplayUnitName(parameters.displayUnit));
+    setProperty(value, "fixedLengthFrames", decimalString(parameters.fixedLengthFrames));
+    setProperty(value, "minimumSliceFrames", decimalString(parameters.minimumSliceFrames));
+    setProperty(value, "quantizeFrames", decimalString(parameters.quantizeFrames));
+    setProperty(value, "remainderPolicy", sliceRemainderPolicyName(parameters.remainderPolicy));
+    setProperty(value, "sliceCount", decimalString(parameters.sliceCount));
+    setProperty(value, "transientSensitivity",
+                static_cast<double>(parameters.transientSensitivity));
+    setProperty(value, "transientThresholdFloor",
+                static_cast<double>(parameters.transientThresholdFloor));
+    return value;
+}
+
+juce::var sliceSetValue(const SliceSet& sliceSet) {
+    auto value = makeObject();
+    setProperty(value, "algorithm", sliceAlgorithmName(sliceSet.algorithm));
+    setProperty(value, "algorithmVersion", static_cast<int>(sliceSet.algorithmVersion));
+    setProperty(value, "parameters", sliceParametersValue(sliceSet.parameters));
+    setProperty(value, "sourceAssetUuid", sliceSet.sourceAssetUuid);
+    setProperty(value, "sourceFingerprint", sliceSet.sourceFingerprint);
+    setProperty(value, "sourceLayerUuid", sliceSet.sourceLayerUuid);
+    setProperty(value, "sourceTrimEnd", decimalString(sliceSet.sourceTrimEnd));
+    setProperty(value, "sourceTrimStart", decimalString(sliceSet.sourceTrimStart));
+
+    std::vector<juce::var> slices;
+    slices.reserve(sliceSet.slices.size());
+    for (const auto& slice : sliceSet.slices)
+        slices.push_back(sliceRegionValue(slice));
+    setProperty(value, "slices", makeArray(slices));
+    setProperty(value, "uuid", sliceSet.uuid);
     return value;
 }
 
@@ -251,6 +329,12 @@ juce::var manifestValue(const Project& project) {
     for (const auto& asset : state.recordedAssets)
         recordedAssets.push_back(recordedAssetValue(asset));
     setProperty(value, "recordedAssets", makeArray(recordedAssets));
+
+    std::vector<juce::var> sliceSets;
+    sliceSets.reserve(state.sliceSets.size());
+    for (const auto& sliceSet : state.sliceSets)
+        sliceSets.push_back(sliceSetValue(sliceSet));
+    setProperty(value, "sliceSets", makeArray(sliceSets));
 
     std::vector<juce::var> banks;
     banks.reserve(state.banks.size());
@@ -424,6 +508,24 @@ juce::Result readLayer(const juce::var& value, SampleLayer& layer) {
         return result;
     if (const auto result = readFloat(*object, "pan", layer.pan); result.failed())
         return result;
+    const auto sliceAssignmentIdentifier = juce::Identifier{"sliceAssignment"};
+    if (object->hasProperty(sliceAssignmentIdentifier)) {
+        const juce::DynamicObject* assignment = nullptr;
+        if (const auto result = requireObject(object->getProperty(sliceAssignmentIdentifier),
+                                              "sliceAssignment", assignment);
+            result.failed())
+            return result;
+        if (const auto result =
+                readString(*assignment, "assignmentSessionUuid", layer.assignmentSessionUuid);
+            result.failed())
+            return result;
+        if (const auto result = readString(*assignment, "sliceSetUuid", layer.sliceSetUuid);
+            result.failed())
+            return result;
+        if (const auto result = readString(*assignment, "sliceUuid", layer.sliceUuid);
+            result.failed())
+            return result;
+    }
     if (const auto result = readFloat(*object, "tuningCents", layer.tuningCents); result.failed())
         return result;
     if (const auto result = readString(*object, "uuid", layer.uuid); result.failed())
@@ -432,6 +534,136 @@ juce::Result readLayer(const juce::var& value, SampleLayer& layer) {
         result.failed())
         return result;
     return readInteger(*object, "velocityMinimum", layer.velocityMinimum);
+}
+
+juce::Result readSliceAlgorithm(const juce::DynamicObject& object, SliceAlgorithm& algorithm) {
+    juce::String name;
+    if (const auto result = readString(object, "algorithm", name); result.failed())
+        return result;
+    if (name == "equal")
+        algorithm = SliceAlgorithm::equal;
+    else if (name == "fixed-length")
+        algorithm = SliceAlgorithm::fixedLength;
+    else if (name == "transient")
+        algorithm = SliceAlgorithm::transient;
+    else if (name == "manual")
+        algorithm = SliceAlgorithm::manual;
+    else if (name == "lazy")
+        algorithm = SliceAlgorithm::lazy;
+    else
+        return juce::Result::fail("slice algorithm is unsupported");
+    return juce::Result::ok();
+}
+
+juce::Result readSliceParameters(const juce::var& value, SliceAlgorithmParameters& parameters) {
+    const juce::DynamicObject* object = nullptr;
+    if (const auto result = requireObject(value, "slice parameters", object); result.failed())
+        return result;
+    if (const auto result =
+            readDecimalString(*object, "attackLookBackFrames", parameters.attackLookBackFrames);
+        result.failed())
+        return result;
+    juce::String displayUnit;
+    if (const auto result = readString(*object, "displayUnit", displayUnit); result.failed())
+        return result;
+    if (displayUnit == "frames")
+        parameters.displayUnit = SliceDisplayUnit::frames;
+    else if (displayUnit == "milliseconds")
+        parameters.displayUnit = SliceDisplayUnit::milliseconds;
+    else
+        return juce::Result::fail("slice display unit is unsupported");
+    if (const auto result =
+            readDecimalString(*object, "fixedLengthFrames", parameters.fixedLengthFrames);
+        result.failed())
+        return result;
+    if (const auto result =
+            readDecimalString(*object, "minimumSliceFrames", parameters.minimumSliceFrames);
+        result.failed())
+        return result;
+    if (const auto result = readDecimalString(*object, "quantizeFrames", parameters.quantizeFrames);
+        result.failed())
+        return result;
+    juce::String remainder;
+    if (const auto result = readString(*object, "remainderPolicy", remainder); result.failed())
+        return result;
+    if (remainder == "include")
+        parameters.remainderPolicy = SliceRemainderPolicy::include;
+    else if (remainder == "discard")
+        parameters.remainderPolicy = SliceRemainderPolicy::discard;
+    else
+        return juce::Result::fail("slice remainder policy is unsupported");
+    if (const auto result = readDecimalString(*object, "sliceCount", parameters.sliceCount);
+        result.failed())
+        return result;
+    if (const auto result =
+            readFloat(*object, "transientSensitivity", parameters.transientSensitivity);
+        result.failed())
+        return result;
+    return readFloat(*object, "transientThresholdFloor", parameters.transientThresholdFloor);
+}
+
+juce::Result readSliceRegion(const juce::var& value, SliceRegion& slice) {
+    const juce::DynamicObject* object = nullptr;
+    if (const auto result = requireObject(value, "slice", object); result.failed())
+        return result;
+    const auto colourIdentifier = juce::Identifier{"colourArgb"};
+    if (object->hasProperty(colourIdentifier)) {
+        std::uint32_t colour = 0U;
+        if (const auto result = readDecimalString(*object, "colourArgb", colour); result.failed())
+            return result;
+        slice.colourArgb = colour;
+    }
+    if (const auto result = readDecimalString(*object, "endFrame", slice.endFrame); result.failed())
+        return result;
+    if (const auto result = readString(*object, "name", slice.name); result.failed())
+        return result;
+    if (const auto result = readDecimalString(*object, "startFrame", slice.startFrame);
+        result.failed())
+        return result;
+    return readString(*object, "uuid", slice.uuid);
+}
+
+juce::Result readSliceSet(const juce::var& value, SliceSet& sliceSet) {
+    const juce::DynamicObject* object = nullptr;
+    if (const auto result = requireObject(value, "slice set", object); result.failed())
+        return result;
+    if (const auto result = readSliceAlgorithm(*object, sliceSet.algorithm); result.failed())
+        return result;
+    if (const auto result = readInteger(*object, "algorithmVersion", sliceSet.algorithmVersion);
+        result.failed())
+        return result;
+    if (const auto result =
+            readSliceParameters(object->getProperty("parameters"), sliceSet.parameters);
+        result.failed())
+        return result;
+    if (const auto result = readString(*object, "sourceAssetUuid", sliceSet.sourceAssetUuid);
+        result.failed())
+        return result;
+    if (const auto result = readString(*object, "sourceFingerprint", sliceSet.sourceFingerprint);
+        result.failed())
+        return result;
+    if (const auto result = readString(*object, "sourceLayerUuid", sliceSet.sourceLayerUuid);
+        result.failed())
+        return result;
+    if (const auto result = readDecimalString(*object, "sourceTrimEnd", sliceSet.sourceTrimEnd);
+        result.failed())
+        return result;
+    if (const auto result = readDecimalString(*object, "sourceTrimStart", sliceSet.sourceTrimStart);
+        result.failed())
+        return result;
+    const auto slicesValue = object->getProperty("slices");
+    const auto* slices = slicesValue.getArray();
+    if (slices == nullptr)
+        return juce::Result::fail("slices must be an array");
+    sliceSet.slices.clear();
+    sliceSet.slices.reserve(static_cast<std::size_t>(slices->size()));
+    for (const auto& sliceValue : *slices) {
+        SliceRegion slice;
+        if (const auto result = readSliceRegion(sliceValue, slice); result.failed())
+            return result;
+        sliceSet.slices.push_back(std::move(slice));
+    }
+    return readString(*object, "uuid", sliceSet.uuid);
 }
 
 juce::Result readPadParameters(const juce::var& value, PadParameters& parameters) {
@@ -745,8 +977,8 @@ juce::Result parseManifest(const juce::String& text, Project& project) {
 
     const auto banksIdentifier = juce::Identifier{"banks"};
     if (!root->hasProperty(banksIdentifier)) {
-        for (const auto* property :
-             {"assets", "audio", "derivedAssets", "midi", "recordedAssets", "recording", "ui"})
+        for (const auto* property : {"assets", "audio", "derivedAssets", "midi", "recordedAssets",
+                                     "recording", "sliceSets", "ui"})
             if (root->hasProperty(juce::Identifier{property}))
                 return juce::Result::fail("Project manifest has an incomplete model payload");
         auto legacy = Project::createEmpty(name, uuid);
@@ -805,6 +1037,21 @@ juce::Result parseManifest(const juce::String& text, Project& project) {
             if (const auto result = readRecordedAsset(recordedValue, recorded); result.failed())
                 return result;
             state.recordedAssets.push_back(std::move(recorded));
+        }
+    }
+
+    const auto sliceSetsIdentifier = juce::Identifier{"sliceSets"};
+    if (root->hasProperty(sliceSetsIdentifier)) {
+        const auto sliceSetsValue = root->getProperty(sliceSetsIdentifier);
+        const auto* sliceSets = sliceSetsValue.getArray();
+        if (sliceSets == nullptr)
+            return juce::Result::fail("sliceSets must be an array");
+        state.sliceSets.reserve(static_cast<std::size_t>(sliceSets->size()));
+        for (const auto& sliceSetValueEntry : *sliceSets) {
+            SliceSet sliceSet;
+            if (const auto result = readSliceSet(sliceSetValueEntry, sliceSet); result.failed())
+                return result;
+            state.sliceSets.push_back(std::move(sliceSet));
         }
     }
 

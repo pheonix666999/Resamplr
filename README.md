@@ -1,11 +1,11 @@
 # PadFlow
 
 PadFlow is an original, offline, standalone desktop sampler project by Ali Ammar Audio. Version
-0.1.0 contains the playable RAM-resident sampler plus Milestone 2 non-destructive waveform editing
-and recording: four banks of sixteen pads, four velocity layers per pad, WAV/AIFF/FLAC import and
-preview, mouse/keyboard/MIDI triggering, deterministic 128-voice playback, device settings,
-frame-bound trim/loop/reverse, derived PCM operations, input capture, and schema-v1 project
-save/load.
+0.1.0 contains the playable RAM-resident sampler plus Milestone 2 waveform editing/recording and
+Milestone 3 non-destructive sample chopping: four banks of sixteen pads, four velocity layers per
+pad, WAV/AIFF/FLAC import and preview, mouse/keyboard/MIDI triggering, deterministic 128-voice
+playback, device settings, frame-bound trim/loop/reverse, derived PCM operations, input capture,
+five chopping modes, transactional slice assignment, and schema-v1 project save/load.
 
 ## Status and platforms
 
@@ -45,11 +45,36 @@ padflow_smoke
 PadFlow --headless-smoke-test --no-audio-device
 ```
 
-They generate a temporary WAV, import and analyse it through bounded worker paths, edit and render
-trim/reverse/loop playback, create normalize/crop derived assets without changing the source,
-round-trip a populated schema-v1 project, record mocked input through the capture FIFO/writer,
-assign and retrigger the WAV, verify undo/redo, and clean temporary files. No physical audio, MIDI,
-or input device is required.
+They generate temporary synthetic WAV data, import and analyse it through bounded worker paths,
+edit and render trim/reverse/loop playback, create normalize/crop derived assets without changing
+the source, record mocked input through the capture FIFO/writer, exercise equal, fixed, transient,
+manual, and simulated lazy chopping, preview and transactionally assign shared-PCM slices,
+round-trip a populated schema-v1 project, retrigger restored slices, verify undo/redo and
+cancellation, and clean temporary files. No physical audio, MIDI, or input device is required.
+
+## Sample chopping
+
+Open Chop on a loaded layer to create provisional slices inside its active half-open trim range.
+Equal mode uses deterministic integer division; Fixed Length uses source frames internally and can
+include or discard a remainder; Transient analyses immutable PCM on a background worker; Manual
+edits waveform markers directly; and Lazy captures bounded mouse, keyboard, MIDI, or explicit
+marker events against the audition playhead.
+
+Previewing an assignment does not change the project. The preview reports capacity and every
+occupied pad/layer before commit, and requires explicit replace/skip decisions. A successful
+consecutive-pad or consecutive-layer assignment is one atomic undoable transaction. Assigned
+layers reference the original immutable PCM with their own slice bounds, so chopping does not copy
+or overwrite source audio.
+
+CI-generated Milestone 3 UI evidence:
+
+![PadFlow equal slicing](docs/images/padflow-chop-equal.png)
+
+![PadFlow transient slicing](docs/images/padflow-chop-transient.png)
+
+![PadFlow lazy chop](docs/images/padflow-chop-lazy.png)
+
+![PadFlow assignment preview](docs/images/padflow-chop-assignment.png)
 
 ## Waveform editing and recording
 

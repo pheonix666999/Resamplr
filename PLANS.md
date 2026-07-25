@@ -156,8 +156,83 @@ regression gates throughout.
 
 ## Milestone 3 — chopping
 
-Equal, fixed, transient, lazy, and manual chop modes; exact integer bounds; transactional preview,
-overwrite, sequential pad/layer assignment, and cancel-without-mutation.
+Milestone 3 adds original non-destructive sample chopping while retaining every Milestone 1/2
+regression gate. It does not add transport, sequencing, patterns, probability, ratchets, parameter
+locks, effects, song mode, resampling, skipback, or export.
+
+### Phase 1 — acceptance contract, slice model, and provisional session
+
+- Add the complete `CHOP-M3-*`, `ASSIGN-M3-*`, `AUDIO-M3-*`, `SAVE-M3-*`, `THREAD-M3-*`, and
+  `UIHEADLESS-M3-*` authorities before product changes.
+- Add stable UUID slice regions and sets with signed 64-bit inclusive starts/exclusive ends,
+  immutable source references, deterministic algorithm/version parameters, and ordered validation.
+- Keep provisional markers, slices, analysis, audition, destination choices, overwrite decisions,
+  errors, and session-local undo outside the permanent project model until confirmed commit.
+- Revalidate session/project/source/pad/layer/revision identity on the message thread; cancellation
+  or stale work makes no project mutation.
+
+### Phase 2 — deterministic equal, fixed, and manual slicing
+
+- Generate equal boundaries with checked `start + floor(i * length / count)` arithmetic, exact
+  outer endpoints, no gaps/overlaps, and rejection when count exceeds source-frame length.
+- Generate fixed-frame slices with explicit include/discard remainder policy and no empty output.
+  Millisecond UI values convert once to canonical source frames; musical labels require manual BPM.
+- Support marker add/delete/move/nudge/reset with fixed trim endpoints, duplicate rejection,
+  neighbour clamping, optional zero/time snapping, and one session undo step per completed drag.
+
+### Phase 3 — transient analysis and lazy chop
+
+- Run deterministic mono/stereo transient envelope/onset analysis on bounded workers using only the
+  active trim region, finite validated sensitivity/minimum-duration/look-back parameters, and
+  immutable provisional results.
+- Handle silence, constant input, very short sources, cancellation, and stale targets without
+  publication or project mutation.
+- Capture lazy marker frames from callback-published audition position through a bounded fixed-size
+  queue. Mouse, keyboard, MIDI, and explicit marker commands are consumed by the session while lazy
+  capture is active; the message thread validates, orders, quantizes when requested, and commits
+  provisional markers.
+
+### Phase 4 — audition and chopping workspace
+
+- Extend fixed-capacity preview for selected once/gated, sequential slices, and lazy source audition
+  without callback allocation, file access, stale ownership, or project assignment.
+- Add an accessible chopping workspace integrated with the waveform editor for all five modes,
+  parameters, marker editing, selection/readouts, audition, destination planning, overwrite review,
+  commit, and cancel.
+- Render distinct trim, loop, slice, selected-slice, and playhead markers with high-DPI hit areas and
+  bounded labels while preserving the existing editing and recording workflows.
+
+### Phase 5 — immutable destination plan and transactional assignment
+
+- Build an immutable ordered `AssignmentPlan` before mutation with source/session/revision identity,
+  pad/layer destinations, occupancy summaries, explicit overwrite/skip decisions, capacity status,
+  and stable slice mapping.
+- Consecutive-pad assignment proceeds A through D without default wrap. Consecutive-layer assignment
+  fills from the requested layer and crosses pads only through an explicit option. Insufficient
+  capacity is rejected; slices are never silently discarded or shifted.
+- Revalidate the entire plan and candidate project state, then commit all assignments as one unified
+  undo transaction and publish playback once. Failure aborts all mutation; undo restores every
+  replaced destination and redo reproduces the mapping.
+
+### Phase 6 — playback and schema-v1-compatible persistence
+
+- Assigned layers share the immutable source PCM and use slice trim bounds, loop disabled, and
+  reverse disabled by default. Forward/reverse, one-frame, pitched, velocity-layer, and existing
+  playback modes remain finite and in range.
+- Persist committed slice sets, stable slice UUIDs, algorithm/version/parameters, source trim,
+  boundaries, layer references, and assignment provenance additively in schema v1.
+- Never persist provisional sessions. Validate all loaded boundaries atomically, retain missing
+  source references, and keep Milestone 0/1/2 projects behaviorally compatible.
+
+### Phase 7 — integration, packaging, and hosted remediation
+
+- Extend console/GUI smoke with synthetic transients, equal/fixed/transient/manual/lazy workflows,
+  assignment preview, transactional commit, trigger, undo/redo, save/load, cancellation, and cleanup.
+- Generate actual CI screenshots for equal, transient, lazy, and assignment-preview states.
+- Run static checks, clean Debug/Release builds, CTest, both smoke paths, unsigned packaging,
+  architecture inspection, and artifact verification on Linux, Windows, macOS universal, and macOS
+  Intel. Every discovered project defect receives a stable `REGRESSION-M3-*` authority.
+- Finish only after the complete hosted matrix is green and `STATUS.md` records the evidence.
 
 ## Milestone 4 — transport and sequencing
 

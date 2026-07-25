@@ -89,10 +89,10 @@ jobs:
           ctest --preset windows-release --output-on-failure
           .\build\windows-release\bin\padflow_smoke.exe
           .\build\windows-release\bin\PadFlow.exe --headless-smoke-test --no-audio-device
-      - name: Upload Milestone 2 UI evidence
+      - name: Upload Milestone 3 UI evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: milestone2-ui-screenshots
+          name: milestone3-ui-screenshots
           path: artifacts/screenshots/*.png
       - name: Create unsigned development archive
         shell: powershell

@@ -12,6 +12,8 @@ constexpr auto editorWave = 0xff8ba5b5U;
 constexpr auto editorTrim = 0xff50c8bbU;
 constexpr auto editorLoop = 0xffe1aa55U;
 constexpr auto editorPlayhead = 0xffe27868U;
+constexpr auto editorSlice = 0xffdb65b5U;
+constexpr auto editorSelectedSlice = 0xff8c5fd3U;
 constexpr auto editorText = 0xffd8e1e8U;
 constexpr float markerHitRadius = 10.0F;
 
@@ -63,9 +65,24 @@ void WaveformEditor::clear() {
     analysisPending_ = false;
     sourceMissing_ = false;
     playbackPosition_.reset();
+    slices_.clear();
+    selectedSlice_ = 0U;
+    draggedSliceBoundary_.reset();
+    selectedSliceBoundary_.reset();
     draggingMarker_ = false;
     panning_ = false;
     hasSelectedMarker_ = false;
+    repaint();
+}
+
+void WaveformEditor::setSlices(const SliceSet* const sliceSet, const std::size_t selectedSlice) {
+    slices_ = sliceSet != nullptr ? sliceSet->slices : std::vector<SliceRegion>{};
+    selectedSlice_ = slices_.empty() ? 0U : std::min(selectedSlice, slices_.size() - 1U);
+    if (slices_.size() < 2U ||
+        (selectedSliceBoundary_.has_value() && *selectedSliceBoundary_ + 1U >= slices_.size())) {
+        draggedSliceBoundary_.reset();
+        selectedSliceBoundary_.reset();
+    }
     repaint();
 }
 
@@ -195,6 +212,17 @@ void WaveformEditor::mouseDown(const juce::MouseEvent& event) {
         setMouseCursor(juce::MouseCursor::DraggingHandCursor);
         return;
     }
+    if (const auto sliceBoundary = nearestSliceBoundary(event.position.x);
+        sliceBoundary.has_value()) {
+        draggedSliceBoundary_ = sliceBoundary;
+        selectedSliceBoundary_ = sliceBoundary;
+        originalSliceBoundaryFrame_ = slices_[*sliceBoundary].endFrame;
+        selectedSlice_ = *sliceBoundary;
+        if (onSliceSelected)
+            onSliceSelected(selectedSlice_);
+        repaint();
+        return;
+    }
     bool found = false;
     draggedMarker_ = nearestMarker(event.position.x, found);
     if (found) {
@@ -206,6 +234,11 @@ void WaveformEditor::mouseDown(const juce::MouseEvent& event) {
     } else if (onAuditionFromFrame) {
         onAuditionFromFrame(xToFrame(event.position.x));
     }
+}
+
+void WaveformEditor::mouseDoubleClick(const juce::MouseEvent& event) {
+    if (frameCount_ > 0U && onSliceMarkerAdd)
+        onSliceMarkerAdd(static_cast<std::int64_t>(xToFrame(event.position.x)));
 }
 
 void WaveformEditor::mouseDrag(const juce::MouseEvent& event) {
@@ -220,13 +253,27 @@ void WaveformEditor::mouseDrag(const juce::MouseEvent& event) {
     } else if (draggingMarker_) {
         setMarkerFrame(draggedMarker_, xToFrame(event.position.x));
         repaint();
+    } else if (draggedSliceBoundary_.has_value()) {
+        const auto boundary = *draggedSliceBoundary_;
+        const auto previous = slices_[boundary].startFrame;
+        const auto next = slices_[boundary + 1U].endFrame;
+        const auto replacement = std::clamp(static_cast<std::int64_t>(xToFrame(event.position.x)),
+                                            previous + 1, next - 1);
+        slices_[boundary].endFrame = replacement;
+        slices_[boundary + 1U].startFrame = replacement;
+        repaint();
     }
 }
 
 void WaveformEditor::mouseUp(const juce::MouseEvent&) {
     if (draggingMarker_ && onMarkerCommit)
         onMarkerCommit(draggedMarker_, markerFrame(draggedMarker_));
+    if (draggedSliceBoundary_.has_value() && onSliceMarkerCommit) {
+        const auto replacement = slices_[*draggedSliceBoundary_].endFrame;
+        onSliceMarkerCommit(originalSliceBoundaryFrame_, replacement);
+    }
     draggingMarker_ = false;
+    draggedSliceBoundary_.reset();
     panning_ = false;
     setMouseCursor(juce::MouseCursor::CrosshairCursor);
 }
@@ -247,6 +294,24 @@ void WaveformEditor::mouseWheelMove(const juce::MouseEvent& event,
 }
 
 bool WaveformEditor::keyPressed(const juce::KeyPress& key) {
+    if (selectedSliceBoundary_.has_value() && !slices_.empty()) {
+        const auto code = key.getKeyCode();
+        if ((code == juce::KeyPress::deleteKey || code == juce::KeyPress::backspaceKey) &&
+            onSliceMarkerDelete) {
+            onSliceMarkerDelete(slices_[*selectedSliceBoundary_].endFrame);
+            return true;
+        }
+        if (code == juce::KeyPress::leftKey || code == juce::KeyPress::rightKey) {
+            const auto boundary = *selectedSliceBoundary_;
+            const auto current = slices_[boundary].endFrame;
+            const auto step = key.getModifiers().isShiftDown() ? std::int64_t{16} : 1;
+            const auto replacement =
+                code == juce::KeyPress::leftKey ? current - step : current + step;
+            if (onSliceMarkerCommit)
+                onSliceMarkerCommit(current, replacement);
+            return true;
+        }
+    }
     if (!hasSelectedMarker_ || frameCount_ == 0U)
         return false;
     const auto code = key.getKeyCode();
@@ -265,6 +330,22 @@ bool WaveformEditor::keyPressed(const juce::KeyPress& key) {
         onMarkerCommit(selectedMarker_, markerFrame(selectedMarker_));
     repaint();
     return true;
+}
+
+std::optional<std::size_t> WaveformEditor::nearestSliceBoundary(const float x) const noexcept {
+    if (slices_.size() < 2U)
+        return std::nullopt;
+    auto bestDistance = static_cast<double>(markerHitRadius);
+    std::optional<std::size_t> best;
+    for (std::size_t index = 0U; index + 1U < slices_.size(); ++index) {
+        const auto distance = std::abs(
+            frameToX(static_cast<std::uint64_t>(slices_[index].endFrame)) - static_cast<double>(x));
+        if (distance <= bestDistance) {
+            bestDistance = distance;
+            best = index;
+        }
+    }
+    return best;
 }
 
 void WaveformEditor::focusGained(juce::Component::FocusChangeType) {
@@ -360,6 +441,37 @@ void WaveformEditor::paint(juce::Graphics& graphics) {
         graphics.fillRect(juce::Rectangle<float>::leftTopRightBottom(
             trimStart, 1.0F, trimEnd, static_cast<float>(getHeight() - 1)));
         paintWaveform(graphics, bounds.reduced(1.0F));
+        if (!slices_.empty()) {
+            const auto selected = std::min(selectedSlice_, slices_.size() - 1U);
+            const auto selectedStart = static_cast<float>(frameToX(static_cast<std::uint64_t>(
+                std::max<std::int64_t>(0, slices_[selected].startFrame))));
+            const auto selectedEnd = static_cast<float>(frameToX(
+                static_cast<std::uint64_t>(std::max<std::int64_t>(0, slices_[selected].endFrame))));
+            graphics.setColour(juce::Colour{editorSelectedSlice}.withAlpha(0.20F));
+            graphics.fillRect(juce::Rectangle<float>::leftTopRightBottom(
+                selectedStart, 1.0F, selectedEnd, static_cast<float>(getHeight() - 1)));
+            graphics.setColour(juce::Colour{editorSlice});
+            auto previousLabelRight = -1000.0F;
+            for (std::size_t index = 0U; index < slices_.size(); ++index) {
+                if (index > 0U) {
+                    const auto markerX = static_cast<float>(
+                        frameToX(static_cast<std::uint64_t>(slices_[index].startFrame)));
+                    graphics.drawVerticalLine(static_cast<int>(std::round(markerX)), 2.0F,
+                                              static_cast<float>(getHeight() - 2));
+                }
+                const auto labelX = static_cast<float>(
+                    frameToX(static_cast<std::uint64_t>(slices_[index].startFrame)));
+                const auto labelEnd = static_cast<float>(
+                    frameToX(static_cast<std::uint64_t>(slices_[index].endFrame)));
+                if (labelEnd - labelX >= 30.0F && labelX > previousLabelRight + 4.0F) {
+                    graphics.setFont(10.0F);
+                    graphics.drawText(juce::String{static_cast<int>(index + 1U)},
+                                      juce::Rectangle<float>{labelX + 3.0F, 11.0F, 24.0F, 14.0F},
+                                      juce::Justification::centredLeft);
+                    previousLabelRight = labelX + 27.0F;
+                }
+            }
+        }
         graphics.setColour(juce::Colours::black.withAlpha(0.48F));
         graphics.fillRect(bounds.withRight(std::max(bounds.getX(), trimStart)));
         graphics.fillRect(bounds.withLeft(std::min(bounds.getRight(), trimEnd)));

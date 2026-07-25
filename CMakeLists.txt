@@ -31,6 +31,16 @@ add_library(
     Source/App/ProductInfo.h
     Source/App/ApplicationController.cpp
     Source/App/ApplicationController.h
+    Source/Chopping/ChoppingSession.cpp
+    Source/Chopping/ChoppingSession.h
+    Source/Chopping/AssignmentPlan.cpp
+    Source/Chopping/AssignmentPlan.h
+    Source/Chopping/LazyMarkerCapture.cpp
+    Source/Chopping/LazyMarkerCapture.h
+    Source/Chopping/SliceModel.cpp
+    Source/Chopping/SliceModel.h
+    Source/Chopping/TransientAnalysis.cpp
+    Source/Chopping/TransientAnalysis.h
     Source/Model/MusicalTime.h
     Source/Model/PadModel.cpp
     Source/Model/PadModel.h
@@ -63,6 +73,8 @@ add_library(
     Source/Audio/PlaybackStatePublisher.h
     Source/Audio/PreviewPlayer.cpp
     Source/Audio/PreviewPlayer.h
+    Source/Audio/SliceAuditionController.cpp
+    Source/Audio/SliceAuditionController.h
     Source/Input/InputRouter.cpp
     Source/Input/InputRouter.h
     Source/Sampling/SampleImporter.cpp
@@ -87,6 +99,8 @@ padflow_set_output_directory(padflow_audio)
 
 add_library(
     padflow_ui STATIC
+    Source/App/ChoppingWorkspace.cpp
+    Source/App/ChoppingWorkspace.h
     Source/App/MainWindow.cpp
     Source/App/MainWindow.h
     Source/App/RecordingPanel.cpp

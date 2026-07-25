@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Chopping/SliceModel.h"
+
 #include <juce_core/juce_core.h>
 
 #include <array>
@@ -43,6 +45,9 @@ struct SamplePlaybackSettings final {
 struct SampleLayer final {
     juce::String uuid;
     juce::String assetUuid;
+    juce::String sliceUuid;
+    juce::String sliceSetUuid;
+    juce::String assignmentSessionUuid;
     bool enabled{false};
     std::uint8_t velocityMinimum{1U};
     std::uint8_t velocityMaximum{127U};
@@ -188,6 +193,7 @@ struct ProjectState final {
     std::vector<ExternalAssetReference> assets;
     std::vector<DerivedAssetRecord> derivedAssets;
     std::vector<RecordedAssetRecord> recordedAssets;
+    std::vector<SliceSet> sliceSets;
     RecordingPreferences recording;
     MidiSettings midi;
     AudioSettings audio;

@@ -13,11 +13,20 @@ void PreviewPlayer::prepare(const double outputSampleRate) noexcept {
 
 bool PreviewPlayer::publishAndStart(const SampleAsset* const asset,
                                     const std::uint64_t epoch) noexcept {
-    return commands_.tryPush({PreviewCommandType::start, epoch, asset});
+    const auto endFrame = asset != nullptr ? asset->metadata().frameCount : 0U;
+    return publishAndStartSlice(asset, 0U, endFrame, false, epoch);
+}
+
+bool PreviewPlayer::publishAndStartSlice(const SampleAsset* const asset,
+                                         const std::uint64_t startFrame,
+                                         const std::uint64_t endFrame, const bool reverse,
+                                         const std::uint64_t epoch) noexcept {
+    return commands_.tryPush(
+        {PreviewCommandType::start, epoch, asset, startFrame, endFrame, reverse});
 }
 
 bool PreviewPlayer::requestStop(const std::uint64_t epoch) noexcept {
-    return commands_.tryPush({PreviewCommandType::stop, epoch, nullptr});
+    return commands_.tryPush({PreviewCommandType::stop, epoch, nullptr, 0U, 0U, false});
 }
 
 void PreviewPlayer::setVolume(const float volume) noexcept {
@@ -33,15 +42,27 @@ void PreviewPlayer::processAdd(float* const left, float* const right,
     while (commands_.tryPop(command)) {
         if (command.type == PreviewCommandType::start) {
             activeAsset_ = command.asset != nullptr ? command.asset->view() : SampleAssetView{};
-            position_ = 0.0;
+            startFrame_ = std::min(command.startFrame, activeAsset_.frameCount);
+            endFrame_ = std::min(command.endFrame, activeAsset_.frameCount);
+            reverse_ = command.reverse;
+            position_ = reverse_ && endFrame_ > startFrame_ ? static_cast<double>(endFrame_ - 1U)
+                                                            : static_cast<double>(startFrame_);
             increment_ =
                 activeAsset_.sampleRate > 0.0 ? activeAsset_.sampleRate / outputSampleRate_ : 1.0;
-            activeMeter_.store(activeAsset_.interleavedData != nullptr &&
-                                   activeAsset_.frameCount > 0U,
+            if (reverse_)
+                increment_ = -increment_;
+            sourceFramePosition_.store(reverse_ && endFrame_ > startFrame_ ? endFrame_ - 1U
+                                                                           : startFrame_,
+                                       std::memory_order_release);
+            activeMeter_.store(activeAsset_.interleavedData != nullptr && endFrame_ > startFrame_,
                                std::memory_order_release);
         } else {
             activeAsset_ = {};
             position_ = 0.0;
+            startFrame_ = 0U;
+            endFrame_ = 0U;
+            reverse_ = false;
+            sourceFramePosition_.store(0U, std::memory_order_release);
             activeMeter_.store(false, std::memory_order_release);
         }
         acknowledgedEpoch_.store(command.epoch, std::memory_order_release);
@@ -51,14 +72,19 @@ void PreviewPlayer::processAdd(float* const left, float* const right,
         return;
     const auto gain = volume_.load(std::memory_order_relaxed);
     for (std::size_t frame = 0; frame < frameCount; ++frame) {
-        if (position_ >= static_cast<double>(activeAsset_.frameCount)) {
+        if (position_ < static_cast<double>(startFrame_) ||
+            position_ >= static_cast<double>(endFrame_)) {
             activeAsset_ = {};
             activeMeter_.store(false, std::memory_order_release);
             break;
         }
-        const auto sourceLeft = interpolate(activeAsset_, 0U, position_);
+        sourceFramePosition_.store(static_cast<std::uint64_t>(position_),
+                                   std::memory_order_relaxed);
+        const auto sourceLeft = interpolate(activeAsset_, 0U, position_, startFrame_, endFrame_);
         const auto sourceRight =
-            activeAsset_.channelCount > 1U ? interpolate(activeAsset_, 1U, position_) : sourceLeft;
+            activeAsset_.channelCount > 1U
+                ? interpolate(activeAsset_, 1U, position_, startFrame_, endFrame_)
+                : sourceLeft;
         const auto renderedLeft = sourceLeft * gain;
         const auto renderedRight = sourceRight * gain;
         left[frame] += std::isfinite(renderedLeft) ? renderedLeft : 0.0F;
@@ -70,6 +96,10 @@ void PreviewPlayer::processAdd(float* const left, float* const right,
 void PreviewPlayer::panicWhenQuiescent() noexcept {
     activeAsset_ = {};
     position_ = 0.0;
+    startFrame_ = 0U;
+    endFrame_ = 0U;
+    reverse_ = false;
+    sourceFramePosition_.store(0U, std::memory_order_release);
     activeMeter_.store(false, std::memory_order_release);
 }
 
@@ -85,15 +115,20 @@ std::uint64_t PreviewPlayer::acknowledgedEpoch() const noexcept {
     return acknowledgedEpoch_.load(std::memory_order_acquire);
 }
 
+std::uint64_t PreviewPlayer::sourceFramePosition() const noexcept {
+    return sourceFramePosition_.load(std::memory_order_acquire);
+}
+
 float PreviewPlayer::interpolate(const SampleAssetView& asset, const std::uint32_t channel,
-                                 const double position) noexcept {
+                                 const double position, const std::uint64_t startFrame,
+                                 const std::uint64_t endFrame) noexcept {
     if (asset.interleavedData == nullptr || asset.frameCount == 0U || channel >= asset.channelCount)
         return 0.0F;
     const auto base = static_cast<std::int64_t>(position);
     const auto fraction = static_cast<float>(position - static_cast<double>(base));
     const auto sample = [&](const std::int64_t frame) {
-        const auto clamped =
-            std::clamp<std::int64_t>(frame, 0, static_cast<std::int64_t>(asset.frameCount - 1U));
+        const auto clamped = std::clamp<std::int64_t>(frame, static_cast<std::int64_t>(startFrame),
+                                                      static_cast<std::int64_t>(endFrame - 1U));
         return asset
             .interleavedData[static_cast<std::size_t>(clamped) * asset.channelCount + channel];
     };

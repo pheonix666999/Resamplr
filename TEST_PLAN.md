@@ -400,22 +400,174 @@ are rejected without mutation unless an acceptance row explicitly specifies dete
 
 ## Chopping — Milestone 3
 
-| ID | Test |
+Temporary chopping sessions remain outside the project model. Only a fully validated confirmed
+slice-set assignment enters the permanent model and unified project undo history.
+
+### Slice model and equal division
+
+| ID | Acceptance |
 |---|---|
-| CHOP-001 | Equal boundaries use `start + floor(i*length/count)` and exact endpoints. |
-| CHOP-002 | Uneven division has no gaps, overlap, or empty slices. |
-| CHOP-003 | One-frame trim permits exactly one slice. |
-| CHOP-004 | Slice count equal to trim length creates one-frame slices. |
-| CHOP-005 | Count above trim length is rejected; explicit clamp is deterministic. |
-| CHOP-006 | Very large frame counts do not overflow boundary arithmetic. |
-| CHOP-007 | Fixed-length mode includes a non-empty remainder by default. |
-| CHOP-008 | Explicit discard-remainder omits only the remainder. |
-| CHOP-009 | Manual markers clamp to trim; duplicates are rejected. |
-| CHOP-010 | Transient markers obey sensitivity/minimum duration/look-back bounds. |
-| CHOP-011 | Lazy markers are ordered and remain inside trim. |
-| CHOP-012 | Sequential bank/pad and layer assignment is correct. |
-| CHOP-013 | Overwrite cancellation and assignment cancellation make no mutation. |
-| CHOP-014 | Transaction failure rolls back every pad/layer change. |
+| CHOP-M3-001 | A slice is accepted only when its inclusive start/exclusive end form a non-empty region inside active trim. |
+| CHOP-M3-002 | A zero-length slice is rejected without provisional or project mutation. |
+| CHOP-M3-003 | A slice extending outside active trim is rejected. |
+| CHOP-M3-004 | Overlapping slices are rejected; contiguous algorithmic sets contain no gaps. |
+| CHOP-M3-005 | Ordered stable slice UUIDs persist without reordering. |
+| CHOP-M3-006 | A one-frame slice is accepted and remains addressable. |
+| CHOP-M3-010 | One equal slice is exactly the complete active trim. |
+| CHOP-M3-011 | Even division creates exact contiguous equal regions. |
+| CHOP-M3-012 | Uneven division uses `start + floor(i * length / count)` deterministically. |
+| CHOP-M3-013 | The first equal boundary is exactly trim start. |
+| CHOP-M3-014 | The final equal boundary is exactly trim end. |
+| CHOP-M3-015 | Equal slices contain no gaps. |
+| CHOP-M3-016 | Equal slices contain no overlaps. |
+| CHOP-M3-017 | Slice count equal to trim length creates one-frame slices. |
+| CHOP-M3-018 | Slice count greater than trim frame length is rejected. |
+| CHOP-M3-019 | Checked large-frame arithmetic cannot overflow. |
+| CHOP-M3-020 | A one-frame trim accepts exactly one equal slice. |
+
+### Fixed length and manual markers
+
+| ID | Acceptance |
+|---|---|
+| CHOP-M3-030 | Exact fixed-length division ends at trim end with no remainder. |
+| CHOP-M3-031 | Include policy creates one non-empty shorter final remainder slice. |
+| CHOP-M3-032 | Discard policy omits only the non-zero remainder. |
+| CHOP-M3-033 | Zero canonical frame length is rejected. |
+| CHOP-M3-034 | Negative requested length is rejected before unsigned conversion. |
+| CHOP-M3-035 | Length greater than trim is rejected unless explicit whole-trim confirmation is provided. |
+| CHOP-M3-036 | Fixed slicing never creates an empty remainder. |
+| CHOP-M3-040 | A valid internal manual marker splits provisional slices. |
+| CHOP-M3-041 | Deleting an internal marker rejoins its adjacent regions. |
+| CHOP-M3-042 | Moving a marker updates exactly its two adjacent regions. |
+| CHOP-M3-043 | Duplicate manual markers are rejected. |
+| CHOP-M3-044 | Marker movement clamps strictly between neighbouring boundaries. |
+| CHOP-M3-045 | Manual edits preserve fixed trim outer boundaries. |
+| CHOP-M3-046 | One completed marker drag creates one session-local undo entry. |
+| CHOP-M3-047 | Optional zero-crossing snap remains inside neighbour bounds. |
+| CHOP-M3-048 | Cancelling a manual session destroys provisional state and creates no project undo. |
+
+### Transient detection and lazy chop
+
+| ID | Acceptance |
+|---|---|
+| CHOP-M3-060 | A synthetic single transient produces one deterministic internal onset marker. |
+| CHOP-M3-061 | Multiple synthetic transients produce ordered deterministic markers. |
+| CHOP-M3-062 | Silent input yields the outer trim boundaries only. |
+| CHOP-M3-063 | Constant-amplitude input yields no false duplicate/onset markers. |
+| CHOP-M3-064 | Mono transient analysis remains finite and deterministic. |
+| CHOP-M3-065 | Stereo analysis uses the documented channel envelope and remains deterministic. |
+| CHOP-M3-066 | Increasing sensitivity never reduces the accepted marker count for one fixture. |
+| CHOP-M3-067 | Minimum slice duration removes too-close onsets. |
+| CHOP-M3-068 | Attack look-back clamps to trim start and cannot reorder markers. |
+| CHOP-M3-069 | Transient analysis produces no duplicate marker frames. |
+| CHOP-M3-070 | Cancelled analysis cannot publish provisional results. |
+| CHOP-M3-071 | A stale project/source/layer/revision result is discarded. |
+| CHOP-M3-080 | A mouse marker command captures the current lazy source frame. |
+| CHOP-M3-081 | A keyboard marker command captures the current lazy source frame. |
+| CHOP-M3-082 | A MIDI note-on marker command captures the current lazy source frame. |
+| CHOP-M3-083 | Lazy marker events commit in chronological frame order. |
+| CHOP-M3-084 | A duplicate or too-close lazy frame is rejected. |
+| CHOP-M3-085 | Lazy frames clamp to active trim boundaries without empty slices. |
+| CHOP-M3-086 | A full lazy-marker queue rejects immediately and reports overflow. |
+| CHOP-M3-087 | Unquantized lazy markers preserve the captured source frame. |
+| CHOP-M3-088 | Optional fixed-time quantization is deterministic and trim-bounded. |
+| CHOP-M3-089 | Cancel stops lazy audition and leaves the project unchanged. |
+| CHOP-M3-090 | Source replacement invalidates the provisional lazy session. |
+
+### Assignment planning and transaction
+
+| ID | Acceptance |
+|---|---|
+| ASSIGN-M3-001 | Consecutive-pad planning preserves slice order inside one bank. |
+| ASSIGN-M3-002 | Consecutive-pad planning continues A–B–C–D in order. |
+| ASSIGN-M3-003 | Insufficient remaining pads are reported before mutation. |
+| ASSIGN-M3-004 | D-bank planning does not wrap to A by default. |
+| ASSIGN-M3-005 | Consecutive-layer planning begins at the requested pad/layer and preserves order. |
+| ASSIGN-M3-006 | Layer-capacity overflow is rejected unless explicit cross-pad continuation is enabled. |
+| ASSIGN-M3-007 | Every occupied destination is represented in the immutable preview plan. |
+| ASSIGN-M3-008 | Explicit replacement decisions are retained by destination identity. |
+| ASSIGN-M3-009 | Skipped conflicts remain unassigned without compacting later slice destinations. |
+| ASSIGN-M3-010 | Destination changes invalidate and regenerate the plan. |
+| ASSIGN-M3-011 | Every assignment shares the same immutable source PCM without decoded duplication. |
+| ASSIGN-M3-012 | Repeated planning produces stable ordered slice-to-destination mappings. |
+| ASSIGN-M3-020 | A valid confirmed plan commits every assignment atomically. |
+| ASSIGN-M3-021 | Stale expected project revision aborts the entire commit. |
+| ASSIGN-M3-022 | Stale source UUID/fingerprint aborts the entire commit. |
+| ASSIGN-M3-023 | Stale destination identity aborts the entire commit. |
+| ASSIGN-M3-024 | Any invalid slice boundary aborts the entire commit. |
+| ASSIGN-M3-025 | Failure at any validation point leaves the complete project unchanged. |
+| ASSIGN-M3-026 | A successful multi-destination assignment creates one unified undo entry. |
+| ASSIGN-M3-027 | Undo restores every replaced pad/layer exactly. |
+| ASSIGN-M3-028 | Redo reproduces the same deterministic mapping and slice references. |
+| ASSIGN-M3-029 | Cancelled preview/session produces no mutation or project undo. |
+| ASSIGN-M3-030 | Commit reports assigned and explicitly skipped slices without shifting them. |
+
+### Slice playback and persistence
+
+| ID | Acceptance |
+|---|---|
+| AUDIO-M3-001 | Forward slice playback starts at the inclusive slice start. |
+| AUDIO-M3-002 | Reverse slice playback starts immediately before the exclusive slice end. |
+| AUDIO-M3-003 | A one-frame assigned slice renders safely and stops. |
+| AUDIO-M3-004 | Non-loop slice playback stops before crossing its exclusive end. |
+| AUDIO-M3-005 | Hermite interpolation at slice boundaries remains finite. |
+| AUDIO-M3-006 | Pitched slice playback stays inside source bounds. |
+| AUDIO-M3-007 | Existing MIDI velocity layer selection remains valid for assigned slices. |
+| AUDIO-M3-008 | New slice assignments default to loop disabled. |
+| AUDIO-M3-009 | Guarded fixtures detect no source read outside the immutable asset. |
+| AUDIO-M3-010 | All Milestone 1/2 playback modes and allocation rules remain valid. |
+| SAVE-M3-001 | Committed slice sets survive semantic round trip. |
+| SAVE-M3-002 | Algorithm ID/version/canonical parameters survive semantic round trip. |
+| SAVE-M3-003 | Ordered slice UUIDs survive semantic round trip. |
+| SAVE-M3-004 | Consecutive-pad slice assignments survive semantic round trip. |
+| SAVE-M3-005 | Consecutive-layer slice assignments survive semantic round trip. |
+| SAVE-M3-006 | A missing immutable source retains slice metadata and explicit missing state. |
+| SAVE-M3-007 | Persisted zero-length slices are diagnosed with no partial project commit. |
+| SAVE-M3-008 | Persisted overlapping slices are diagnosed with no partial project commit. |
+| SAVE-M3-009 | Milestone 1 projects load with no chopping state and unchanged behavior. |
+| SAVE-M3-010 | Milestone 2 projects load with no chopping state and unchanged behavior. |
+| SAVE-M3-011 | A populated Milestone 3 project is semantically equal after save/load. |
+
+### Milestone 3 threading and GUI-headless integration
+
+| ID | Acceptance |
+|---|---|
+| THREAD-M3-001 | Cancelled transient workers cannot publish a late result. |
+| THREAD-M3-002 | Stale analysis identity cannot publish provisional state. |
+| THREAD-M3-003 | Lazy-marker queue overflow is bounded and observable. |
+| THREAD-M3-004 | Project close cancels related analysis without mutation. |
+| THREAD-M3-005 | Project close stops lazy audition and clears queued events safely. |
+| THREAD-M3-006 | Lazy capture and slice-audition callbacks allocate no memory. |
+| THREAD-M3-007 | Audio callbacks never mutate session or project model state. |
+| THREAD-M3-008 | Preview voice ownership is cleaned off callback after stop/cancel/device change. |
+| UIHEADLESS-M3-001 | The chopping workspace constructs with accessible named controls. |
+| UIHEADLESS-M3-002 | All five chopping modes can be selected without invalid state. |
+| UIHEADLESS-M3-003 | Equal controls generate exact provisional slices without project mutation. |
+| UIHEADLESS-M3-004 | Fixed controls generate both remainder policies without project mutation. |
+| UIHEADLESS-M3-005 | Transient analysis reports progress and publishes one valid provisional result. |
+| UIHEADLESS-M3-006 | Manual marker add/move/delete and session undo update the waveform. |
+| UIHEADLESS-M3-007 | Lazy marker capture drains bounded events into provisional slices. |
+| UIHEADLESS-M3-008 | Assignment preview lists capacity and every occupied destination without mutation. |
+| UIHEADLESS-M3-009 | Cancel leaves project, playback publication, and project undo unchanged. |
+| UIHEADLESS-M3-010 | Confirmed assignment commits once and unified undo restores all destinations. |
+| UIHEADLESS-M3-011 | Saved/reloaded assigned slices resolve and retrigger finite non-silence. |
+
+### Milestone 3 regressions
+
+Every defect discovered during Milestone 3 implementation or hosted remediation receives a stable
+`REGRESSION-M3-*` row here and a focused automated check where reasonably testable.
+
+| ID | Regression contract |
+| --- | --- |
+| REGRESSION-M3-001 | Lazy-marker nearest-grid quantization remains trim-bounded without signed overflow near the maximum source-frame value. |
+| REGRESSION-M3-002 | Mouse, keyboard, and MIDI lazy markers share one minimum-distance rule; the deterministic UI fixture places all three far enough apart to test accepted cross-input capture. |
+| REGRESSION-M3-003 | Chopping status strings use JUCE-safe ASCII literals and headless execution raises no invalid narrow-string assertion. |
+| REGRESSION-M3-004 | The populated smoke path keeps its additional Milestone 3 playback engine off the process stack instead of adding another fixed voice pool to the shared integration frame. |
+| REGRESSION-M3-005 | ASCII status validation walks JUCE character pointers explicitly so the regression test compiles consistently with GCC, Clang, and MSVC. |
+| REGRESSION-M3-006 | The monolithic populated smoke fixture heap-owns full project, playback-engine, capture-session, and copied-project lifetimes, reducing its Debug frame while preserving default-stack product GUI smoke coverage. |
+| REGRESSION-M3-007 | Windows console/unit hosts retain their default stack configuration; smoke reliability must come from bounded fixtures and memory-safe lifetimes rather than a larger linker reserve. |
+| REGRESSION-M3-008 | The populated smoke path copies external-asset metadata before any project-state replacement and never retains a pointer into the old project's asset vector. |
+| REGRESSION-M3-009 | Each named CI chopping screenshot explicitly selects its matching mode, and equal-slice evidence waits for a completed waveform cache before capture. |
 
 ## Sequencer and timing — Milestones 4–5
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Chopping/SliceModel.h"
 #include "Model/PadModel.h"
 #include "Sampling/WaveformCache.h"
 
@@ -9,6 +10,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <vector>
 
 namespace padflow {
 class WaveformEditor final : public juce::Component {
@@ -19,6 +21,7 @@ class WaveformEditor final : public juce::Component {
 
     void paint(juce::Graphics& graphics) override;
     void mouseDown(const juce::MouseEvent& event) override;
+    void mouseDoubleClick(const juce::MouseEvent& event) override;
     void mouseDrag(const juce::MouseEvent& event) override;
     void mouseUp(const juce::MouseEvent& event) override;
     void mouseWheelMove(const juce::MouseEvent& event,
@@ -34,6 +37,7 @@ class WaveformEditor final : public juce::Component {
     void fitSource();
     void fitTrimSelection();
     void setPlaybackPosition(std::optional<std::uint64_t> frame);
+    void setSlices(const SliceSet* sliceSet, std::size_t selectedSlice);
 
     [[nodiscard]] std::uint64_t frameCount() const noexcept;
     [[nodiscard]] SamplePlaybackSettings playback() const noexcept;
@@ -41,6 +45,10 @@ class WaveformEditor final : public juce::Component {
 
     std::function<void(Marker, std::uint64_t)> onMarkerCommit;
     std::function<void(std::uint64_t)> onAuditionFromFrame;
+    std::function<void(std::int64_t)> onSliceMarkerAdd;
+    std::function<void(std::int64_t)> onSliceMarkerDelete;
+    std::function<void(std::int64_t, std::int64_t)> onSliceMarkerCommit;
+    std::function<void(std::size_t)> onSliceSelected;
 
   private:
     [[nodiscard]] double frameToX(std::uint64_t frame) const noexcept;
@@ -53,6 +61,7 @@ class WaveformEditor final : public juce::Component {
     void paintWaveform(juce::Graphics& graphics, juce::Rectangle<float> bounds) const;
     void paintMarker(juce::Graphics& graphics, Marker marker, juce::Colour colour,
                      const juce::String& name) const;
+    [[nodiscard]] std::optional<std::size_t> nearestSliceBoundary(float x) const noexcept;
 
     std::shared_ptr<const WaveformCache> cache_;
     SamplePlaybackSettings playback_;
@@ -71,5 +80,10 @@ class WaveformEditor final : public juce::Component {
     bool analysisPending_{false};
     bool sourceMissing_{false};
     std::optional<std::uint64_t> playbackPosition_;
+    std::vector<SliceRegion> slices_;
+    std::size_t selectedSlice_{0U};
+    std::optional<std::size_t> draggedSliceBoundary_;
+    std::optional<std::size_t> selectedSliceBoundary_;
+    std::int64_t originalSliceBoundaryFrame_{0};
 };
 } // namespace padflow

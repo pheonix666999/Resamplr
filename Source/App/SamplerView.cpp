@@ -51,7 +51,8 @@ SamplerView::SamplerView(ApplicationController& controller, BackgroundJobSystem&
                          PlaybackStatePublisher& publisher, InputRouter& input,
                          SamplePreviewController& preview)
     : controller_(controller), jobs_(jobs), assets_(assets), runtime_(runtime),
-      publisher_(publisher), input_(input), preview_(preview) {
+      publisher_(publisher), input_(input), preview_(preview),
+      choppingWorkspace_(controller, jobs, assets, runtime.preview()) {
     setTitle("PadFlow playable sampler");
     setDescription("Four banks of sixteen playable sample pads and a selected-pad editor");
     setWantsKeyboardFocus(true);
@@ -66,6 +67,11 @@ SamplerView::SamplerView(ApplicationController& controller, BackgroundJobSystem&
 SamplerView::~SamplerView() {
     stopTimer();
     removeKeyListener(this);
+    input_.setLazyMarkerCapture(nullptr, nullptr);
+    choppingWorkspace_.onCancel = {};
+    choppingWorkspace_.onProjectCommitted = {};
+    choppingWorkspace_.onSlicesChanged = {};
+    choppingWorkspace_.cancel();
     if (fileChooser_ != nullptr)
         fileChooser_.reset();
     input_.panic();
@@ -99,9 +105,10 @@ void SamplerView::configureControls() {
 
     for (auto* button :
          {&newButton_, &openButton_, &saveButton_, &undoButton_, &redoButton_, &audioButton_,
-          &midiButton_, &recordingPanelButton_, &importButton_, &clearLayerButton_,
-          &clearPadButton_, &auditionButton_, &stopAuditionButton_, &fitWaveformButton_,
-          &fitSelectionButton_, &resetTrimButton_, &resetLoopButton_, &processButton_}) {
+          &midiButton_, &recordingPanelButton_, &choppingWorkspaceButton_, &importButton_,
+          &clearLayerButton_, &clearPadButton_, &auditionButton_, &stopAuditionButton_,
+          &fitWaveformButton_, &fitSelectionButton_, &resetTrimButton_, &resetLoopButton_,
+          &processButton_}) {
         styleButton(*button);
         addAndMakeVisible(*button);
         button->setTitle(button->getButtonText());
@@ -112,6 +119,7 @@ void SamplerView::configureControls() {
     audioButton_.setComponentID("audio-settings");
     midiButton_.setComponentID("midi-settings");
     recordingPanelButton_.setComponentID("recording-panel-toggle");
+    choppingWorkspaceButton_.setComponentID("chopping-workspace-toggle");
     auditionButton_.setComponentID("waveform-audition");
     stopAuditionButton_.setComponentID("waveform-stop");
     fitWaveformButton_.setComponentID("waveform-fit");
@@ -125,6 +133,8 @@ void SamplerView::configureControls() {
 
     newButton_.onClick = [this] {
         cancelRecording();
+        if (choppingWorkspaceVisible_)
+            juce::ignoreUnused(setChoppingWorkspaceVisible(false));
         jobs_.cancelOwner(controller_.project().uuid());
         jobs_.cancelOwner("padflow-resolve");
         jobs_.cancelOwner("padflow-preview");
@@ -159,6 +169,9 @@ void SamplerView::configureControls() {
     audioButton_.onClick = [this] { showAudioSettings(); };
     midiButton_.onClick = [this] { showMidiSettings(); };
     recordingPanelButton_.onClick = [this] { setRecordingPanelVisible(!recordingPanelVisible_); };
+    choppingWorkspaceButton_.onClick = [this] {
+        juce::ignoreUnused(setChoppingWorkspaceVisible(!choppingWorkspaceVisible_));
+    };
 
     for (std::size_t bank = 0; bank < bankButtons_.size(); ++bank) {
         auto& button = bankButtons_[bank];
@@ -181,6 +194,10 @@ void SamplerView::configureControls() {
                 showPadMenu(selectedGlobalPad() / padsPerBank * padsPerBank + pad);
                 return;
             }
+            if (choppingWorkspaceVisible_ && choppingWorkspace_.lazyActive()) {
+                juce::ignoreUnused(choppingWorkspace_.captureLazyMarker(LazyMarkerSource::mouse));
+                return;
+            }
             juce::ignoreUnused(selectPad(selectedGlobalPad() / padsPerBank * padsPerBank + pad));
             juce::ignoreUnused(input_.mouseDown(pad));
         };
@@ -190,6 +207,21 @@ void SamplerView::configureControls() {
         };
         addAndMakeVisible(button);
     }
+
+    choppingWorkspace_.setVisible(false);
+    choppingWorkspace_.onSlicesChanged = [this](const SliceSet* set, const std::size_t selected) {
+        waveformEditor_.setSlices(set, selected);
+    };
+    choppingWorkspace_.onProjectCommitted = [this] {
+        publishModel(true);
+        refreshAll();
+    };
+    choppingWorkspace_.onCancel = [this] {
+        waveformEditor_.setSlices(nullptr, 0U);
+        if (choppingWorkspaceVisible_)
+            juce::ignoreUnused(setChoppingWorkspaceVisible(false));
+    };
+    addChildComponent(choppingWorkspace_);
 
     padNameEditor_.setComponentID("pad-name");
     padNameEditor_.setTitle("Selected pad name");
@@ -220,6 +252,23 @@ void SamplerView::configureControls() {
         commitWaveformMarker(marker, frame);
     };
     waveformEditor_.onAuditionFromFrame = [this](const std::uint64_t) { auditionSelectedLayer(); };
+    waveformEditor_.onSliceMarkerAdd = [this](const std::int64_t frame) {
+        if (choppingWorkspaceVisible_)
+            juce::ignoreUnused(choppingWorkspace_.addMarker(frame));
+    };
+    waveformEditor_.onSliceMarkerDelete = [this](const std::int64_t frame) {
+        if (choppingWorkspaceVisible_)
+            juce::ignoreUnused(choppingWorkspace_.deleteMarker(frame));
+    };
+    waveformEditor_.onSliceMarkerCommit = [this](const std::int64_t frame,
+                                                 const std::int64_t replacement) {
+        if (choppingWorkspaceVisible_)
+            juce::ignoreUnused(choppingWorkspace_.moveMarker(frame, replacement));
+    };
+    waveformEditor_.onSliceSelected = [this](const std::size_t index) {
+        if (choppingWorkspaceVisible_)
+            juce::ignoreUnused(choppingWorkspace_.selectSlice(index));
+    };
 
     for (auto* toggle : {&loopToggle_, &reverseToggle_, &snapToggle_}) {
         toggle->setColour(juce::ToggleButton::textColourId, juce::Colour{textColour});
@@ -360,6 +409,7 @@ void SamplerView::resized() {
     audioButton_.setBounds(top.removeFromLeft(112).reduced(2, 7));
     midiButton_.setBounds(top.removeFromLeft(104).reduced(2, 7));
     recordingPanelButton_.setBounds(top.removeFromLeft(82).reduced(2, 7));
+    choppingWorkspaceButton_.setBounds(top.removeFromLeft(70).reduced(2, 7));
     cpuLabel_.setBounds(top.removeFromLeft(80));
     audioStateLabel_.setBounds(top);
 
@@ -432,6 +482,7 @@ void SamplerView::resized() {
                                      padHeight - 8);
     }
     recordingPanel_.setBounds(bounds.reduced(14));
+    choppingWorkspace_.setBounds(bounds.reduced(6));
 }
 
 bool SamplerView::selectBank(const std::size_t bankIndex) {
@@ -472,6 +523,8 @@ std::size_t SamplerView::visiblePadCount() const noexcept {
 }
 
 void SamplerView::setRecordingPanelVisible(const bool visible) {
+    if (visible && choppingWorkspaceVisible_)
+        juce::ignoreUnused(setChoppingWorkspaceVisible(false));
     recordingPanelVisible_ = visible;
     recordingPanel_.setVisible(visible);
     for (auto& button : bankButtons_)
@@ -489,6 +542,40 @@ void SamplerView::setRecordingPanelVisible(const bool visible) {
         grabKeyboardFocus();
     }
     repaint();
+}
+
+bool SamplerView::setChoppingWorkspaceVisible(const bool visible) {
+    if (visible) {
+        if (recordingPanelVisible_)
+            setRecordingPanelVisible(false);
+        const auto result =
+            choppingWorkspace_.beginForLayer(selectedGlobalPad(), selectedLayerIndex());
+        if (result.failed()) {
+            setOperationMessage(result.getErrorMessage(), true);
+            return false;
+        }
+    } else if (choppingWorkspaceVisible_) {
+        choppingWorkspaceVisible_ = false;
+        choppingWorkspace_.cancel();
+    }
+
+    choppingWorkspaceVisible_ = visible;
+    input_.setLazyMarkerCapture(visible ? &choppingWorkspace_.lazyMarkerCapture() : nullptr,
+                                visible ? &runtime_.preview() : nullptr);
+    choppingWorkspace_.setVisible(visible);
+    choppingWorkspaceButton_.setToggleState(visible, juce::dontSendNotification);
+    for (auto& button : bankButtons_)
+        button.setVisible(!visible && !recordingPanelVisible_);
+    for (auto& button : padButtons_)
+        button.setVisible(!visible && !recordingPanelVisible_);
+    if (!visible)
+        refreshAll();
+    repaint();
+    return true;
+}
+
+ChoppingWorkspace& SamplerView::choppingWorkspace() noexcept {
+    return choppingWorkspace_;
 }
 
 void SamplerView::refreshAll() {
@@ -1135,6 +1222,10 @@ bool SamplerView::keyPressed(const juce::KeyPress& key,
                              juce::Component* const originatingComponent) {
     const auto code = key.getKeyCode();
     const auto textEntry = dynamic_cast<juce::TextEditor*>(originatingComponent) != nullptr;
+    if (choppingWorkspaceVisible_ && choppingWorkspace_.lazyActive() && !textEntry) {
+        juce::ignoreUnused(choppingWorkspace_.captureLazyMarker(LazyMarkerSource::keyboard));
+        return true;
+    }
     if (code >= 0 && code < static_cast<int>(heldUiKeys_.size()) &&
         input_.keyDown(code, textEntry)) {
         heldUiKeys_[static_cast<std::size_t>(code)] = true;
@@ -1291,6 +1382,10 @@ void SamplerView::processPendingJobs() {
 void SamplerView::handleCompletedJob(std::shared_ptr<const JobResult> result) {
     if (result == nullptr)
         return;
+    if (result->target.kind == JobKind::transientAnalysis) {
+        juce::ignoreUnused(choppingWorkspace_.handleCompletedJob(*result));
+        return;
+    }
     if (result->target.kind == JobKind::samplePreview) {
         const auto previewResult = preview_.commit(*result);
         setOperationMessage(previewResult.wasOk() ? "Preview started"
@@ -1369,6 +1464,7 @@ void SamplerView::handleCompletedJob(std::shared_ptr<const JobResult> result) {
 void SamplerView::timerCallback() {
     juce::ignoreUnused(input_.flushMidiCommands());
     processPendingJobs();
+    choppingWorkspace_.service();
     waveformEditor_.setPlaybackPosition(runtime_.engine().playbackPosition(selectedGlobalPad()));
     juce::ignoreUnused(preview_.collectRetired());
     juce::ignoreUnused(publisher_.collectAcknowledged());
@@ -1434,6 +1530,8 @@ void SamplerView::showOpenChooser() {
             const auto file = chooser.getResult();
             if (file != juce::File{}) {
                 safe->cancelRecording();
+                if (safe->choppingWorkspaceVisible_)
+                    juce::ignoreUnused(safe->setChoppingWorkspaceVisible(false));
                 auto restored = Project::createEmpty();
                 auto result = ProjectSerializer::load(file, restored);
                 const auto previousProjectUuid = safe->controller_.project().uuid();

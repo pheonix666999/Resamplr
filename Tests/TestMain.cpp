@@ -6,7 +6,7 @@ namespace {
 class ConsoleTestRunner final : public juce::UnitTestRunner {
   public:
     void logMessage(const juce::String& message) override {
-        std::cout << message << '\n';
+        std::cerr << message << std::endl;
     }
 };
 } // namespace
