@@ -31,6 +31,10 @@ add_library(
     Source/App/ProductInfo.h
     Source/App/ApplicationController.cpp
     Source/App/ApplicationController.h
+    Source/Chopping/ChoppingSession.cpp
+    Source/Chopping/ChoppingSession.h
+    Source/Chopping/SliceModel.cpp
+    Source/Chopping/SliceModel.h
     Source/Model/MusicalTime.h
     Source/Model/PadModel.cpp
     Source/Model/PadModel.h
