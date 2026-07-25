@@ -85,7 +85,8 @@ std::int64_t TapTempoEstimator::tap(const std::int64_t timestampMilliseconds) no
     if (elapsed <= 0)
         return defaultTempoMicroBpm;
     const auto intervalCount = static_cast<std::int64_t>(available - 1U);
-    const auto microBpm = (60'000'000'000LL * intervalCount + elapsed / 2) / elapsed;
+    const auto microBpm = static_cast<std::int64_t>(
+        (std::int64_t{60'000'000'000} * intervalCount + elapsed / 2) / elapsed);
     return std::clamp(microBpm, minimumTempoMicroBpm, maximumTempoMicroBpm);
 }
 

@@ -739,6 +739,10 @@ song mode, resampling, skipback, and export remain outside this milestone.
 Every testable defect discovered during Milestone 4 implementation or hosted remediation receives a
 stable `REGRESSION-M4-*` row here before the fix is claimed.
 
+| ID | Test |
+|---|---|
+| REGRESSION-M4-001 | Tap-tempo micro-BPM arithmetic has an explicit portable `int64_t` type so GCC/Linux and LLP64 platforms compile the clamp bounds consistently. |
+
 ## Sequencer and timing — Milestones 4–5
 
 | ID | Test |
