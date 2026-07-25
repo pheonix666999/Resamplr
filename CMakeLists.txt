@@ -47,6 +47,10 @@ add_library(
     Source/Model/PadModel.h
     Source/Model/Project.cpp
     Source/Model/Project.h
+    Source/Sequencing/PatternModel.cpp
+    Source/Sequencing/PatternModel.h
+    Source/Sequencing/Probability.cpp
+    Source/Sequencing/Probability.h
     Source/Sampling/SampleAsset.cpp
     Source/Sampling/SampleAsset.h
     Source/Sampling/WaveformCache.cpp

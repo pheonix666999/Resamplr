@@ -80,6 +80,11 @@ struct TempoPoint final {
                                               MusicalTime& output) noexcept;
 [[nodiscard]] juce::Result addMicroOffset(MusicalTime start, MicroOffsetQ16 offset,
                                           MusicalTime& output) noexcept;
+[[nodiscard]] juce::Result musicalTimeToQ16(MusicalTime value, std::int64_t& output) noexcept;
+[[nodiscard]] juce::Result musicalDurationToQ16(MusicalDuration value,
+                                                std::int64_t& output) noexcept;
+[[nodiscard]] MusicalTime musicalTimeFromQ16(std::int64_t value) noexcept;
+[[nodiscard]] MusicalDuration musicalDurationFromQ16(std::int64_t value) noexcept;
 
 class TempoMap final {
   public:

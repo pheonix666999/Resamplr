@@ -115,6 +115,23 @@ bool MusicalDuration::isPositive() const noexcept {
     return wholePpqTicks > 0 || (wholePpqTicks == 0 && fractionalTickQ16 > 0U);
 }
 
+juce::Result musicalTimeToQ16(const MusicalTime value, std::int64_t& output) noexcept {
+    return toQ16(value, output);
+}
+
+juce::Result musicalDurationToQ16(const MusicalDuration value, std::int64_t& output) noexcept {
+    return toQ16(value, output);
+}
+
+MusicalTime musicalTimeFromQ16(const std::int64_t value) noexcept {
+    return fromQ16(value);
+}
+
+MusicalDuration musicalDurationFromQ16(const std::int64_t value) noexcept {
+    const auto time = fromQ16(value);
+    return {time.wholePpqTicks, time.fractionalTickQ16};
+}
+
 bool isSupportedTimeSignature(const TimeSignature signature) noexcept {
     constexpr std::array<TimeSignature, 9U> supported{{
         {2U, 4U},
