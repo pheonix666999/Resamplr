@@ -3,6 +3,7 @@
 #include "Model/PadModel.h"
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include <set>
 #include <utility>
@@ -65,6 +66,12 @@ juce::Result validateSliceSet(const SliceSet& set, const bool requireContiguous)
         return juce::Result::fail("Slice set must contain at least one slice");
     if (set.slices.size() > static_cast<std::size_t>(maximumProvisionalSliceCount))
         return juce::Result::fail("Slice set exceeds the bounded provisional count");
+    if (!std::isfinite(set.parameters.transientSensitivity) ||
+        !std::isfinite(set.parameters.transientThresholdFloor) ||
+        set.parameters.transientSensitivity < 0.0F || set.parameters.transientSensitivity > 1.0F ||
+        set.parameters.transientThresholdFloor < 0.0F || set.parameters.minimumSliceFrames <= 0 ||
+        set.parameters.attackLookBackFrames < 0 || set.parameters.quantizeFrames < 0)
+        return juce::Result::fail("Slice algorithm parameters are invalid");
 
     std::set<juce::String> identities;
     std::int64_t previousEnd = set.sourceTrimStart;

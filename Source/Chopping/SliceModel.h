@@ -30,6 +30,7 @@ struct SliceAlgorithmParameters final {
     SliceDisplayUnit displayUnit{SliceDisplayUnit::frames};
     SliceRemainderPolicy remainderPolicy{SliceRemainderPolicy::include};
     float transientSensitivity{0.5F};
+    float transientThresholdFloor{0.0F};
     std::int64_t minimumSliceFrames{1};
     std::int64_t attackLookBackFrames{0};
     std::int64_t quantizeFrames{0};

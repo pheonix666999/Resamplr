@@ -132,6 +132,7 @@ std::shared_ptr<const JobResult> TransientAnalysis::analyse(const TransientAnaly
         generated.failed())
         return failure(request.target, generated.getErrorMessage());
     sliceSet.parameters.transientSensitivity = request.parameters.sensitivity;
+    sliceSet.parameters.transientThresholdFloor = request.parameters.thresholdFloor;
     sliceSet.parameters.minimumSliceFrames = request.parameters.minimumSliceFrames;
     sliceSet.parameters.attackLookBackFrames = request.parameters.attackLookBackFrames;
     sliceSet.parameters.sliceCount = static_cast<std::int64_t>(sliceSet.slices.size());
