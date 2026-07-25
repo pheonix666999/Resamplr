@@ -342,18 +342,20 @@ SmokeResult runSmokeScenario() {
         assignmentReport.assignedSliceUuids.size() != assignmentPlan.destinations.size())
         return {false, "SMOKE failure: transactional slice assignment failed"};
 
-    PlaybackEngine choppedEngine;
-    choppedEngine.prepare(48000.0);
-    PlaybackStatePublisher choppedPublisher{choppedEngine, assets};
+    // REGRESSION-M3-004: the shared scenario already keeps three full fixed voice pools alive.
+    // Keep this additional integration engine off the smaller default Windows process stack.
+    auto choppedEngine = std::make_unique<PlaybackEngine>();
+    choppedEngine->prepare(48000.0);
+    PlaybackStatePublisher choppedPublisher{*choppedEngine, assets};
     choppedPublisher.publish(controller.project().state());
-    InputRouter choppedInput{controller, choppedEngine};
+    InputRouter choppedInput{controller, *choppedEngine};
     for (const auto& destination : assignmentPlan.destinations) {
         if (!choppedInput.mouseDown(destination.globalPadIndex % padsPerBank) ||
-            !renderFiniteSignal(choppedEngine, 512U, true) ||
+            !renderFiniteSignal(*choppedEngine, 512U, true) ||
             !choppedInput.mouseUp(destination.globalPadIndex % padsPerBank))
             return {false, "SMOKE failure: assigned slice did not trigger finite non-silence"};
         choppedInput.panic();
-        juce::ignoreUnused(renderFiniteSignal(choppedEngine, 128U, false));
+        juce::ignoreUnused(renderFiniteSignal(*choppedEngine, 128U, false));
     }
     if (!controller.undo() || controller.project().state() != destinationBaseline)
         return {false, "SMOKE failure: slice assignment undo did not restore every destination"};
