@@ -76,6 +76,8 @@ add_library(
     Source/Audio/PreviewPlayer.h
     Source/Audio/SliceAuditionController.cpp
     Source/Audio/SliceAuditionController.h
+    Source/Sequencing/Transport.cpp
+    Source/Sequencing/Transport.h
     Source/Input/InputRouter.cpp
     Source/Input/InputRouter.h
     Source/Sampling/SampleImporter.cpp

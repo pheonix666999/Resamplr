@@ -74,6 +74,7 @@ juce::Result AudioRuntime::applySettings(const AudioSettings& settings) {
     });
     engine_.panic();
     preview_.panicWhenQuiescent();
+    transport_.stopAndPanicWhenQuiescent();
     const auto error = manager_.setAudioDeviceSetup(setup, true);
     if (error.isNotEmpty())
         return juce::Result::fail(error);
@@ -95,6 +96,7 @@ void AudioRuntime::close() {
     capture_.shutdown();
     engine_.panic();
     preview_.panicWhenQuiescent();
+    transport_.stopAndPanicWhenQuiescent();
     manager_.closeAudioDevice();
 }
 
@@ -109,6 +111,7 @@ juce::Result AudioRuntime::restart() {
     });
     engine_.panic();
     preview_.panicWhenQuiescent();
+    transport_.stopAndPanicWhenQuiescent();
     manager_.restartLastAudioDevice();
     if (manager_.getCurrentAudioDevice() == nullptr)
         return juce::Result::fail("Audio device could not be restarted");
@@ -223,6 +226,14 @@ const CaptureSession& AudioRuntime::capture() const noexcept {
     return capture_;
 }
 
+TransportEngine& AudioRuntime::transport() noexcept {
+    return transport_;
+}
+
+const TransportEngine& AudioRuntime::transport() const noexcept {
+    return transport_;
+}
+
 void AudioRuntime::audioDeviceIOCallbackWithContext(
     const float* const* const inputChannelData, const int numInputChannels,
     float* const* const outputChannelData, const int numOutputChannels, const int numSamples,
@@ -251,8 +262,12 @@ void AudioRuntime::audioDeviceIOCallbackWithContext(
         auto* right = numOutputChannels > 1 && outputChannelData[1] != nullptr
                           ? outputChannelData[1] + offset
                           : rightScratch_.data();
+        transport_.beginBlock();
+        if (transport_.consumePanicRequest())
+            engine_.panic();
         engine_.processBlock(left, right, static_cast<std::size_t>(count));
         preview_.processAdd(left, right, static_cast<std::size_t>(count));
+        transport_.processMetronomeAdd(left, right, static_cast<std::size_t>(count));
 
         if (testToneEnabled_.load(std::memory_order_relaxed)) {
             constexpr double frequency = 440.0;
@@ -278,12 +293,14 @@ void AudioRuntime::audioDeviceAboutToStart(juce::AudioIODevice* const device) {
                             : 48000.0;
     engine_.prepare(activeSampleRate_);
     preview_.prepare(activeSampleRate_);
+    transport_.stopAndPanicWhenQuiescent();
     testTonePhase_ = 0.0;
     deviceError_.store(false, std::memory_order_release);
 }
 
 void AudioRuntime::audioDeviceStopped() {
     capture_.cancel();
+    transport_.stopAndPanicWhenQuiescent();
     engine_.panic();
     preview_.panicWhenQuiescent();
     testTonePhase_ = 0.0;
@@ -292,6 +309,7 @@ void AudioRuntime::audioDeviceStopped() {
 void AudioRuntime::audioDeviceError(const juce::String& errorMessage) {
     juce::ignoreUnused(errorMessage);
     deviceError_.store(true, std::memory_order_release);
+    transport_.stopAndPanicWhenQuiescent();
     panicRequested_.store(true, std::memory_order_release);
 }
 } // namespace padflow
