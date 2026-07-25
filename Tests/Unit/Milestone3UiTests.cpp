@@ -187,9 +187,11 @@ class Milestone3UiTests final : public juce::UnitTest {
         expect(workspace.session().provisionalSliceSet().has_value());
         expect(workspace.session().provisionalSliceSet()->slices.size() > 1U);
         const auto transientStatus = workspace.statusText();
-        expect(std::all_of(transientStatus.begin(), transientStatus.end(),
-                           [](const auto character) { return character < 128; }),
-               "REGRESSION-M3-003 status text must remain ASCII-safe");
+        auto statusCharacter = transientStatus.getCharPointer();
+        auto statusIsAscii = true;
+        while (!statusCharacter.isEmpty())
+            statusIsAscii = statusIsAscii && statusCharacter.getAndAdvance() < 128;
+        expect(statusIsAscii, "REGRESSION-M3-003 status text must remain ASCII-safe");
         if (evidencePath.isNotEmpty())
             expect(writeUiEvidence(view,
                                    evidenceDirectory.getChildFile("padflow-chop-transient.png")));
