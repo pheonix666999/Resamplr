@@ -159,14 +159,28 @@ class Milestone3UiTests final : public juce::UnitTest {
             workspace.setMode(mode);
             expectEquals(static_cast<int>(workspace.mode()), static_cast<int>(mode));
         }
+        workspace.setMode(SliceAlgorithm::equal);
+        expectEquals(static_cast<int>(workspace.mode()), static_cast<int>(SliceAlgorithm::equal));
         expect(workspace.generateEqual(4).wasOk());
         expectEquals(static_cast<int>(workspace.session().provisionalSliceSet()->slices.size()), 4);
         expectEquals(static_cast<juce::int64>(controller.project().revision()),
                      static_cast<juce::int64>(revisionBeforeProvisional));
+        auto* waveformInfo =
+            dynamic_cast<juce::Label*>(findDescendantWithId(view, "waveform-info"));
+        for (int attempt = 0;
+             attempt < 2000 &&
+             (waveformInfo == nullptr || !waveformInfo->getText().containsIgnoreCase("cached"));
+             ++attempt) {
+            juce::Thread::sleep(1);
+            view.processPendingJobs();
+        }
+        expect(waveformInfo != nullptr && waveformInfo->getText().containsIgnoreCase("cached"),
+               "REGRESSION-M3-009 equal evidence requires the completed waveform cache");
         if (evidencePath.isNotEmpty())
             expect(writeUiEvidence(view, evidenceDirectory.getChildFile("padflow-chop-equal.png")));
 
         beginTest("UIHEADLESS-M3-004 generates both fixed remainder policies provisionally");
+        workspace.setMode(SliceAlgorithm::fixedLength);
         expect(
             workspace.generateFixed(700.0, SliceDisplayUnit::frames, SliceRemainderPolicy::include)
                 .wasOk());
@@ -177,6 +191,7 @@ class Milestone3UiTests final : public juce::UnitTest {
         expectEquals(static_cast<int>(workspace.session().provisionalSliceSet()->slices.size()), 5);
 
         beginTest("UIHEADLESS-M3-005 publishes asynchronous transient analysis");
+        workspace.setMode(SliceAlgorithm::transient);
         expect(workspace.submitTransientAnalysis({0.5F, 128, 0, 0.0F}));
         expect(workspace.analysisPending());
         for (int attempt = 0; attempt < 2000 && workspace.analysisPending(); ++attempt) {
@@ -197,6 +212,7 @@ class Milestone3UiTests final : public juce::UnitTest {
                                    evidenceDirectory.getChildFile("padflow-chop-transient.png")));
 
         beginTest("UIHEADLESS-M3-006 manual edit and session undo update provisional slices");
+        workspace.setMode(SliceAlgorithm::manual);
         const auto transientCount = workspace.session().provisionalSliceSet()->slices.size();
         expect(workspace.addMarker(900).wasOk());
         expectEquals(static_cast<int>(workspace.session().provisionalSliceSet()->slices.size()),
@@ -218,6 +234,7 @@ class Milestone3UiTests final : public juce::UnitTest {
         runtime.preview().processAdd(left.data(), right.data(), left.size());
 
         beginTest("UIHEADLESS-M3-007 and REGRESSION-M3-002 drain cross-input lazy marker events");
+        workspace.setMode(SliceAlgorithm::lazy);
         expect(workspace.startLazy({128, 3968, 32, 0}));
         left.fill(0.0F);
         right.fill(0.0F);

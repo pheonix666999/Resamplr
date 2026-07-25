@@ -567,6 +567,7 @@ Every defect discovered during Milestone 3 implementation or hosted remediation 
 | REGRESSION-M3-006 | The monolithic populated smoke fixture heap-owns full project, playback-engine, capture-session, and copied-project lifetimes, reducing its Debug frame while preserving default-stack product GUI smoke coverage. |
 | REGRESSION-M3-007 | Windows console/unit hosts retain their default stack configuration; smoke reliability must come from bounded fixtures and memory-safe lifetimes rather than a larger linker reserve. |
 | REGRESSION-M3-008 | The populated smoke path copies external-asset metadata before any project-state replacement and never retains a pointer into the old project's asset vector. |
+| REGRESSION-M3-009 | Each named CI chopping screenshot explicitly selects its matching mode, and equal-slice evidence waits for a completed waveform cache before capture. |
 
 ## Sequencer and timing — Milestones 4–5
 
