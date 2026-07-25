@@ -33,6 +33,8 @@ add_library(
     Source/App/ApplicationController.h
     Source/Chopping/ChoppingSession.cpp
     Source/Chopping/ChoppingSession.h
+    Source/Chopping/AssignmentPlan.cpp
+    Source/Chopping/AssignmentPlan.h
     Source/Chopping/LazyMarkerCapture.cpp
     Source/Chopping/LazyMarkerCapture.h
     Source/Chopping/SliceModel.cpp

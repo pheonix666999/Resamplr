@@ -1,5 +1,7 @@
 #include "ApplicationController.h"
 
+#include "Chopping/AssignmentPlan.h"
+
 #include <algorithm>
 #include <memory>
 #include <utility>
@@ -423,6 +425,88 @@ juce::Result ApplicationController::commitRecordedLayer(const JobSpec& target,
         return result;
     undoHistory_.push_back(ProjectEdit{before, project_.state(), "Assign recorded sample"});
     redoHistory_.clear();
+    return juce::Result::ok();
+}
+
+juce::Result ApplicationController::commitSliceAssignment(const AssignmentPlan& plan,
+                                                          AssignmentCommitReport& report) {
+    if (plan.request.projectUuid != project_.uuid() ||
+        plan.request.expectedProjectRevision != project_.revision())
+        return juce::Result::fail("Slice assignment project revision is stale");
+    if (plan.overflow || plan.destinations.size() != plan.request.sliceSet.slices.size() ||
+        plan.hasUnresolvedConflicts())
+        return juce::Result::fail("Slice assignment plan is incomplete");
+
+    AssignmentPlan currentPlan;
+    if (const auto rebuilt = buildAssignmentPlan(project_.state(), plan.request, currentPlan);
+        rebuilt.failed())
+        return rebuilt;
+    if (currentPlan.destinations.size() != plan.destinations.size())
+        return juce::Result::fail("Slice assignment destination plan changed");
+    for (std::size_t index = 0U; index < plan.destinations.size(); ++index) {
+        const auto& expected = currentPlan.destinations[index];
+        const auto& supplied = plan.destinations[index];
+        if (expected.sliceIndex != supplied.sliceIndex ||
+            expected.sliceUuid != supplied.sliceUuid ||
+            expected.startFrame != supplied.startFrame || expected.endFrame != supplied.endFrame ||
+            expected.globalPadIndex != supplied.globalPadIndex ||
+            expected.layerIndex != supplied.layerIndex ||
+            expected.expectedPadUuid != supplied.expectedPadUuid ||
+            expected.expectedLayerUuid != supplied.expectedLayerUuid ||
+            expected.occupied != supplied.occupied ||
+            supplied.decision == AssignmentConflictDecision::unresolved)
+            return juce::Result::fail("Slice assignment destination identity is stale");
+    }
+
+    auto candidate = project_.state();
+    const auto existingSet =
+        std::find_if(candidate.sliceSets.begin(), candidate.sliceSets.end(),
+                     [&](const auto& set) { return set.uuid == plan.request.sliceSet.uuid; });
+    if (existingSet != candidate.sliceSets.end()) {
+        if (*existingSet != plan.request.sliceSet)
+            return juce::Result::fail("Slice assignment set UUID already has different content");
+    } else {
+        candidate.sliceSets.push_back(plan.request.sliceSet);
+    }
+
+    AssignmentCommitReport candidateReport;
+    for (const auto& destination : plan.destinations) {
+        if (destination.decision == AssignmentConflictDecision::skip) {
+            candidateReport.skippedSliceUuids.push_back(destination.sliceUuid);
+            continue;
+        }
+        auto& pad = candidate.banks[destination.globalPadIndex / padsPerBank]
+                        .pads[destination.globalPadIndex % padsPerBank];
+        if (destination.replacesWholePad)
+            pad = makeClearedPad(candidate, destination.globalPadIndex);
+        auto& layer = pad.layers[destination.layerIndex];
+        layer.assetUuid = plan.request.sourceAssetUuid;
+        layer.sliceUuid = destination.sliceUuid;
+        layer.sliceSetUuid = plan.request.sliceSet.uuid;
+        layer.assignmentSessionUuid = plan.request.sessionUuid;
+        layer.enabled = true;
+        layer.velocityMinimum = 1U;
+        layer.velocityMaximum = 127U;
+        layer.playback = {
+            static_cast<std::uint64_t>(destination.startFrame),
+            static_cast<std::uint64_t>(destination.endFrame),
+            static_cast<std::uint64_t>(destination.startFrame),
+            static_cast<std::uint64_t>(destination.endFrame),
+            false,
+            false,
+            false,
+            true,
+        };
+        if (destination.replacesWholePad)
+            pad.name = "Slice " + juce::String{static_cast<int>(destination.sliceIndex + 1U)};
+        candidateReport.assignedSliceUuids.push_back(destination.sliceUuid);
+    }
+    if (candidateReport.assignedSliceUuids.empty())
+        return juce::Result::fail("Slice assignment contains no committed destinations");
+    if (const auto committed = commitProjectEdit(std::move(candidate), "Assign chopped slices");
+        committed.failed())
+        return committed;
+    report = std::move(candidateReport);
     return juce::Result::ok();
 }
 

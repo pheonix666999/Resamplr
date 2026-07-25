@@ -8,6 +8,9 @@
 #include <vector>
 
 namespace padflow {
+struct AssignmentPlan;
+struct AssignmentCommitReport;
+
 class ApplicationController final {
   public:
     ApplicationController();
@@ -59,6 +62,8 @@ class ApplicationController final {
                                                    const juce::String& expectedLayerUuid,
                                                    ExternalAssetReference recordedAsset,
                                                    RecordedAssetRecord provenance);
+    [[nodiscard]] juce::Result commitSliceAssignment(const AssignmentPlan& plan,
+                                                     AssignmentCommitReport& report);
     [[nodiscard]] bool canUndo() const noexcept;
     [[nodiscard]] bool canRedo() const noexcept;
     [[nodiscard]] bool undo();
