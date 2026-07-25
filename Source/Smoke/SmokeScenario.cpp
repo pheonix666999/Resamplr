@@ -158,7 +158,10 @@ SmokeResult runSmokeScenario() {
     if (!sampleFile.loadFileAsData(originalSourceBytes))
         return {false, "SMOKE failure: could not fingerprint synthetic source"};
 
-    ApplicationController controller;
+    // REGRESSION-M3-006: this intentionally broad integration scenario keeps all heavyweight
+    // lifetime owners on the heap so its Debug frame fits the default Windows process stack.
+    auto controllerStorage = std::make_unique<ApplicationController>();
+    auto& controller = *controllerStorage;
     controller.createEmptyProject("Populated Smoke", "00000000-0000-4000-8000-000000000101");
     BackgroundJobSystem jobs{8U, 1U};
     SampleAssetRegistry assets{16U * 1024U * 1024U};
@@ -189,7 +192,8 @@ SmokeResult runSmokeScenario() {
         controller.setLayerReverseEnabled(0U, 0U, true).failed())
         return {false, "SMOKE failure: trim/reverse/loop editing failed"};
 
-    PlaybackEngine editedEngine;
+    auto editedEngineStorage = std::make_unique<PlaybackEngine>();
+    auto& editedEngine = *editedEngineStorage;
     editedEngine.prepare(48000.0);
     PlaybackStatePublisher editedPublisher{editedEngine, assets};
     editedPublisher.publish(controller.project().state());
@@ -210,7 +214,7 @@ SmokeResult runSmokeScenario() {
     occupiedLayer.uuid = controller.project().pad(1U).layers[0U].uuid;
     if (controller.setLayer(1U, 0U, occupiedLayer).failed())
         return {false, "SMOKE failure: occupied chopping destination setup failed"};
-    const auto destinationBaseline = controller.project().state();
+    const auto destinationBaseline = std::make_unique<ProjectState>(controller.project().state());
     const auto sourceRevision = controller.project().revision();
     ChoppingSession chopping;
     const ChoppingSessionTarget choppingTarget{"smoke-chopping-session",
@@ -342,8 +346,7 @@ SmokeResult runSmokeScenario() {
         assignmentReport.assignedSliceUuids.size() != assignmentPlan.destinations.size())
         return {false, "SMOKE failure: transactional slice assignment failed"};
 
-    // REGRESSION-M3-004: the shared scenario already keeps three full fixed voice pools alive.
-    // Keep this additional integration engine off the smaller default Windows process stack.
+    // REGRESSION-M3-004: keep the additional integration engine off the Windows process stack.
     auto choppedEngine = std::make_unique<PlaybackEngine>();
     choppedEngine->prepare(48000.0);
     PlaybackStatePublisher choppedPublisher{*choppedEngine, assets};
@@ -357,11 +360,12 @@ SmokeResult runSmokeScenario() {
         choppedInput.panic();
         juce::ignoreUnused(renderFiniteSignal(*choppedEngine, 128U, false));
     }
-    if (!controller.undo() || controller.project().state() != destinationBaseline)
+    if (!controller.undo() || controller.project().state() != *destinationBaseline)
         return {false, "SMOKE failure: slice assignment undo did not restore every destination"};
     if (!controller.redo() || controller.project().state().sliceSets.size() != 1U)
         return {false, "SMOKE failure: slice assignment redo was not deterministic"};
-    const auto committedChoppingState = controller.project().state();
+    const auto committedChoppingState =
+        std::make_unique<ProjectState>(controller.project().state());
     ChoppingSession cancelledChopping;
     auto cancelTarget = choppingTarget;
     cancelTarget.sessionUuid = "smoke-cancelled-chopping-session";
@@ -370,7 +374,7 @@ SmokeResult runSmokeScenario() {
         cancelledChopping.regenerateEqual(3).failed())
         return {false, "SMOKE failure: second provisional chopping session could not start"};
     cancelledChopping.cancel();
-    if (controller.project().state() != committedChoppingState)
+    if (controller.project().state() != *committedChoppingState)
         return {false, "SMOKE failure: cancelled chopping session mutated the project"};
     choppedPublisher.clearWhenAudioIsStopped();
 
@@ -428,7 +432,8 @@ SmokeResult runSmokeScenario() {
     if (controller.setPadParameters(0U, parameters).failed())
         return {false, "SMOKE failure: gain/pan/pitch/ADSR edit failed"};
 
-    PlaybackEngine engine;
+    auto engineStorage = std::make_unique<PlaybackEngine>();
+    auto& engine = *engineStorage;
     engine.prepare(48000.0);
     PlaybackStatePublisher publisher{engine, assets};
     publisher.publish(controller.project().state());
@@ -483,7 +488,8 @@ SmokeResult runSmokeScenario() {
     const auto save = ProjectSerializer::save(controller.project(), projectFile);
     if (!save.succeeded)
         return {false, "SMOKE failure: " + save.message};
-    auto loaded = Project::createEmpty();
+    auto loadedStorage = std::make_unique<Project>(Project::createEmpty());
+    auto& loaded = *loadedStorage;
     const auto load = ProjectSerializer::load(projectFile, loaded);
     if (load.failed() || loaded.state() != controller.project().state() ||
         loaded.pad(0U).layers[0].assetUuid != editedAssetUuid ||
@@ -493,7 +499,8 @@ SmokeResult runSmokeScenario() {
         loaded.pad(0U).midiNote != 48U)
         return {false, "SMOKE failure: populated schema-v1 round trip failed"};
 
-    ApplicationController restoredController;
+    auto restoredControllerStorage = std::make_unique<ApplicationController>();
+    auto& restoredController = *restoredControllerStorage;
     if (restoredController.restoreProject(std::move(loaded)).failed())
         return {false, "SMOKE failure: restored controller rejected the project"};
     SampleAssetRegistry restoredAssets{16U * 1024U * 1024U};
@@ -501,7 +508,8 @@ SmokeResult runSmokeScenario() {
         return {false, "SMOKE failure: restored project assets could not be resolved"};
 
     const auto captureFile = temporaryDirectory.getChildFile("mock-recording.wav");
-    CaptureSession capture;
+    auto captureStorage = std::make_unique<CaptureSession>();
+    auto& capture = *captureStorage;
     CaptureSpec captureSpec;
     captureSpec.destination = captureFile;
     captureSpec.sampleRate = 1000.0;
@@ -555,7 +563,8 @@ SmokeResult runSmokeScenario() {
         restoredController.project().pad(9U).layers[0].assetUuid != "smoke-recorded-asset")
         return {false, "SMOKE failure: recording assignment undo/redo failed"};
 
-    PlaybackEngine restoredEngine;
+    auto restoredEngineStorage = std::make_unique<PlaybackEngine>();
+    auto& restoredEngine = *restoredEngineStorage;
     restoredEngine.prepare(48000.0);
     PlaybackStatePublisher restoredPublisher{restoredEngine, restoredAssets};
     restoredPublisher.publish(restoredController.project().state());
@@ -571,7 +580,8 @@ SmokeResult runSmokeScenario() {
         return {false, "SMOKE failure: restored chopped A2 did not retrigger"};
 
     const auto finalSave = ProjectSerializer::save(restoredController.project(), projectFile);
-    auto finalLoaded = Project::createEmpty();
+    auto finalLoadedStorage = std::make_unique<Project>(Project::createEmpty());
+    auto& finalLoaded = *finalLoadedStorage;
     if (!finalSave.succeeded || ProjectSerializer::load(projectFile, finalLoaded).failed() ||
         finalLoaded.state() != restoredController.project().state() ||
         finalLoaded.state().recordedAssets.size() != 1U ||

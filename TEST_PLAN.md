@@ -564,6 +564,7 @@ Every defect discovered during Milestone 3 implementation or hosted remediation 
 | REGRESSION-M3-003 | Chopping status strings use JUCE-safe ASCII literals and headless execution raises no invalid narrow-string assertion. |
 | REGRESSION-M3-004 | The populated smoke path keeps its additional Milestone 3 playback engine off the default Windows process stack, preventing pre-diagnostic stack overflow in every shared smoke registration. |
 | REGRESSION-M3-005 | ASCII status validation walks JUCE character pointers explicitly so the regression test compiles consistently with GCC, Clang, and MSVC. |
+| REGRESSION-M3-006 | The monolithic populated smoke fixture heap-owns full project, playback-engine, capture-session, and copied-project lifetimes so every Debug registration fits the default Windows process stack. |
 
 ## Sequencer and timing — Milestones 4–5
 
