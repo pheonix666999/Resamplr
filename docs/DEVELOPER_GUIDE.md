@@ -30,3 +30,24 @@ must follow `docs/PROJECT_FORMAT.md`. Add stable test IDs before claiming new ac
 Milestone 1 playback publication couples each raw-view snapshot to message-thread-owned immutable
 sample owners. Reclamation is gated by the oldest generation still referenced by a callback voice;
 never replace this with current-snapshot acknowledgement alone.
+
+## Milestone 2 data flow
+
+Waveform summaries, derived renders, and completed-recording decode all use explicit `JobKind`
+routing. Jobs capture the current project UUID, target UUID, and revision; only the message thread
+may accept a matching immutable completion. Waveform caches have their own bounded registry and are
+regenerable. Derived files use deterministic recipes and project-owned `Assets/Derived` paths.
+Recorded files use `Assets/Recorded`, retain their capture provenance, and enter the same immutable
+asset registry as imported audio.
+
+Capture is prepared completely before arming. The device callback copies into fixed blocks, updates
+atomics, and returns immediately when the FIFO is full. The session writer owns `.part` creation,
+24-bit WAV encoding, close/validation, collision-safe publication, and failure cleanup. Project
+close, application shutdown, device restart, or format change cancels an active capture before
+storage is recreated. An incomplete or stale take is never assigned automatically.
+
+The integration smoke is intentionally hardware-independent. It exercises cache generation,
+trim/reverse/loop playback, normalize/crop source preservation, schema-v1 round trip, mocked capture
+through the real FIFO/writer path, recording assignment, retrigger, and undo/redo. Set
+`PADFLOW_SCREENSHOT_DIR` while running `padflow_tests` to write actual offscreen JUCE snapshots of
+the populated waveform editor and armed recording panel.

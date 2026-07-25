@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Audio/CaptureWriter.h"
 #include "Audio/PlaybackEngine.h"
 #include "Audio/PreviewPlayer.h"
 #include "Model/PadModel.h"
@@ -52,6 +53,8 @@ class AudioRuntime final : public juce::AudioIODeviceCallback {
     [[nodiscard]] const PlaybackEngine& engine() const noexcept;
     [[nodiscard]] PreviewPlayer& preview() noexcept;
     [[nodiscard]] const PreviewPlayer& preview() const noexcept;
+    [[nodiscard]] CaptureSession& capture() noexcept;
+    [[nodiscard]] const CaptureSession& capture() const noexcept;
 
     void
     audioDeviceIOCallbackWithContext(const float* const* inputChannelData, int numInputChannels,
@@ -68,6 +71,7 @@ class AudioRuntime final : public juce::AudioIODeviceCallback {
     juce::AudioDeviceManager manager_;
     PlaybackEngine engine_;
     PreviewPlayer preview_;
+    CaptureSession capture_;
     std::array<float, scratchFrames> leftScratch_{};
     std::array<float, scratchFrames> rightScratch_{};
     std::atomic<bool> callbackRegistered_{false};

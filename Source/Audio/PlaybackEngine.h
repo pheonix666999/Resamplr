@@ -8,6 +8,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 
 namespace padflow {
 struct PlaybackLayerSnapshot final {
@@ -18,6 +19,12 @@ struct PlaybackLayerSnapshot final {
     float gainLinear{1.0F};
     float pan{-0.0F};
     float tuningCents{0.0F};
+    std::uint64_t startFrame{0U};
+    std::uint64_t endFrame{0U};
+    std::uint64_t loopStartFrame{0U};
+    std::uint64_t loopEndFrame{0U};
+    bool loopEnabled{false};
+    bool reverseEnabled{false};
 };
 
 struct PlaybackPadSnapshot final {
@@ -59,6 +66,8 @@ class PlaybackEngine final {
     [[nodiscard]] std::size_t activeVoiceCount() const noexcept;
     [[nodiscard]] int lastAllocatedVoiceIndex() const noexcept;
     [[nodiscard]] std::uint64_t acknowledgedSnapshotGeneration() const noexcept;
+    [[nodiscard]] std::optional<std::uint64_t>
+    playbackPosition(std::size_t padIndex) const noexcept;
 
   private:
     enum class EnvelopeStage : std::uint8_t { inactive, attack, decay, sustain, release };
@@ -72,6 +81,11 @@ class PlaybackEngine final {
         EnvelopeStage stage{EnvelopeStage::inactive};
         double position{0.0};
         double increment{1.0};
+        std::uint64_t startFrame{0U};
+        std::uint64_t endFrame{0U};
+        std::uint64_t loopStartFrame{0U};
+        std::uint64_t loopEndFrame{0U};
+        bool loopEnabled{false};
         float envelope{0.0F};
         float sustain{1.0F};
         float attackStep{1.0F};
@@ -90,6 +104,7 @@ class PlaybackEngine final {
     [[nodiscard]] std::size_t allocateVoice(std::uint32_t padIndex) noexcept;
     [[nodiscard]] static float interpolate(const SampleAssetView& asset, std::uint32_t channel,
                                            double position) noexcept;
+    static void advancePosition(Voice& voice) noexcept;
     [[nodiscard]] float advanceEnvelope(Voice& voice) const noexcept;
 
     std::array<Voice, voiceCount> voices_{};
@@ -103,6 +118,7 @@ class PlaybackEngine final {
     std::atomic<std::uint64_t> renderedBlocks_{0U};
     std::atomic<int> lastAllocatedVoice_{-1};
     std::atomic<std::uint64_t> reclaimableSnapshotGeneration_{0U};
+    std::array<std::atomic<std::uint64_t>, totalPadCount> playbackPositions_{};
 };
 
 [[nodiscard]] PlaybackSnapshot makePlaybackSnapshot(const ProjectState& project,

@@ -32,9 +32,9 @@ class FoundationTests final : public juce::UnitTest {
         ApplicationController controller;
         controller.createEmptyProject("Controller", "controller-project");
         expect(controller.isCurrentJobTarget(
-            JobSpec{"controller-project", "controller-project", 0U, 0}));
+            JobSpec{"controller-project", "controller-project", 0U, 0, JobKind::generic}));
         expect(!controller.isCurrentJobTarget(
-            JobSpec{"controller-project", "controller-project", 1U, 0}));
+            JobSpec{"controller-project", "controller-project", 1U, 0, JobKind::generic}));
 
         beginTest("SAVE-001 canonical manifest and semantic round trip");
         const auto temporaryDirectory = juce::File::getSpecialLocation(juce::File::tempDirectory)
@@ -66,7 +66,7 @@ class FoundationTests final : public juce::UnitTest {
 
         beginTest("THREAD-002 background job immutable completion");
         BackgroundJobSystem jobs{4U, 1U};
-        JobSpec spec{"owner", "target", 7U, 0};
+        JobSpec spec{"owner", "target", 7U, 0, JobKind::generic};
         const auto handle =
             jobs.submit(spec, [spec](const CancellationToken& token, JobProgress& progress) {
                 progress.set(1.0F);
@@ -153,7 +153,7 @@ class FoundationTests final : public juce::UnitTest {
         expect(readData != nullptr && readData[0] == 0.5F);
         expect(fifo.releaseReadBlock(descriptor.blockIndex));
 
-        beginTest("UIHEADLESS-001 shared deterministic smoke scenario");
+        beginTest("UIHEADLESS-001 and REGRESSION-M2-007 shared deterministic smoke scenario");
         const auto smoke = runSmokeScenario();
         expect(smoke.succeeded, smoke.diagnostics);
     }

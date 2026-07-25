@@ -11,3 +11,14 @@
   one-shot/gate/toggle, mono/poly, choke groups, local limits, and safe snapshot retirement.
 - Persistent audio/MIDI settings, project operations, unified undo/redo, populated-project smoke
   coverage, unsigned development packaging, and cross-platform CI.
+- Immutable bounded multi-resolution waveform caches and an original selected-layer editor with
+  trim, loop, reverse, zoom, pan, marker nudging, source/selection fitting, audition, and a live
+  callback-published playhead.
+- Deterministic project-owned Normalize, Stereo to mono, linear Fade in/out, and Crop derivatives
+  with immutable publication, recipe reuse, provenance persistence, stale-result rejection, and
+  reference-based undo/redo.
+- Manual and threshold-triggered mono/stereo recording with up to two seconds of pre-roll, a
+  preallocated four-second-or-larger FIFO, dedicated WAV writer, overflow rejection, explicit UI
+  states, fixed destination validation, assignment, and schema-v1 recording provenance.
+- Hardware-independent integration smoke coverage, CI-generated waveform/recording screenshots,
+  and green Linux, Windows, macOS universal, macOS Intel, packaging, and artifact validation.

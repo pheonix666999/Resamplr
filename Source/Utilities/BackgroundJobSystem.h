@@ -15,6 +15,16 @@
 #include <vector>
 
 namespace padflow {
+enum class JobKind : std::uint8_t {
+    generic,
+    sampleImport,
+    sampleResolve,
+    samplePreview,
+    waveformCache,
+    derivedAsset,
+    recordedAsset
+};
+
 class CancellationToken final {
   public:
     void cancel() noexcept;
@@ -38,6 +48,7 @@ struct JobSpec final {
     juce::String targetUuid;
     std::uint64_t targetRevision{0};
     int priority{0};
+    JobKind kind{JobKind::generic};
 };
 
 struct JobResult final {

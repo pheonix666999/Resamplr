@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <utility>
 
 namespace padflow {
@@ -69,6 +70,11 @@ SamplerView::~SamplerView() {
         fileChooser_.reset();
     input_.panic();
     juce::ignoreUnused(preview_.stop());
+    runtime_.capture().cancel();
+    if (derivedJob_.has_value())
+        derivedJob_->cancel();
+    if (recordingDecodeJob_.has_value())
+        recordingDecodeJob_->cancel();
 }
 
 void SamplerView::configureControls() {
@@ -78,9 +84,10 @@ void SamplerView::configureControls() {
     productLabel_.setTitle("PadFlow product name");
     addAndMakeVisible(productLabel_);
 
-    for (auto* label : {&projectLabel_, &modifiedLabel_, &cpuLabel_, &audioStateLabel_,
-                        &selectedPadLabel_, &sampleNameLabel_, &deviceStatusLabel_,
-                        &midiStatusLabel_, &memoryStatusLabel_, &operationStatusLabel_}) {
+    for (auto* label :
+         {&projectLabel_, &modifiedLabel_, &cpuLabel_, &audioStateLabel_, &selectedPadLabel_,
+          &sampleNameLabel_, &waveformInfoLabel_, &deviceStatusLabel_, &midiStatusLabel_,
+          &memoryStatusLabel_, &operationStatusLabel_}) {
         styleLabel(*label, juce::Justification::centredLeft);
         addAndMakeVisible(*label);
     }
@@ -92,7 +99,9 @@ void SamplerView::configureControls() {
 
     for (auto* button :
          {&newButton_, &openButton_, &saveButton_, &undoButton_, &redoButton_, &audioButton_,
-          &midiButton_, &importButton_, &clearLayerButton_, &clearPadButton_, &auditionButton_}) {
+          &midiButton_, &recordingPanelButton_, &importButton_, &clearLayerButton_,
+          &clearPadButton_, &auditionButton_, &stopAuditionButton_, &fitWaveformButton_,
+          &fitSelectionButton_, &resetTrimButton_, &resetLoopButton_, &processButton_}) {
         styleButton(*button);
         addAndMakeVisible(*button);
         button->setTitle(button->getButtonText());
@@ -102,8 +111,20 @@ void SamplerView::configureControls() {
     saveButton_.setComponentID("save-project");
     audioButton_.setComponentID("audio-settings");
     midiButton_.setComponentID("midi-settings");
+    recordingPanelButton_.setComponentID("recording-panel-toggle");
+    auditionButton_.setComponentID("waveform-audition");
+    stopAuditionButton_.setComponentID("waveform-stop");
+    fitWaveformButton_.setComponentID("waveform-fit");
+    fitSelectionButton_.setComponentID("waveform-fit-selection");
+    resetTrimButton_.setComponentID("waveform-reset-trim");
+    resetLoopButton_.setComponentID("waveform-reset-loop");
+    processButton_.setComponentID("waveform-process");
+    waveformInfoLabel_.setComponentID("waveform-info");
+    waveformInfoLabel_.setColour(juce::Label::textColourId, juce::Colour{mutedTextColour});
+    waveformInfoLabel_.setFont(juce::FontOptions{11.0F});
 
     newButton_.onClick = [this] {
+        cancelRecording();
         jobs_.cancelOwner(controller_.project().uuid());
         jobs_.cancelOwner("padflow-resolve");
         jobs_.cancelOwner("padflow-preview");
@@ -112,6 +133,10 @@ void SamplerView::configureControls() {
         input_.panic();
         juce::ignoreUnused(preview_.stop());
         assets_.clear();
+        waveformCaches_.clear();
+        waveformJob_.reset();
+        waveformPendingAssetUuid_.clear();
+        waveformPendingRevision_ = 0U;
         controller_.createEmptyProject();
         modified_ = false;
         publishModel(false);
@@ -133,6 +158,7 @@ void SamplerView::configureControls() {
     };
     audioButton_.onClick = [this] { showAudioSettings(); };
     midiButton_.onClick = [this] { showMidiSettings(); };
+    recordingPanelButton_.onClick = [this] { setRecordingPanelVisible(!recordingPanelVisible_); };
 
     for (std::size_t bank = 0; bank < bankButtons_.size(); ++bank) {
         auto& button = bankButtons_[bank];
@@ -188,6 +214,43 @@ void SamplerView::configureControls() {
     layerSelector_.onChange = [this] { refreshEditor(); };
     addAndMakeVisible(layerSelector_);
 
+    addAndMakeVisible(waveformEditor_);
+    waveformEditor_.onMarkerCommit = [this](const WaveformEditor::Marker marker,
+                                            const std::uint64_t frame) {
+        commitWaveformMarker(marker, frame);
+    };
+    waveformEditor_.onAuditionFromFrame = [this](const std::uint64_t) { auditionSelectedLayer(); };
+
+    for (auto* toggle : {&loopToggle_, &reverseToggle_, &snapToggle_}) {
+        toggle->setColour(juce::ToggleButton::textColourId, juce::Colour{textColour});
+        toggle->setColour(juce::ToggleButton::tickColourId, juce::Colour{tealColour});
+        addAndMakeVisible(*toggle);
+    }
+    loopToggle_.setComponentID("waveform-loop");
+    reverseToggle_.setComponentID("waveform-reverse");
+    snapToggle_.setComponentID("waveform-zero-crossing");
+    loopToggle_.setTitle("Enable loop for the selected layer");
+    reverseToggle_.setTitle("Reverse new triggers for the selected layer");
+    snapToggle_.setTitle("Remember zero-crossing snap preference");
+    loopToggle_.onClick = [this] {
+        applyEditorResult(controller_.setLayerLoopEnabled(selectedGlobalPad(), selectedLayerIndex(),
+                                                          loopToggle_.getToggleState()),
+                          loopToggle_.getToggleState() ? "Enabled loop" : "Disabled loop");
+    };
+    reverseToggle_.onClick = [this] {
+        applyEditorResult(controller_.setLayerReverseEnabled(selectedGlobalPad(),
+                                                             selectedLayerIndex(),
+                                                             reverseToggle_.getToggleState()),
+                          reverseToggle_.getToggleState() ? "Enabled reverse" : "Disabled reverse");
+    };
+    snapToggle_.onClick = [this] {
+        applyEditorResult(controller_.setLayerZeroCrossingSnap(selectedGlobalPad(),
+                                                               selectedLayerIndex(),
+                                                               snapToggle_.getToggleState()),
+                          snapToggle_.getToggleState() ? "Enabled zero-crossing preference"
+                                                       : "Disabled zero-crossing preference");
+    };
+
     configureEditorControl(gainSlider_, "Gain decibels", -60.0, 12.0, 0.1);
     configureEditorControl(panSlider_, "Pan", -1.0, 1.0, 0.01);
     configureEditorControl(coarseSlider_, "Coarse pitch semitones", -48.0, 48.0, 1.0);
@@ -232,6 +295,27 @@ void SamplerView::configureControls() {
         }
     };
     auditionButton_.onClick = [this] { auditionSelectedLayer(); };
+    stopAuditionButton_.onClick = [this] { stopAudition(); };
+    fitWaveformButton_.onClick = [this] { waveformEditor_.fitSource(); };
+    fitSelectionButton_.onClick = [this] { waveformEditor_.fitTrimSelection(); };
+    resetTrimButton_.onClick = [this] {
+        applyEditorResult(controller_.resetLayerTrim(selectedGlobalPad(), selectedLayerIndex()),
+                          "Reset trim");
+    };
+    resetLoopButton_.onClick = [this] {
+        applyEditorResult(controller_.resetLayerLoop(selectedGlobalPad(), selectedLayerIndex()),
+                          "Reset loop");
+    };
+    processButton_.onClick = [this] { showDerivedMenu(); };
+
+    addAndMakeVisible(recordingPanel_);
+    recordingPanel_.setVisible(false);
+    recordingPanel_.onArm = [this] { juce::ignoreUnused(armRecording()); };
+    recordingPanel_.onStart = [this] { juce::ignoreUnused(startRecording()); };
+    recordingPanel_.onStop = [this] { stopRecording(); };
+    recordingPanel_.onCancel = [this] { cancelRecording(); };
+    recordingPanel_.onAssign = [this] { assignPendingRecording(); };
+    recordingPanel_.onClose = [this] { setRecordingPanelVisible(false); };
 }
 
 void SamplerView::configureEditorControl(juce::Slider& slider, juce::String name,
@@ -253,7 +337,7 @@ void SamplerView::paint(juce::Graphics& graphics) {
     auto bounds = getLocalBounds().reduced(12);
     bounds.removeFromTop(58);
     bounds.removeFromBottom(42);
-    auto editor = bounds.removeFromLeft(std::min(390, bounds.getWidth() / 3));
+    auto editor = bounds.removeFromLeft(std::min(470, bounds.getWidth() * 2 / 5));
     bounds.removeFromLeft(12);
     graphics.setColour(juce::Colour{panelColour});
     graphics.fillRoundedRectangle(editor.toFloat(), 10.0F);
@@ -275,6 +359,7 @@ void SamplerView::resized() {
     }
     audioButton_.setBounds(top.removeFromLeft(112).reduced(2, 7));
     midiButton_.setBounds(top.removeFromLeft(104).reduced(2, 7));
+    recordingPanelButton_.setBounds(top.removeFromLeft(82).reduced(2, 7));
     cpuLabel_.setBounds(top.removeFromLeft(80));
     audioStateLabel_.setBounds(top);
 
@@ -285,32 +370,52 @@ void SamplerView::resized() {
     operationStatusLabel_.setBounds(status);
     bounds.removeFromBottom(8);
 
-    auto editor = bounds.removeFromLeft(std::min(390, bounds.getWidth() / 3)).reduced(14);
+    auto editor = bounds.removeFromLeft(std::min(470, bounds.getWidth() * 2 / 5)).reduced(14);
     bounds.removeFromLeft(12);
     auto grid = bounds.reduced(14);
 
-    selectedPadLabel_.setBounds(editor.removeFromTop(28));
-    padNameEditor_.setBounds(editor.removeFromTop(30));
-    editor.removeFromTop(6);
-    layerSelector_.setBounds(editor.removeFromTop(28));
-    sampleNameLabel_.setBounds(editor.removeFromTop(28));
-    auto actions = editor.removeFromTop(32);
-    importButton_.setBounds(actions.removeFromLeft(130).reduced(1));
-    clearLayerButton_.setBounds(actions.removeFromLeft(104).reduced(1));
-    auditionButton_.setBounds(actions.removeFromLeft(82).reduced(1));
-    clearPadButton_.setBounds(editor.removeFromTop(28).removeFromLeft(100).reduced(1));
-    editor.removeFromTop(6);
+    selectedPadLabel_.setBounds(editor.removeFromTop(24));
+    padNameEditor_.setBounds(editor.removeFromTop(28));
+    editor.removeFromTop(4);
+    layerSelector_.setBounds(editor.removeFromTop(26));
+    sampleNameLabel_.setBounds(editor.removeFromTop(24));
+    auto actions = editor.removeFromTop(30);
+    importButton_.setBounds(actions.removeFromLeft(122).reduced(1));
+    clearLayerButton_.setBounds(actions.removeFromLeft(94).reduced(1));
+    auditionButton_.setBounds(actions.removeFromLeft(80).reduced(1));
+    stopAuditionButton_.setBounds(actions.removeFromLeft(56).reduced(1));
+    clearPadButton_.setBounds(actions.removeFromLeft(80).reduced(1));
+    editor.removeFromTop(5);
+    waveformEditor_.setBounds(editor.removeFromTop(145));
+    waveformInfoLabel_.setBounds(editor.removeFromTop(18));
+    auto toggles = editor.removeFromTop(28);
+    loopToggle_.setBounds(toggles.removeFromLeft(80));
+    reverseToggle_.setBounds(toggles.removeFromLeft(90));
+    snapToggle_.setBounds(toggles.removeFromLeft(105));
+    auto waveformActions = editor.removeFromTop(28);
+    fitWaveformButton_.setBounds(waveformActions.removeFromLeft(52).reduced(1));
+    fitSelectionButton_.setBounds(waveformActions.removeFromLeft(76).reduced(1));
+    resetTrimButton_.setBounds(waveformActions.removeFromLeft(88).reduced(1));
+    resetLoopButton_.setBounds(waveformActions.removeFromLeft(88).reduced(1));
+    processButton_.setBounds(waveformActions.removeFromLeft(72).reduced(1));
+    editor.removeFromTop(4);
 
-    for (auto* slider : {&gainSlider_, &panSlider_, &coarseSlider_, &fineSlider_, &attackSlider_,
-                         &decaySlider_, &sustainSlider_, &releaseSlider_})
-        slider->setBounds(editor.removeFromTop(28));
+    const auto setSliderPair = [&editor](juce::Slider& first, juce::Slider& second) {
+        auto row = editor.removeFromTop(28);
+        first.setBounds(row.removeFromLeft(row.getWidth() / 2).reduced(1));
+        second.setBounds(row.reduced(1));
+    };
+    setSliderPair(gainSlider_, panSlider_);
+    setSliderPair(coarseSlider_, fineSlider_);
+    setSliderPair(attackSlider_, decaySlider_);
+    setSliderPair(sustainSlider_, releaseSlider_);
     auto modes = editor.removeFromTop(30);
     playbackModeBox_.setBounds(modes.removeFromLeft(modes.getWidth() / 2).reduced(1));
     polyphonyBox_.setBounds(modes.reduced(1));
-    chokeSlider_.setBounds(editor.removeFromTop(28));
-    voicesSlider_.setBounds(editor.removeFromTop(28));
-    midiNoteSlider_.setBounds(editor.removeFromTop(28));
-    keyboardEditor_.setBounds(editor.removeFromTop(28).removeFromLeft(100));
+    setSliderPair(chokeSlider_, voicesSlider_);
+    auto mapping = editor.removeFromTop(28);
+    midiNoteSlider_.setBounds(mapping.removeFromLeft(mapping.getWidth() * 2 / 3).reduced(1));
+    keyboardEditor_.setBounds(mapping.reduced(1));
 
     auto banks = grid.removeFromTop(38);
     const auto bankWidth = banks.getWidth() / static_cast<int>(bankButtons_.size());
@@ -326,6 +431,7 @@ void SamplerView::resized() {
                                      grid.getY() + row * padHeight + 4, padWidth - 8,
                                      padHeight - 8);
     }
+    recordingPanel_.setBounds(bounds.reduced(14));
 }
 
 bool SamplerView::selectBank(const std::size_t bankIndex) {
@@ -365,6 +471,26 @@ std::size_t SamplerView::visiblePadCount() const noexcept {
     return padButtons_.size();
 }
 
+void SamplerView::setRecordingPanelVisible(const bool visible) {
+    recordingPanelVisible_ = visible;
+    recordingPanel_.setVisible(visible);
+    for (auto& button : bankButtons_)
+        button.setVisible(!visible);
+    for (auto& button : padButtons_)
+        button.setVisible(!visible);
+    recordingPanelButton_.setToggleState(visible, juce::dontSendNotification);
+    if (visible) {
+        recordingPanel_.setProject(controller_.project().state());
+        recordingPanel_.setPreferences(controller_.project().state().recording);
+        refreshRecording();
+        if (recordingPanel_.isShowing())
+            recordingPanel_.grabKeyboardFocus();
+    } else {
+        grabKeyboardFocus();
+    }
+    repaint();
+}
+
 void SamplerView::refreshAll() {
     refreshing_ = true;
     projectLabel_.setText(controller_.project().name(), juce::dontSendNotification);
@@ -373,7 +499,9 @@ void SamplerView::refreshAll() {
     redoButton_.setEnabled(controller_.canRedo());
     refreshPads();
     refreshEditor();
+    recordingPanel_.setPreferences(controller_.project().state().recording);
     refreshStatus();
+    refreshRecording();
     refreshing_ = false;
     repaint();
 }
@@ -440,6 +568,468 @@ void SamplerView::refreshEditor() {
                                    juce::dontSendNotification);
     polyphonyBox_.setSelectedId(static_cast<int>(parameters.polyphonyMode) + 1,
                                 juce::dontSendNotification);
+
+    const auto layerIndex = selectedLayerIndex();
+    const auto& layer = pad.layers[layerIndex];
+    const auto reference = std::find_if(
+        controller_.project().state().assets.begin(), controller_.project().state().assets.end(),
+        [&](const auto& entry) { return entry.uuid == layer.assetUuid; });
+    if (layer.assetUuid.isEmpty() || reference == controller_.project().state().assets.end()) {
+        waveformEditor_.clear();
+        waveformInfoLabel_.setText("No editable source", juce::dontSendNotification);
+        const std::array<juce::Component*, 10U> editorControls{
+            &loopToggle_,         &reverseToggle_,   &snapToggle_,      &fitWaveformButton_,
+            &fitSelectionButton_, &resetTrimButton_, &resetLoopButton_, &auditionButton_,
+            &stopAuditionButton_, &processButton_};
+        for (auto* control : editorControls)
+            control->setEnabled(false);
+        return;
+    }
+
+    const auto playback = resolveSamplePlaybackSettings(layer, reference->frameCount);
+    WaveformCacheKey key;
+    key.assetUuid = reference->uuid;
+    key.sourceFingerprint = reference->contentFingerprint;
+    key.channelCount = reference->channels;
+    key.sourceFrameCount = reference->frameCount;
+    auto cache = waveformCaches_.find(key);
+    const auto pending = waveformPendingAssetUuid_ == reference->uuid && waveformJob_.has_value() &&
+                         waveformPendingRevision_ == controller_.project().revision();
+    waveformEditor_.setContent(cache, playback, reference->frameCount, reference->sourceSampleRate,
+                               pending, reference->missing);
+    waveformInfoLabel_.setText(juce::String{reference->channels} + " ch · " +
+                                   juce::String{reference->sourceSampleRate, 0} + " Hz · " +
+                                   juce::String{reference->frameCount} + " frames" +
+                                   (cache != nullptr ? " · cached"
+                                    : pending        ? " · analysing"
+                                                     : ""),
+                               juce::dontSendNotification);
+    loopToggle_.setToggleState(playback.loopEnabled, juce::dontSendNotification);
+    reverseToggle_.setToggleState(playback.reverseEnabled, juce::dontSendNotification);
+    snapToggle_.setToggleState(playback.zeroCrossingSnap, juce::dontSendNotification);
+    const auto editable = !reference->missing;
+    const std::array<juce::Component*, 10U> editorControls{
+        &loopToggle_,         &reverseToggle_,   &snapToggle_,      &fitWaveformButton_,
+        &fitSelectionButton_, &resetTrimButton_, &resetLoopButton_, &auditionButton_,
+        &stopAuditionButton_, &processButton_};
+    for (auto* control : editorControls)
+        control->setEnabled(editable);
+    if (cache == nullptr && !pending && editable)
+        submitSelectedWaveform();
+}
+
+bool SamplerView::editSelectedTrim(const std::uint64_t startFrame, const std::uint64_t endFrame) {
+    const auto result =
+        controller_.setLayerTrim(selectedGlobalPad(), selectedLayerIndex(), startFrame, endFrame);
+    applyEditorResult(result, "Updated trim");
+    return result.wasOk();
+}
+
+bool SamplerView::editSelectedLoop(const std::uint64_t startFrame, const std::uint64_t endFrame) {
+    const auto result =
+        controller_.setLayerLoop(selectedGlobalPad(), selectedLayerIndex(), startFrame, endFrame);
+    applyEditorResult(result, "Updated loop");
+    return result.wasOk();
+}
+
+bool SamplerView::setSelectedLoopEnabled(const bool enabled) {
+    const auto result =
+        controller_.setLayerLoopEnabled(selectedGlobalPad(), selectedLayerIndex(), enabled);
+    applyEditorResult(result, enabled ? "Enabled loop" : "Disabled loop");
+    return result.wasOk();
+}
+
+bool SamplerView::setSelectedReverseEnabled(const bool enabled) {
+    const auto result =
+        controller_.setLayerReverseEnabled(selectedGlobalPad(), selectedLayerIndex(), enabled);
+    applyEditorResult(result, enabled ? "Enabled reverse" : "Disabled reverse");
+    return result.wasOk();
+}
+
+void SamplerView::applyEditorResult(juce::Result result, juce::String successMessage) {
+    if (result.wasOk()) {
+        publishModel(true);
+        setOperationMessage(std::move(successMessage), false);
+    } else {
+        setOperationMessage(result.getErrorMessage(), true);
+        refreshEditor();
+    }
+}
+
+void SamplerView::commitWaveformMarker(const WaveformEditor::Marker marker,
+                                       const std::uint64_t requestedFrame) {
+    const auto& layer = controller_.project().pad(selectedGlobalPad()).layers[selectedLayerIndex()];
+    auto frame =
+        layer.playback.zeroCrossingSnap ? snapFrameToZeroCrossing(requestedFrame) : requestedFrame;
+    const auto playback = waveformEditor_.playback();
+    switch (marker) {
+    case WaveformEditor::Marker::trimStart:
+        frame = std::min(frame, playback.endFrame - 1U);
+        juce::ignoreUnused(editSelectedTrim(frame, playback.endFrame));
+        break;
+    case WaveformEditor::Marker::trimEnd:
+        frame = std::clamp(frame, playback.startFrame + 1U, waveformEditor_.frameCount());
+        juce::ignoreUnused(editSelectedTrim(playback.startFrame, frame));
+        break;
+    case WaveformEditor::Marker::loopStart:
+        frame = std::clamp(frame, playback.startFrame, playback.loopEndFrame - 1U);
+        juce::ignoreUnused(editSelectedLoop(frame, playback.loopEndFrame));
+        break;
+    case WaveformEditor::Marker::loopEnd:
+        frame = std::clamp(frame, playback.loopStartFrame + 1U, playback.endFrame);
+        juce::ignoreUnused(editSelectedLoop(playback.loopStartFrame, frame));
+        break;
+    }
+}
+
+std::uint64_t SamplerView::snapFrameToZeroCrossing(const std::uint64_t frame) const noexcept {
+    constexpr std::uint64_t searchRadius = 2048U;
+    const auto& layer = controller_.project().pad(selectedGlobalPad()).layers[selectedLayerIndex()];
+    const auto asset = assets_.find(layer.assetUuid);
+    if (asset == nullptr || asset->metadata().frameCount == 0U ||
+        asset->metadata().channelCount == 0U)
+        return frame;
+    const auto frames = asset->metadata().frameCount;
+    const auto channels = asset->metadata().channelCount;
+    const auto target = std::min(frame, frames - 1U);
+    const auto first = target > searchRadius ? target - searchRadius : 0U;
+    const auto last = std::min(frames - 1U, target + std::min(searchRadius, frames - 1U - target));
+    const auto pcm = asset->interleavedPcm();
+    auto bestFrame = target;
+    auto bestScore = std::numeric_limits<float>::infinity();
+    for (auto candidate = first; candidate <= last; ++candidate) {
+        auto score = 0.0F;
+        for (std::uint32_t channel = 0U; channel < channels; ++channel)
+            score += std::abs(pcm[static_cast<std::size_t>(candidate * channels + channel)]);
+        const auto distance = candidate > target ? candidate - target : target - candidate;
+        const auto bestDistance = bestFrame > target ? bestFrame - target : target - bestFrame;
+        if (score < bestScore || (score == bestScore && distance < bestDistance)) {
+            bestFrame = candidate;
+            bestScore = score;
+        }
+    }
+    return bestFrame;
+}
+
+void SamplerView::submitSelectedWaveform() {
+    const auto& layer = controller_.project().pad(selectedGlobalPad()).layers[selectedLayerIndex()];
+    const auto asset = assets_.find(layer.assetUuid);
+    if (asset == nullptr)
+        return;
+    if (waveformJob_.has_value())
+        waveformJob_->cancel();
+    const auto revision = controller_.project().revision();
+    auto handle = WaveformCacheGenerator::submit(
+        jobs_, WaveformCacheRequest{JobSpec{controller_.project().uuid(), layer.assetUuid, revision,
+                                            -1, JobKind::waveformCache},
+                                    asset});
+    if (!handle.has_value()) {
+        setOperationMessage("Waveform analysis queue is full", true);
+        return;
+    }
+    waveformJob_ = std::move(handle);
+    waveformPendingAssetUuid_ = layer.assetUuid;
+    waveformPendingRevision_ = revision;
+}
+
+juce::File SamplerView::projectWorkingDirectory() const {
+    return juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+        .getChildFile("PadFlow")
+        .getChildFile("Projects")
+        .getChildFile(controller_.project().uuid());
+}
+
+bool SamplerView::armRecording(juce::File destination, const double sampleRateOverride,
+                               const std::uint32_t maximumBlockOverride) {
+    const auto currentStatus = runtime_.capture().status();
+    if (currentStatus.active || recordingDecodeJob_.has_value()) {
+        setOperationMessage("Finish or cancel the active recording first", true);
+        return false;
+    }
+
+    const auto configuration = recordingPanel_.configuration();
+    if (configuration.globalPadIndex >= totalPadCount ||
+        configuration.layerIndex >= minimumLayersPerPad) {
+        setOperationMessage("Recording destination is invalid", true);
+        return false;
+    }
+    const auto runtimeSettings = runtime_.currentSettings();
+    const auto runtimeStatus = runtime_.status();
+    const auto mocked = destination != juce::File{} && sampleRateOverride > 0.0;
+    if (!mocked &&
+        (!runtimeStatus.deviceOpen || runtimeSettings.inputDeviceIdentifier.trim().isEmpty())) {
+        setOperationMessage("Enable an audio input device before arming", true);
+        return false;
+    }
+
+    RecordingPreferences preferences;
+    preferences.channels = configuration.channels;
+    preferences.thresholdMode = configuration.mode == CaptureMode::threshold;
+    preferences.thresholdDecibels = configuration.thresholdDecibels;
+    preferences.preRollMilliseconds = configuration.preRollMilliseconds;
+    preferences.autoAssign = configuration.autoAssign;
+    if (const auto result = controller_.setRecordingPreferences(preferences); result.failed()) {
+        setOperationMessage(result.getErrorMessage(), true);
+        return false;
+    }
+    modified_ = true;
+
+    auto fileName = juce::File::createLegalFileName(configuration.fileName);
+    if (fileName.trim().isEmpty())
+        fileName = "Recording.wav";
+    if (!fileName.endsWithIgnoreCase(".wav"))
+        fileName += ".wav";
+    if (destination == juce::File{})
+        destination = projectWorkingDirectory().getChildFile("Recorded").getChildFile(fileName);
+
+    const auto sampleRate =
+        sampleRateOverride > 0.0 ? sampleRateOverride : runtimeStatus.sampleRate;
+    const auto maximumBlock = maximumBlockOverride > 0U
+                                  ? maximumBlockOverride
+                                  : std::max(runtimeStatus.bufferSize, std::uint32_t{1U});
+    if (!std::isfinite(sampleRate) || sampleRate <= 0.0 || maximumBlock == 0U) {
+        setOperationMessage("Recording device format is invalid", true);
+        return false;
+    }
+    const auto requiredBlocks =
+        static_cast<std::uint64_t>(std::ceil(sampleRate * 4.0 / static_cast<double>(maximumBlock)));
+    if (requiredBlocks == 0U || requiredBlocks > CaptureFifo::maximumBlocks) {
+        setOperationMessage("Device format exceeds the bounded four-second capture FIFO", true);
+        return false;
+    }
+
+    const auto& pad = controller_.project().pad(configuration.globalPadIndex);
+    const auto& layer = pad.layers[configuration.layerIndex];
+    recordingSessionUuid_ = juce::Uuid{}.toString();
+    CaptureSpec spec;
+    spec.source = CaptureSource::input;
+    spec.destination = destination;
+    spec.sampleRate = sampleRate;
+    spec.channels = configuration.channels;
+    spec.maximumFramesPerBlock = maximumBlock;
+    spec.fifoBlockCount = static_cast<std::uint32_t>(requiredBlocks);
+    spec.mode = configuration.mode;
+    spec.thresholdDecibels = configuration.thresholdDecibels;
+    spec.preRollMilliseconds = configuration.preRollMilliseconds;
+    spec.sessionUuid = recordingSessionUuid_;
+    spec.target = CaptureTarget{controller_.project().uuid(), pad.uuid, layer.uuid,
+                                controller_.project().revision()};
+    if (!runtime_.capture().prepare(spec)) {
+        setOperationMessage("Recording session could not be prepared", true);
+        return false;
+    }
+
+    recordingGlobalPadIndex_ = configuration.globalPadIndex;
+    recordingLayerIndex_ = configuration.layerIndex;
+    recordingSampleRate_ = sampleRate;
+    recordingAutoAssign_ = configuration.autoAssign;
+    recordingDecodeSubmitted_ = false;
+    pendingRecordedResult_.reset();
+    recordingPanel_.setAssignmentReady(false);
+    setOperationMessage(configuration.mode == CaptureMode::threshold
+                            ? "Armed and waiting for threshold"
+                            : "Recording armed",
+                        false);
+    refreshRecording();
+    return true;
+}
+
+bool SamplerView::startRecording() {
+    if (!runtime_.capture().startManual()) {
+        setOperationMessage("Manual recording is not armed", true);
+        return false;
+    }
+    setOperationMessage("Recording input", false);
+    refreshRecording();
+    return true;
+}
+
+void SamplerView::stopRecording() noexcept {
+    runtime_.capture().requestStop();
+}
+
+void SamplerView::cancelRecording() noexcept {
+    runtime_.capture().cancel();
+    if (recordingDecodeJob_.has_value())
+        recordingDecodeJob_->cancel();
+    recordingDecodeJob_.reset();
+    pendingRecordedResult_.reset();
+    recordingDecodeSubmitted_ = false;
+}
+
+void SamplerView::processMockRecordingInput(const float* const* const channels,
+                                            const std::uint32_t channelCount,
+                                            const std::uint32_t frames) noexcept {
+    runtime_.capture().processInput(channels, channelCount, frames);
+}
+
+void SamplerView::refreshRecording() {
+    const auto runtimeSettings = runtime_.currentSettings();
+    const auto runtimeStatus = runtime_.status();
+    const auto captureStatus = runtime_.capture().status();
+    const auto inputAvailable =
+        runtimeStatus.deviceOpen && runtimeSettings.inputDeviceIdentifier.trim().isNotEmpty();
+    recordingPanel_.setInputDevice(runtimeSettings.inputDeviceIdentifier, inputAvailable);
+    auto resultMessage = juce::String{};
+    if (captureStatus.state == CaptureState::failed)
+        resultMessage = runtime_.capture().failureMessage();
+    else if (captureStatus.state == CaptureState::cancelled)
+        resultMessage = "Capture cancelled; temporary output removed";
+    else if (captureStatus.state == CaptureState::completed)
+        resultMessage = recordingDecodeSubmitted_ ? "Valid WAV finalized; decoding immutable take"
+                                                  : "Valid WAV finalized";
+    recordingPanel_.setCaptureStatus(
+        captureStatus, recordingSampleRate_ > 0.0 ? recordingSampleRate_ : runtimeStatus.sampleRate,
+        resultMessage);
+    if (captureStatus.state == CaptureState::completed && !recordingDecodeSubmitted_)
+        handleCompletedCapture();
+}
+
+void SamplerView::handleCompletedCapture() {
+    const auto file = runtime_.capture().completedFile();
+    const auto target = runtime_.capture().completedTarget();
+    if (file == juce::File{} || !file.existsAsFile() || target.projectUuid.trim().isEmpty()) {
+        setOperationMessage("Completed capture did not publish a valid WAV", true);
+        recordingDecodeSubmitted_ = true;
+        return;
+    }
+    const auto relativePath = "Assets/Recorded/" + file.getFileName();
+    const RecordedAssetRequest request{JobSpec{target.projectUuid, target.padUuid,
+                                               target.projectRevision, 0, JobKind::recordedAsset},
+                                       file,
+                                       recordingSessionUuid_,
+                                       makeStableUuid("recorded|" + recordingSessionUuid_),
+                                       relativePath,
+                                       runtime_.currentSettings().inputDeviceIdentifier,
+                                       target.layerUuid,
+                                       recordingGlobalPadIndex_,
+                                       recordingLayerIndex_,
+                                       assets_.budgetBytes()};
+    auto handle = RecordedAssetPublisher::submit(jobs_, request);
+    if (!handle.has_value()) {
+        setOperationMessage("Recorded sample decode queue is full; WAV remains unassigned", true);
+        return;
+    }
+    recordingDecodeJob_ = std::move(handle);
+    recordingDecodeSubmitted_ = true;
+    recordingPanel_.setDecodePending(true);
+}
+
+void SamplerView::handleRecordedAssetResult(std::shared_ptr<const JobResult> result) {
+    recordingDecodeJob_.reset();
+    recordingPanel_.setDecodePending(false);
+    if (result == nullptr || !result->succeeded) {
+        setOperationMessage(result != nullptr ? result->message
+                                              : "Recorded asset decoding returned no result",
+                            true);
+        return;
+    }
+    if (!controller_.isCurrentJobTarget(result->target)) {
+        recordingPanel_.setAssignmentReady(false);
+        setOperationMessage(
+            "Recording target changed; valid WAV remains project-owned and unassigned", true);
+        return;
+    }
+    if (!recordingAutoAssign_) {
+        pendingRecordedResult_ = std::move(result);
+        recordingPanel_.setAssignmentReady(true);
+        setOperationMessage("Recording ready to assign; WAV remains project-owned", false);
+        return;
+    }
+    const auto commit = RecordedAssetPublisher::commit(*result, controller_, assets_);
+    if (commit.wasOk()) {
+        recordingPanel_.setAssignmentReady(false);
+        setOperationMessage("Recorded sample assigned", false);
+        publishModel(true);
+    } else {
+        if (controller_.isCurrentJobTarget(result->target)) {
+            pendingRecordedResult_ = std::move(result);
+            recordingPanel_.setAssignmentReady(true);
+        } else {
+            recordingPanel_.setAssignmentReady(false);
+        }
+        setOperationMessage(commit.getErrorMessage(), true);
+    }
+}
+
+void SamplerView::assignPendingRecording() {
+    if (pendingRecordedResult_ == nullptr)
+        return;
+    const auto commit =
+        RecordedAssetPublisher::commit(*pendingRecordedResult_, controller_, assets_);
+    if (commit.wasOk()) {
+        pendingRecordedResult_.reset();
+        recordingPanel_.setAssignmentReady(false);
+        setOperationMessage("Recorded sample assigned", false);
+        publishModel(true);
+    } else {
+        setOperationMessage(commit.getErrorMessage(), true);
+    }
+}
+
+bool SamplerView::submitDerivedOperation(const DerivedAssetOperation operation,
+                                         const float normalizeTargetDecibels,
+                                         std::uint64_t fadeDurationFrames) {
+    if (derivedJob_.has_value()) {
+        setOperationMessage("A derived operation is already running", true);
+        return false;
+    }
+    const auto globalPad = selectedGlobalPad();
+    const auto layerIndex = selectedLayerIndex();
+    const auto& layer = controller_.project().pad(globalPad).layers[layerIndex];
+    const auto source = assets_.find(layer.assetUuid);
+    const auto reference = std::find_if(
+        controller_.project().state().assets.begin(), controller_.project().state().assets.end(),
+        [&](const auto& asset) { return asset.uuid == layer.assetUuid; });
+    if (source == nullptr || reference == controller_.project().state().assets.end() ||
+        reference->missing) {
+        setOperationMessage("Derived processing requires a loaded source", true);
+        return false;
+    }
+    const auto playback = resolveSamplePlaybackSettings(layer, reference->frameCount);
+    if ((operation == DerivedAssetOperation::fadeIn ||
+         operation == DerivedAssetOperation::fadeOut) &&
+        fadeDurationFrames == 0U)
+        fadeDurationFrames = std::min<std::uint64_t>(
+            playback.endFrame - playback.startFrame,
+            static_cast<std::uint64_t>(std::max(1.0, reference->sourceSampleRate * 0.01)));
+    DerivedAssetRequest request{JobSpec{controller_.project().uuid(),
+                                        controller_.project().pad(globalPad).uuid,
+                                        controller_.project().revision(), 0, JobKind::derivedAsset},
+                                source,
+                                *reference,
+                                playback,
+                                operation,
+                                normalizeTargetDecibels,
+                                fadeDurationFrames,
+                                projectWorkingDirectory().getChildFile("Derived"),
+                                "Assets/Derived",
+                                globalPad,
+                                layerIndex};
+    auto handle = DerivedAssetRenderer::submit(jobs_, std::move(request));
+    if (!handle.has_value()) {
+        setOperationMessage("Derived processing queue is full", true);
+        return false;
+    }
+    derivedJob_ = std::move(handle);
+    setOperationMessage("Rendering non-destructive derived sample", false);
+    return true;
+}
+
+void SamplerView::showDerivedMenu() {
+    juce::PopupMenu menu;
+    menu.addItem(1, "Normalize to -1 dBFS");
+    menu.addItem(2, "Convert stereo to mono");
+    menu.addItem(3, "Fade in (10 ms)");
+    menu.addItem(4, "Fade out (10 ms)");
+    menu.addItem(5, "Crop to trim");
+    menu.showMenuAsync(juce::PopupMenu::Options{}.withTargetComponent(&processButton_),
+                       [safe = juce::Component::SafePointer<SamplerView>{this}](const int choice) {
+                           if (safe == nullptr || choice == 0)
+                               return;
+                           const auto operation = static_cast<DerivedAssetOperation>(choice - 1);
+                           juce::ignoreUnused(safe->submitDerivedOperation(operation));
+                       });
 }
 
 void SamplerView::refreshStatus() {
@@ -646,7 +1236,8 @@ void SamplerView::submitNextImport() {
     const auto& queued = importQueue_.front();
     const auto& pad = controller_.project().pad(queued.globalPadIndex);
     SampleImportRequest request{
-        JobSpec{controller_.project().uuid(), pad.uuid, controller_.project().revision(), 0},
+        JobSpec{controller_.project().uuid(), pad.uuid, controller_.project().revision(), 0,
+                JobKind::sampleImport},
         queued.file,
         juce::Uuid().toString(),
         queued.globalPadIndex,
@@ -668,7 +1259,8 @@ void SamplerView::resolveProjectAssets() {
         if (asset.missing || asset.uuid.isEmpty())
             continue;
         SampleImportRequest request{
-            JobSpec{"padflow-resolve", asset.uuid, controller_.project().revision(), 0},
+            JobSpec{"padflow-resolve", asset.uuid, controller_.project().revision(), 0,
+                    JobKind::sampleResolve},
             juce::File{asset.originalPath},
             asset.uuid,
             0U,
@@ -688,25 +1280,28 @@ void SamplerView::resolveProjectAssets() {
 
 void SamplerView::processPendingJobs() {
     for (;;) {
-        const auto result = jobs_.tryPopCompleted();
+        auto result = jobs_.tryPopCompleted();
         if (result == nullptr)
             break;
-        handleCompletedJob(*result);
+        handleCompletedJob(std::move(result));
     }
+    refreshRecording();
 }
 
-void SamplerView::handleCompletedJob(const JobResult& result) {
-    if (result.target.ownerUuid == "padflow-preview") {
-        const auto previewResult = preview_.commit(result);
+void SamplerView::handleCompletedJob(std::shared_ptr<const JobResult> result) {
+    if (result == nullptr)
+        return;
+    if (result->target.kind == JobKind::samplePreview) {
+        const auto previewResult = preview_.commit(*result);
         setOperationMessage(previewResult.wasOk() ? "Preview started"
                                                   : previewResult.getErrorMessage(),
                             previewResult.failed());
         return;
     }
-    if (result.target.ownerUuid == "padflow-resolve") {
-        if (result.succeeded) {
+    if (result->target.kind == JobKind::sampleResolve) {
+        if (result->succeeded) {
             const auto* payload =
-                static_cast<const SampleImportPayload*>(result.immutablePayload.get());
+                static_cast<const SampleImportPayload*>(result->immutablePayload.get());
             if (payload != nullptr && payload->asset != nullptr &&
                 assets_.publish(payload->asset)) {
                 setOperationMessage("Resolved " + payload->reference.originalName, false);
@@ -714,16 +1309,52 @@ void SamplerView::handleCompletedJob(const JobResult& result) {
                 setOperationMessage("Resolved sample exceeded the decoded-memory budget", true);
             }
         } else {
-            setOperationMessage(result.message, true);
+            setOperationMessage(result->message, true);
         }
         publisher_.publish(controller_.project().state());
         return;
     }
+    if (result->target.kind == JobKind::waveformCache) {
+        const auto commit = WaveformCacheGenerator::commit(*result, controller_, waveformCaches_);
+        if (result->target.targetUuid == waveformPendingAssetUuid_) {
+            waveformJob_.reset();
+            waveformPendingAssetUuid_.clear();
+            waveformPendingRevision_ = 0U;
+        }
+        if (commit.wasOk())
+            setOperationMessage("Waveform analysis complete", false);
+        else if (!result->message.containsIgnoreCase("cancel"))
+            setOperationMessage(commit.getErrorMessage(), true);
+        refreshEditor();
+        return;
+    }
+    if (result->target.kind == JobKind::derivedAsset) {
+        derivedJob_.reset();
+        const auto commit = DerivedAssetRenderer::commit(*result, controller_, assets_);
+        if (commit.wasOk()) {
+            setOperationMessage("Derived sample assigned", false);
+            publishModel(true);
+        } else if (!result->message.containsIgnoreCase("cancel")) {
+            setOperationMessage(commit.getErrorMessage(), true);
+        }
+        return;
+    }
+    if (result->target.kind == JobKind::recordedAsset) {
+        handleRecordedAssetResult(std::move(result));
+        return;
+    }
+    if (result->target.kind != JobKind::sampleImport) {
+        setOperationMessage("Ignored completion with an unknown job kind", true);
+        return;
+    }
 
     importActive_ = false;
-    const auto commit = SampleImporter::commit(result, controller_, assets_);
+    const auto* payload = static_cast<const SampleImportPayload*>(result->immutablePayload.get());
+    const auto importedName =
+        payload != nullptr ? payload->reference.originalName : juce::String{"sample"};
+    const auto commit = SampleImporter::commit(*result, controller_, assets_);
     if (commit.wasOk()) {
-        setOperationMessage("Imported " + importQueue_.front().file.getFileName(), false);
+        setOperationMessage("Imported " + importedName, false);
         if (!importQueue_.empty())
             importQueue_.pop_front();
         publishModel(true);
@@ -738,6 +1369,7 @@ void SamplerView::handleCompletedJob(const JobResult& result) {
 void SamplerView::timerCallback() {
     juce::ignoreUnused(input_.flushMidiCommands());
     processPendingJobs();
+    waveformEditor_.setPlaybackPosition(runtime_.engine().playbackPosition(selectedGlobalPad()));
     juce::ignoreUnused(preview_.collectRetired());
     juce::ignoreUnused(publisher_.collectAcknowledged());
     if (controller_.project().revision() != lastSeenRevision_) {
@@ -801,6 +1433,7 @@ void SamplerView::showOpenChooser() {
                 return;
             const auto file = chooser.getResult();
             if (file != juce::File{}) {
+                safe->cancelRecording();
                 auto restored = Project::createEmpty();
                 auto result = ProjectSerializer::load(file, restored);
                 const auto previousProjectUuid = safe->controller_.project().uuid();
@@ -815,6 +1448,10 @@ void SamplerView::showOpenChooser() {
                     safe->input_.panic();
                     juce::ignoreUnused(safe->preview_.stop());
                     safe->assets_.clear();
+                    safe->waveformCaches_.clear();
+                    safe->waveformJob_.reset();
+                    safe->waveformPendingAssetUuid_.clear();
+                    safe->waveformPendingRevision_ = 0U;
                     const auto missing = safe->controller_.refreshExternalAssetAvailability();
                     safe->modified_ = false;
                     safe->publishModel(false);
@@ -1062,24 +1699,31 @@ void SamplerView::auditionSelectedLayer() {
         setOperationMessage("Selected layer has no sample", true);
         return;
     }
-    const auto reference = std::find_if(
-        controller_.project().state().assets.begin(), controller_.project().state().assets.end(),
-        [&](const auto& entry) { return entry.uuid == layer.assetUuid; });
-    if (reference == controller_.project().state().assets.end() ||
-        !juce::File{reference->originalPath}.existsAsFile()) {
-        setOperationMessage("Preview source is missing", true);
+    if (assets_.find(layer.assetUuid) == nullptr) {
+        setOperationMessage("Selected sample is not decoded", true);
         return;
     }
-    if (!preview_.begin(jobs_, juce::File{reference->originalPath}).has_value())
-        setOperationMessage(preview_.lastError(), true);
+    ++auditionSourceId_;
+    if (auditionSourceId_ < 0x70000000U)
+        auditionSourceId_ = 0x70000000U;
+    const auto velocity = controller_.project().state().ui.fixedTriggerVelocity;
+    if (input_.triggerPad(selectedGlobalPad(), auditionSourceId_, velocity))
+        setOperationMessage("Auditioning selected pad with layer edit boundaries", false);
     else
-        setOperationMessage("Preparing preview", false);
+        setOperationMessage("Audio command queue is full", true);
+}
+
+void SamplerView::stopAudition() {
+    input_.panic();
+    juce::ignoreUnused(preview_.stop());
+    setOperationMessage("Audition stopped", false);
 }
 
 void SamplerView::clearSelectedLayer() {
     auto layer = controller_.project().pad(selectedGlobalPad()).layers[selectedLayerIndex()];
     layer.assetUuid.clear();
     layer.enabled = false;
+    layer.playback = {};
     const auto result =
         controller_.setLayer(selectedGlobalPad(), selectedLayerIndex(), std::move(layer));
     if (result.wasOk()) {

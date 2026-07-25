@@ -65,9 +65,23 @@ juce::var envelopeValue(const EnvelopeParameters& envelope) {
     return value;
 }
 
+juce::var samplePlaybackValue(const SamplePlaybackSettings& playback) {
+    auto value = makeObject();
+    setProperty(value, "endFrame", decimalString(playback.endFrame));
+    setProperty(value, "loopEnabled", playback.loopEnabled);
+    setProperty(value, "loopEndFrame", decimalString(playback.loopEndFrame));
+    setProperty(value, "loopStartFrame", decimalString(playback.loopStartFrame));
+    setProperty(value, "reverseEnabled", playback.reverseEnabled);
+    setProperty(value, "startFrame", decimalString(playback.startFrame));
+    setProperty(value, "zeroCrossingSnap", playback.zeroCrossingSnap);
+    return value;
+}
+
 juce::var layerValue(const SampleLayer& layer) {
     auto value = makeObject();
     setProperty(value, "assetUuid", layer.assetUuid);
+    if (layer.playback.initialized)
+        setProperty(value, "editing", samplePlaybackValue(layer.playback));
     setProperty(value, "enabled", layer.enabled);
     setProperty(value, "gainDecibels", static_cast<double>(layer.gainDecibels));
     setProperty(value, "pan", static_cast<double>(layer.pan));
@@ -142,6 +156,47 @@ juce::var assetValue(const ExternalAssetReference& asset) {
     return value;
 }
 
+juce::var derivedAssetValue(const DerivedAssetRecord& asset) {
+    auto value = makeObject();
+    setProperty(value, "algorithmVersion", static_cast<int>(asset.algorithmVersion));
+    setProperty(value, "canonicalOperationParameters", asset.canonicalOperationParameters);
+    setProperty(value, "creationMetadata", asset.creationMetadata);
+    setProperty(value, "derivedAssetUuid", asset.derivedAssetUuid);
+    setProperty(value, "operationIdentifier", asset.operationIdentifier);
+    setProperty(value, "outputFingerprint", asset.outputFingerprint);
+    setProperty(value, "parentAssetUuid", asset.parentAssetUuid);
+    setProperty(value, "projectOwnedRelativePath", asset.projectOwnedRelativePath);
+    setProperty(value, "sourceFingerprint", asset.sourceFingerprint);
+    return value;
+}
+
+juce::var recordedAssetValue(const RecordedAssetRecord& asset) {
+    auto value = makeObject();
+    setProperty(value, "channels", static_cast<int>(asset.channels));
+    setProperty(value, "contentFingerprint", asset.contentFingerprint);
+    setProperty(value, "frameCount", decimalString(asset.frameCount));
+    setProperty(value, "inputDeviceIdentifier", asset.inputDeviceIdentifier);
+    setProperty(value, "projectOwnedRelativePath", asset.projectOwnedRelativePath);
+    setProperty(value, "recordedAssetUuid", asset.recordedAssetUuid);
+    setProperty(value, "sampleRate", asset.sampleRate);
+    setProperty(value, "sessionUuid", asset.sessionUuid);
+    setProperty(value, "targetLayerUuid", asset.targetLayerUuid);
+    setProperty(value, "targetPadUuid", asset.targetPadUuid);
+    setProperty(value, "targetProjectUuid", asset.targetProjectUuid);
+    setProperty(value, "targetProjectRevision", decimalString(asset.targetProjectRevision));
+    return value;
+}
+
+juce::var recordingValue(const RecordingPreferences& recording) {
+    auto value = makeObject();
+    setProperty(value, "autoAssign", recording.autoAssign);
+    setProperty(value, "channels", static_cast<int>(recording.channels));
+    setProperty(value, "preRollMilliseconds", static_cast<int>(recording.preRollMilliseconds));
+    setProperty(value, "thresholdDecibels", static_cast<double>(recording.thresholdDecibels));
+    setProperty(value, "thresholdMode", recording.thresholdMode);
+    return value;
+}
+
 juce::var audioValue(const AudioSettings& audio) {
     auto value = makeObject();
     setProperty(value, "bufferSize", static_cast<int>(audio.bufferSize));
@@ -185,6 +240,18 @@ juce::var manifestValue(const Project& project) {
         assets.push_back(assetValue(asset));
     setProperty(value, "assets", makeArray(assets));
 
+    std::vector<juce::var> derivedAssets;
+    derivedAssets.reserve(state.derivedAssets.size());
+    for (const auto& asset : state.derivedAssets)
+        derivedAssets.push_back(derivedAssetValue(asset));
+    setProperty(value, "derivedAssets", makeArray(derivedAssets));
+
+    std::vector<juce::var> recordedAssets;
+    recordedAssets.reserve(state.recordedAssets.size());
+    for (const auto& asset : state.recordedAssets)
+        recordedAssets.push_back(recordedAssetValue(asset));
+    setProperty(value, "recordedAssets", makeArray(recordedAssets));
+
     std::vector<juce::var> banks;
     banks.reserve(state.banks.size());
     for (const auto& bank : state.banks)
@@ -198,6 +265,7 @@ juce::var manifestValue(const Project& project) {
     setProperty(value, "product", juce::String{product::name.data()});
     setProperty(value, "projectName", project.name());
     setProperty(value, "projectUuid", project.uuid());
+    setProperty(value, "recording", recordingValue(state.recording));
     setProperty(value, "revision", decimalString(project.revision()));
     setProperty(value, "schemaVersion", project.schemaVersion());
     setProperty(value, "ui", uiValue(state.ui));
@@ -310,12 +378,46 @@ juce::Result readEnvelope(const juce::var& value, EnvelopeParameters& envelope) 
     return readFloat(*object, "sustainLevel", envelope.sustainLevel);
 }
 
+juce::Result readSamplePlayback(const juce::var& value, SamplePlaybackSettings& playback) {
+    const juce::DynamicObject* object = nullptr;
+    if (const auto result = requireObject(value, "editing", object); result.failed())
+        return result;
+    if (const auto result = readDecimalString(*object, "endFrame", playback.endFrame);
+        result.failed())
+        return result;
+    if (const auto result = readBool(*object, "loopEnabled", playback.loopEnabled); result.failed())
+        return result;
+    if (const auto result = readDecimalString(*object, "loopEndFrame", playback.loopEndFrame);
+        result.failed())
+        return result;
+    if (const auto result = readDecimalString(*object, "loopStartFrame", playback.loopStartFrame);
+        result.failed())
+        return result;
+    if (const auto result = readBool(*object, "reverseEnabled", playback.reverseEnabled);
+        result.failed())
+        return result;
+    if (const auto result = readDecimalString(*object, "startFrame", playback.startFrame);
+        result.failed())
+        return result;
+    if (const auto result = readBool(*object, "zeroCrossingSnap", playback.zeroCrossingSnap);
+        result.failed())
+        return result;
+    playback.initialized = true;
+    return juce::Result::ok();
+}
+
 juce::Result readLayer(const juce::var& value, SampleLayer& layer) {
     const juce::DynamicObject* object = nullptr;
     if (const auto result = requireObject(value, "layer", object); result.failed())
         return result;
     if (const auto result = readString(*object, "assetUuid", layer.assetUuid); result.failed())
         return result;
+    const auto editingIdentifier = juce::Identifier{"editing"};
+    if (object->hasProperty(editingIdentifier))
+        if (const auto result =
+                readSamplePlayback(object->getProperty(editingIdentifier), layer.playback);
+            result.failed())
+            return result;
     if (const auto result = readBool(*object, "enabled", layer.enabled); result.failed())
         return result;
     if (const auto result = readFloat(*object, "gainDecibels", layer.gainDecibels); result.failed())
@@ -465,6 +567,96 @@ juce::Result readAsset(const juce::var& value, ExternalAssetReference& asset) {
     return readString(*object, "uuid", asset.uuid);
 }
 
+juce::Result readDerivedAsset(const juce::var& value, DerivedAssetRecord& asset) {
+    const juce::DynamicObject* object = nullptr;
+    if (const auto result = requireObject(value, "derived asset", object); result.failed())
+        return result;
+    if (const auto result = readInteger(*object, "algorithmVersion", asset.algorithmVersion);
+        result.failed())
+        return result;
+    if (const auto result =
+            readString(*object, "canonicalOperationParameters", asset.canonicalOperationParameters);
+        result.failed())
+        return result;
+    if (const auto result = readString(*object, "creationMetadata", asset.creationMetadata);
+        result.failed())
+        return result;
+    if (const auto result = readString(*object, "derivedAssetUuid", asset.derivedAssetUuid);
+        result.failed())
+        return result;
+    if (const auto result = readString(*object, "operationIdentifier", asset.operationIdentifier);
+        result.failed())
+        return result;
+    if (const auto result = readString(*object, "outputFingerprint", asset.outputFingerprint);
+        result.failed())
+        return result;
+    if (const auto result = readString(*object, "parentAssetUuid", asset.parentAssetUuid);
+        result.failed())
+        return result;
+    if (const auto result =
+            readString(*object, "projectOwnedRelativePath", asset.projectOwnedRelativePath);
+        result.failed())
+        return result;
+    return readString(*object, "sourceFingerprint", asset.sourceFingerprint);
+}
+
+juce::Result readRecordedAsset(const juce::var& value, RecordedAssetRecord& asset) {
+    const juce::DynamicObject* object = nullptr;
+    if (const auto result = requireObject(value, "recorded asset", object); result.failed())
+        return result;
+    if (const auto result = readInteger(*object, "channels", asset.channels); result.failed())
+        return result;
+    if (const auto result = readString(*object, "contentFingerprint", asset.contentFingerprint);
+        result.failed())
+        return result;
+    if (const auto result = readDecimalString(*object, "frameCount", asset.frameCount);
+        result.failed())
+        return result;
+    if (const auto result =
+            readString(*object, "inputDeviceIdentifier", asset.inputDeviceIdentifier);
+        result.failed())
+        return result;
+    if (const auto result =
+            readString(*object, "projectOwnedRelativePath", asset.projectOwnedRelativePath);
+        result.failed())
+        return result;
+    if (const auto result = readString(*object, "recordedAssetUuid", asset.recordedAssetUuid);
+        result.failed())
+        return result;
+    if (const auto result = readDouble(*object, "sampleRate", asset.sampleRate); result.failed())
+        return result;
+    if (const auto result = readString(*object, "sessionUuid", asset.sessionUuid); result.failed())
+        return result;
+    if (const auto result = readString(*object, "targetLayerUuid", asset.targetLayerUuid);
+        result.failed())
+        return result;
+    if (const auto result = readString(*object, "targetPadUuid", asset.targetPadUuid);
+        result.failed())
+        return result;
+    if (const auto result = readString(*object, "targetProjectUuid", asset.targetProjectUuid);
+        result.failed())
+        return result;
+    return readDecimalString(*object, "targetProjectRevision", asset.targetProjectRevision);
+}
+
+juce::Result readRecording(const juce::var& value, RecordingPreferences& recording) {
+    const juce::DynamicObject* object = nullptr;
+    if (const auto result = requireObject(value, "recording", object); result.failed())
+        return result;
+    if (const auto result = readBool(*object, "autoAssign", recording.autoAssign); result.failed())
+        return result;
+    if (const auto result = readInteger(*object, "channels", recording.channels); result.failed())
+        return result;
+    if (const auto result =
+            readInteger(*object, "preRollMilliseconds", recording.preRollMilliseconds);
+        result.failed())
+        return result;
+    if (const auto result = readFloat(*object, "thresholdDecibels", recording.thresholdDecibels);
+        result.failed())
+        return result;
+    return readBool(*object, "thresholdMode", recording.thresholdMode);
+}
+
 juce::Result readAudio(const juce::var& value, AudioSettings& audio) {
     const juce::DynamicObject* object = nullptr;
     if (const auto result = requireObject(value, "audio", object); result.failed())
@@ -553,7 +745,8 @@ juce::Result parseManifest(const juce::String& text, Project& project) {
 
     const auto banksIdentifier = juce::Identifier{"banks"};
     if (!root->hasProperty(banksIdentifier)) {
-        for (const auto* property : {"assets", "audio", "midi", "ui"})
+        for (const auto* property :
+             {"assets", "audio", "derivedAssets", "midi", "recordedAssets", "recording", "ui"})
             if (root->hasProperty(juce::Identifier{property}))
                 return juce::Result::fail("Project manifest has an incomplete model payload");
         auto legacy = Project::createEmpty(name, uuid);
@@ -585,10 +778,46 @@ juce::Result parseManifest(const juce::String& text, Project& project) {
         state.assets.push_back(std::move(asset));
     }
 
+    const auto derivedIdentifier = juce::Identifier{"derivedAssets"};
+    if (root->hasProperty(derivedIdentifier)) {
+        const auto derivedAssetsValue = root->getProperty(derivedIdentifier);
+        const auto* derivedAssets = derivedAssetsValue.getArray();
+        if (derivedAssets == nullptr)
+            return juce::Result::fail("derivedAssets must be an array");
+        state.derivedAssets.reserve(static_cast<std::size_t>(derivedAssets->size()));
+        for (const auto& derivedValue : *derivedAssets) {
+            DerivedAssetRecord derived;
+            if (const auto result = readDerivedAsset(derivedValue, derived); result.failed())
+                return result;
+            state.derivedAssets.push_back(std::move(derived));
+        }
+    }
+
+    const auto recordedIdentifier = juce::Identifier{"recordedAssets"};
+    if (root->hasProperty(recordedIdentifier)) {
+        const auto recordedAssetsValue = root->getProperty(recordedIdentifier);
+        const auto* recordedAssets = recordedAssetsValue.getArray();
+        if (recordedAssets == nullptr)
+            return juce::Result::fail("recordedAssets must be an array");
+        state.recordedAssets.reserve(static_cast<std::size_t>(recordedAssets->size()));
+        for (const auto& recordedValue : *recordedAssets) {
+            RecordedAssetRecord recorded;
+            if (const auto result = readRecordedAsset(recordedValue, recorded); result.failed())
+                return result;
+            state.recordedAssets.push_back(std::move(recorded));
+        }
+    }
+
     if (const auto result = readAudio(root->getProperty("audio"), state.audio); result.failed())
         return result;
     if (const auto result = readMidi(root->getProperty("midi"), state.midi); result.failed())
         return result;
+    const auto recordingIdentifier = juce::Identifier{"recording"};
+    if (root->hasProperty(recordingIdentifier))
+        if (const auto result =
+                readRecording(root->getProperty(recordingIdentifier), state.recording);
+            result.failed())
+            return result;
     if (const auto result = readUi(root->getProperty("ui"), state.ui); result.failed())
         return result;
     return project.restoreState(std::move(state), revision);

@@ -38,6 +38,15 @@ bool isFiniteInRange(const float value, const float minimum, const float maximum
     return std::isfinite(value) && value >= minimum && value <= maximum;
 }
 
+bool playbackBoundsValid(const SamplePlaybackSettings& settings,
+                         const std::uint64_t sourceFrameCount) noexcept {
+    return settings.initialized && sourceFrameCount > 0U &&
+           settings.startFrame < settings.endFrame && settings.endFrame <= sourceFrameCount &&
+           settings.loopStartFrame >= settings.startFrame &&
+           settings.loopStartFrame < settings.loopEndFrame &&
+           settings.loopEndFrame <= settings.endFrame;
+}
+
 juce::Result validateUuid(const juce::String& uuid, const juce::String& label) {
     if (uuid.trim().isEmpty())
         return juce::Result::fail(label + " UUID is empty");
@@ -129,7 +138,41 @@ juce::Result validateLayer(const SampleLayer& layer) {
         return juce::Result::fail("Layer tuning must be within -1200..1200 cents");
     if (layer.enabled && layer.assetUuid.trim().isEmpty())
         return juce::Result::fail("An enabled layer must reference an asset");
+    if (!layer.playback.initialized &&
+        (layer.playback.startFrame != 0U || layer.playback.endFrame != 0U ||
+         layer.playback.loopStartFrame != 0U || layer.playback.loopEndFrame != 0U ||
+         layer.playback.loopEnabled || layer.playback.reverseEnabled ||
+         layer.playback.zeroCrossingSnap))
+        return juce::Result::fail("Uninitialized layer playback state must contain defaults");
+    if (layer.playback.initialized && layer.assetUuid.trim().isEmpty())
+        return juce::Result::fail("Initialized layer playback state requires an asset");
     return juce::Result::ok();
+}
+
+juce::Result validateSamplePlaybackSettings(const SamplePlaybackSettings& settings,
+                                            const std::uint64_t sourceFrameCount) {
+    if (!settings.initialized)
+        return juce::Result::fail("Sample playback bounds are not initialized");
+    if (sourceFrameCount == 0U || settings.startFrame >= settings.endFrame ||
+        settings.endFrame > sourceFrameCount)
+        return juce::Result::fail("Sample trim must be a non-empty range inside the source");
+    if (!playbackBoundsValid(settings, sourceFrameCount))
+        return juce::Result::fail("Sample loop must be a non-empty range inside the trim");
+    return juce::Result::ok();
+}
+
+SamplePlaybackSettings
+resolveSamplePlaybackSettings(const SampleLayer& layer,
+                              const std::uint64_t sourceFrameCount) noexcept {
+    if (playbackBoundsValid(layer.playback, sourceFrameCount))
+        return layer.playback;
+    SamplePlaybackSettings resolved;
+    if (sourceFrameCount > 0U) {
+        resolved.endFrame = sourceFrameCount;
+        resolved.loopEndFrame = sourceFrameCount;
+        resolved.initialized = true;
+    }
+    return resolved;
 }
 
 juce::Result validatePad(const Pad& pad) {
@@ -205,6 +248,83 @@ juce::Result validateProjectState(const ProjectState& state) {
             return juce::Result::fail("External asset metadata is invalid");
         addUuid(uuids, asset.uuid, result);
     }
+    for (const auto& derived : state.derivedAssets) {
+        if (derived.derivedAssetUuid.trim().isEmpty() || derived.parentAssetUuid.trim().isEmpty() ||
+            derived.sourceFingerprint.trim().isEmpty() ||
+            derived.operationIdentifier.trim().isEmpty() || derived.algorithmVersion == 0U ||
+            derived.canonicalOperationParameters.trim().isEmpty() ||
+            derived.outputFingerprint.trim().isEmpty() ||
+            derived.creationMetadata.trim().isEmpty() ||
+            derived.projectOwnedRelativePath.trim().isEmpty())
+            return juce::Result::fail("Derived asset provenance is incomplete");
+        const auto output =
+            std::find_if(state.assets.begin(), state.assets.end(), [&](const auto& asset) {
+                return asset.uuid == derived.derivedAssetUuid &&
+                       asset.contentFingerprint == derived.outputFingerprint;
+            });
+        const auto parent =
+            std::find_if(state.assets.begin(), state.assets.end(), [&](const auto& asset) {
+                return asset.uuid == derived.parentAssetUuid &&
+                       asset.contentFingerprint == derived.sourceFingerprint;
+            });
+        if (output == state.assets.end() || parent == state.assets.end())
+            return juce::Result::fail("Derived asset provenance references unknown source data");
+    }
+    for (const auto& recorded : state.recordedAssets) {
+        if (recorded.recordedAssetUuid.trim().isEmpty() || recorded.sessionUuid.trim().isEmpty() ||
+            recorded.contentFingerprint.trim().isEmpty() ||
+            recorded.projectOwnedRelativePath.trim().isEmpty() ||
+            recorded.targetProjectUuid.trim().isEmpty() ||
+            recorded.targetPadUuid.trim().isEmpty() || recorded.targetLayerUuid.trim().isEmpty() ||
+            (recorded.channels != 1U && recorded.channels != 2U) ||
+            !std::isfinite(recorded.sampleRate) || recorded.sampleRate <= 0.0 ||
+            recorded.frameCount == 0U)
+            return juce::Result::fail("Recorded asset provenance is incomplete");
+        const auto output =
+            std::find_if(state.assets.begin(), state.assets.end(), [&](const auto& asset) {
+                return asset.uuid == recorded.recordedAssetUuid &&
+                       asset.contentFingerprint == recorded.contentFingerprint &&
+                       asset.channels == recorded.channels &&
+                       asset.sourceSampleRate == recorded.sampleRate &&
+                       asset.frameCount == recorded.frameCount;
+            });
+        if (output == state.assets.end())
+            return juce::Result::fail("Recorded asset provenance references unknown source data");
+        if (recorded.targetProjectUuid != state.projectUuid)
+            return juce::Result::fail("Recorded asset provenance targets a different project");
+        const auto targetPad =
+            std::find_if(state.banks.begin(), state.banks.end(), [&](const auto& bank) {
+                return std::any_of(bank.pads.begin(), bank.pads.end(), [&](const auto& pad) {
+                    return pad.uuid == recorded.targetPadUuid &&
+                           std::any_of(pad.layers.begin(), pad.layers.end(),
+                                       [&](const auto& layer) {
+                                           return layer.uuid == recorded.targetLayerUuid;
+                                       });
+                });
+            });
+        if (targetPad == state.banks.end())
+            return juce::Result::fail("Recorded asset provenance targets an unknown layer");
+    }
+    if ((state.recording.channels != 1U && state.recording.channels != 2U) ||
+        !isFiniteInRange(state.recording.thresholdDecibels, -96.0F, 0.0F) ||
+        state.recording.preRollMilliseconds > 2000U)
+        return juce::Result::fail("Recording preferences are outside their supported range");
+    for (const auto& bank : state.banks)
+        for (const auto& pad : bank.pads)
+            for (const auto& layer : pad.layers) {
+                if (!layer.playback.initialized)
+                    continue;
+                const auto asset =
+                    std::find_if(state.assets.begin(), state.assets.end(),
+                                 [&](const auto& entry) { return entry.uuid == layer.assetUuid; });
+                if (asset == state.assets.end())
+                    return juce::Result::fail(
+                        "Initialized layer playback state references an unknown asset");
+                if (const auto playbackResult =
+                        validateSamplePlaybackSettings(layer.playback, asset->frameCount);
+                    playbackResult.failed())
+                    return playbackResult;
+            }
     return result;
 }
 

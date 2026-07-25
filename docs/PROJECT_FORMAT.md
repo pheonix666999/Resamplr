@@ -30,6 +30,34 @@ default banks, pads, layers, mappings, audio/MIDI settings, and UI state derived
 project UUID. A partially present Milestone 1 payload is invalid rather than silently defaulted.
 Loading parses and validates a complete candidate state before committing it to the live project.
 
+## Milestone 2 additive layer editing payload
+
+Schema v1 remains active. An assigned layer edited or imported by Milestone 2 carries an `editing`
+object with decimal-string `startFrame`, `endFrame`, `loopStartFrame`, and `loopEndFrame` values plus
+loop, reverse, and zero-crossing-snap booleans. Starts are inclusive and ends are exclusive. Trim
+must be non-empty inside the referenced source frame count, and loop must be non-empty inside trim.
+
+Milestone 1 layer records without `editing` remain valid and resolve at runtime to the complete
+source range with loop and reverse disabled. Once a Milestone 2 edit is committed, all editing
+members are serialized together; partially present or invalid editing state is rejected without a
+partial project commit. Waveform caches remain optional, non-authoritative, and regenerable.
+
+Milestone 2 derived renders add a root `derivedAssets` array while retaining schema v1. Each record
+stores the output and parent UUIDs, captured source fingerprint, operation identifier and algorithm
+version, canonical parameters, output fingerprint, deterministic renderer metadata, and
+project-owned relative path. Older Milestone 0/1 manifests may omit `derivedAssets` and load it as
+an empty list. A present record must resolve both its exact parent fingerprint and its exact output
+fingerprint; incomplete or dangling provenance is rejected before project state changes.
+
+Milestone 2 recordings add optional root `recordedAssets` and `recording` members. Each recording
+record stores the immutable asset UUID and fingerprint, capture-session UUID, project-owned relative
+WAV path, input-device identifier, exact channel/rate/frame metadata, and the originally targeted
+project/pad/layer/revision. The preferences object stores only stable user choices: mono/stereo layout,
+manual/threshold mode, threshold dBFS, 0–2000 ms pre-roll, and automatic assignment. Device runtime
+internals are not persisted there. Older manifests may omit both members and receive deterministic
+defaults. Missing recorded files retain their asset and provenance records with the asset's explicit
+missing flag; malformed or dangling provenance rejects the candidate project before commit.
+
 ## Musical time
 
 All musical positions use 960 PPQ. Absolute positions are `{ wholePpqTicks: int64,
@@ -50,6 +78,18 @@ Derived PCM resides under `Assets/Derived/` and stores UUID, original/source UUI
 canonical parameters, recipe hash, source/output fingerprints, and relevant creation metadata. Undo
 changes references rather than embedding PCM. Compaction removes only data proven unreferenced by the
 saved model, undo retention policy, recovery data, or an active job.
+
+The v1 derived renderer normalizes the complete immutable source, converts stereo with
+`(left + right) * 0.5`, applies linear fades only inside the active trim region, and crops the
+half-open active trim range. Crop resets trim to the complete derived asset and rebases the valid
+loop relative to the crop start. Rendering writes a sibling `.part-*` WAV and publishes it by a
+same-directory rename; failed, cancelled, or stale newly-created outputs are removed.
+
+Input recordings reside under `Assets/Recorded/` (or the equivalent project-owned working
+directory before collection). The callback writes only into preallocated FIFO/pre-roll memory. A
+session-specific writer thread owns sibling `.part` creation, 24-bit WAV encoding, header
+finalization, validation, and collision-safe publication. Only a completed and decoded immutable
+asset may be committed to a layer; a stale destination leaves the valid file unassigned.
 
 ## Save and recovery
 

@@ -58,7 +58,7 @@ SampleImportRequest makeRequest(const ApplicationController& controller, const j
                                 juce::String assetUuid, const std::size_t layerIndex = 0U) {
     return {
         JobSpec{controller.project().uuid(), controller.project().pad(0U).uuid,
-                controller.project().revision(), 0},
+                controller.project().revision(), 0, JobKind::sampleImport},
         file,
         std::move(assetUuid),
         0U,

@@ -22,10 +22,23 @@ class ApplicationController final {
     [[nodiscard]] juce::Result setPadParameters(std::size_t globalIndex, PadParameters parameters);
     [[nodiscard]] juce::Result setLayer(std::size_t globalIndex, std::size_t layerIndex,
                                         SampleLayer layer);
+    [[nodiscard]] juce::Result setLayerTrim(std::size_t globalIndex, std::size_t layerIndex,
+                                            std::uint64_t startFrame, std::uint64_t endFrame);
+    [[nodiscard]] juce::Result setLayerLoop(std::size_t globalIndex, std::size_t layerIndex,
+                                            std::uint64_t startFrame, std::uint64_t endFrame);
+    [[nodiscard]] juce::Result setLayerLoopEnabled(std::size_t globalIndex, std::size_t layerIndex,
+                                                   bool enabled);
+    [[nodiscard]] juce::Result setLayerReverseEnabled(std::size_t globalIndex,
+                                                      std::size_t layerIndex, bool enabled);
+    [[nodiscard]] juce::Result setLayerZeroCrossingSnap(std::size_t globalIndex,
+                                                        std::size_t layerIndex, bool enabled);
+    [[nodiscard]] juce::Result resetLayerTrim(std::size_t globalIndex, std::size_t layerIndex);
+    [[nodiscard]] juce::Result resetLayerLoop(std::size_t globalIndex, std::size_t layerIndex);
     [[nodiscard]] juce::Result setPadMappings(std::size_t globalIndex, std::uint8_t midiNote,
                                               juce::String keyboardKey);
     [[nodiscard]] juce::Result setAudioSettings(AudioSettings settings);
     [[nodiscard]] juce::Result setMidiSettings(MidiSettings settings);
+    [[nodiscard]] juce::Result setRecordingPreferences(RecordingPreferences preferences);
     [[nodiscard]] juce::Result setUiState(ProjectUiState state);
     [[nodiscard]] juce::Result clearPad(std::size_t globalIndex);
     [[nodiscard]] juce::Result copyPad(std::size_t globalIndex);
@@ -35,6 +48,17 @@ class ApplicationController final {
     [[nodiscard]] juce::Result commitImportedLayer(const JobSpec& target, std::size_t globalIndex,
                                                    std::size_t layerIndex,
                                                    ExternalAssetReference asset);
+    [[nodiscard]] juce::Result commitDerivedLayer(const JobSpec& target, std::size_t globalIndex,
+                                                  std::size_t layerIndex,
+                                                  const juce::String& expectedSourceAssetUuid,
+                                                  ExternalAssetReference derivedAsset,
+                                                  DerivedAssetRecord provenance,
+                                                  SamplePlaybackSettings playback);
+    [[nodiscard]] juce::Result commitRecordedLayer(const JobSpec& target, std::size_t globalIndex,
+                                                   std::size_t layerIndex,
+                                                   const juce::String& expectedLayerUuid,
+                                                   ExternalAssetReference recordedAsset,
+                                                   RecordedAssetRecord provenance);
     [[nodiscard]] bool canUndo() const noexcept;
     [[nodiscard]] bool canRedo() const noexcept;
     [[nodiscard]] bool undo();
@@ -51,6 +75,11 @@ class ApplicationController final {
                                              juce::String description);
     [[nodiscard]] juce::Result commitProjectEdit(ProjectState replacement,
                                                  juce::String description);
+    [[nodiscard]] const ExternalAssetReference*
+    assetForLayer(std::size_t globalIndex, std::size_t layerIndex) const noexcept;
+    [[nodiscard]] juce::Result commitLayerPlayback(std::size_t globalIndex, std::size_t layerIndex,
+                                                   SamplePlaybackSettings playback,
+                                                   juce::String description);
 
     Project project_;
     std::optional<Pad> clipboard_;

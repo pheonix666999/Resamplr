@@ -1,6 +1,7 @@
 #include "ApplicationController.h"
 
 #include <algorithm>
+#include <memory>
 #include <utility>
 
 namespace padflow {
@@ -82,9 +83,123 @@ juce::Result ApplicationController::setLayer(const std::size_t globalIndex,
         return juce::Result::fail("Pad index is outside 0..63");
     if (layerIndex >= minimumLayersPerPad)
         return juce::Result::fail("Layer index is outside 0..3");
+    if (!layer.playback.initialized && layer.assetUuid.isNotEmpty()) {
+        const auto asset =
+            std::find_if(project_.state().assets.begin(), project_.state().assets.end(),
+                         [&](const auto& entry) { return entry.uuid == layer.assetUuid; });
+        if (asset != project_.state().assets.end())
+            layer.playback = resolveSamplePlaybackSettings(layer, asset->frameCount);
+    }
     auto replacement = project_.pad(globalIndex);
     replacement.layers[layerIndex] = std::move(layer);
     return commitPadEdit(globalIndex, std::move(replacement), "Change sample layer");
+}
+
+juce::Result ApplicationController::setLayerTrim(const std::size_t globalIndex,
+                                                 const std::size_t layerIndex,
+                                                 const std::uint64_t startFrame,
+                                                 const std::uint64_t endFrame) {
+    const auto* asset = assetForLayer(globalIndex, layerIndex);
+    if (asset == nullptr)
+        return juce::Result::fail("Sample trim requires an assigned asset");
+    if (startFrame >= endFrame || endFrame > asset->frameCount)
+        return juce::Result::fail("Sample trim must be a non-empty range inside the source");
+    auto playback = resolveSamplePlaybackSettings(project_.pad(globalIndex).layers[layerIndex],
+                                                  asset->frameCount);
+    playback.startFrame = startFrame;
+    playback.endFrame = endFrame;
+    const auto clampedLoopStart = std::max(playback.loopStartFrame, startFrame);
+    const auto clampedLoopEnd = std::min(playback.loopEndFrame, endFrame);
+    if (clampedLoopStart < clampedLoopEnd) {
+        playback.loopStartFrame = clampedLoopStart;
+        playback.loopEndFrame = clampedLoopEnd;
+    } else {
+        playback.loopStartFrame = startFrame;
+        playback.loopEndFrame = endFrame;
+        playback.loopEnabled = false;
+    }
+    return commitLayerPlayback(globalIndex, layerIndex, playback, "Change sample trim");
+}
+
+juce::Result ApplicationController::setLayerLoop(const std::size_t globalIndex,
+                                                 const std::size_t layerIndex,
+                                                 const std::uint64_t startFrame,
+                                                 const std::uint64_t endFrame) {
+    const auto* asset = assetForLayer(globalIndex, layerIndex);
+    if (asset == nullptr)
+        return juce::Result::fail("Sample loop requires an assigned asset");
+    auto playback = resolveSamplePlaybackSettings(project_.pad(globalIndex).layers[layerIndex],
+                                                  asset->frameCount);
+    if (startFrame < playback.startFrame || startFrame >= endFrame || endFrame > playback.endFrame)
+        return juce::Result::fail("Sample loop must be a non-empty range inside the trim");
+    playback.loopStartFrame = startFrame;
+    playback.loopEndFrame = endFrame;
+    return commitLayerPlayback(globalIndex, layerIndex, playback, "Change sample loop");
+}
+
+juce::Result ApplicationController::setLayerLoopEnabled(const std::size_t globalIndex,
+                                                        const std::size_t layerIndex,
+                                                        const bool enabled) {
+    const auto* asset = assetForLayer(globalIndex, layerIndex);
+    if (asset == nullptr)
+        return juce::Result::fail("Sample loop requires an assigned asset");
+    auto playback = resolveSamplePlaybackSettings(project_.pad(globalIndex).layers[layerIndex],
+                                                  asset->frameCount);
+    playback.loopEnabled = enabled;
+    return commitLayerPlayback(globalIndex, layerIndex, playback,
+                               enabled ? "Enable sample loop" : "Disable sample loop");
+}
+
+juce::Result ApplicationController::setLayerReverseEnabled(const std::size_t globalIndex,
+                                                           const std::size_t layerIndex,
+                                                           const bool enabled) {
+    const auto* asset = assetForLayer(globalIndex, layerIndex);
+    if (asset == nullptr)
+        return juce::Result::fail("Sample reverse requires an assigned asset");
+    auto playback = resolveSamplePlaybackSettings(project_.pad(globalIndex).layers[layerIndex],
+                                                  asset->frameCount);
+    playback.reverseEnabled = enabled;
+    return commitLayerPlayback(globalIndex, layerIndex, playback,
+                               enabled ? "Enable sample reverse" : "Disable sample reverse");
+}
+
+juce::Result ApplicationController::setLayerZeroCrossingSnap(const std::size_t globalIndex,
+                                                             const std::size_t layerIndex,
+                                                             const bool enabled) {
+    const auto* asset = assetForLayer(globalIndex, layerIndex);
+    if (asset == nullptr)
+        return juce::Result::fail("Zero-crossing snap requires an assigned asset");
+    auto playback = resolveSamplePlaybackSettings(project_.pad(globalIndex).layers[layerIndex],
+                                                  asset->frameCount);
+    playback.zeroCrossingSnap = enabled;
+    return commitLayerPlayback(globalIndex, layerIndex, playback,
+                               enabled ? "Enable zero-crossing snap"
+                                       : "Disable zero-crossing snap");
+}
+
+juce::Result ApplicationController::resetLayerTrim(const std::size_t globalIndex,
+                                                   const std::size_t layerIndex) {
+    const auto* asset = assetForLayer(globalIndex, layerIndex);
+    if (asset == nullptr)
+        return juce::Result::fail("Sample trim requires an assigned asset");
+    auto playback = resolveSamplePlaybackSettings(project_.pad(globalIndex).layers[layerIndex],
+                                                  asset->frameCount);
+    playback.startFrame = 0U;
+    playback.endFrame = asset->frameCount;
+    return commitLayerPlayback(globalIndex, layerIndex, playback, "Reset sample trim");
+}
+
+juce::Result ApplicationController::resetLayerLoop(const std::size_t globalIndex,
+                                                   const std::size_t layerIndex) {
+    const auto* asset = assetForLayer(globalIndex, layerIndex);
+    if (asset == nullptr)
+        return juce::Result::fail("Sample loop requires an assigned asset");
+    auto playback = resolveSamplePlaybackSettings(project_.pad(globalIndex).layers[layerIndex],
+                                                  asset->frameCount);
+    playback.loopStartFrame = playback.startFrame;
+    playback.loopEndFrame = playback.endFrame;
+    playback.loopEnabled = false;
+    return commitLayerPlayback(globalIndex, layerIndex, playback, "Reset sample loop");
 }
 
 juce::Result ApplicationController::setPadMappings(const std::size_t globalIndex,
@@ -108,6 +223,12 @@ juce::Result ApplicationController::setMidiSettings(MidiSettings settings) {
     auto candidate = project_.state();
     candidate.midi = std::move(settings);
     return commitProjectEdit(std::move(candidate), "Change MIDI settings");
+}
+
+juce::Result ApplicationController::setRecordingPreferences(RecordingPreferences preferences) {
+    auto candidate = project_.state();
+    candidate.recording = preferences;
+    return commitProjectEdit(std::move(candidate), "Change recording preferences");
 }
 
 juce::Result ApplicationController::setUiState(ProjectUiState state) {
@@ -173,6 +294,8 @@ juce::Result ApplicationController::commitImportedLayer(const JobSpec& target,
     auto& replacement = candidate.banks[globalIndex / padsPerBank].pads[globalIndex % padsPerBank];
     replacement.layers[layerIndex].assetUuid = asset.uuid;
     replacement.layers[layerIndex].enabled = true;
+    replacement.layers[layerIndex].playback =
+        resolveSamplePlaybackSettings(replacement.layers[layerIndex], asset.frameCount);
 
     const auto existingAsset =
         std::find_if(candidate.assets.begin(), candidate.assets.end(),
@@ -188,6 +311,117 @@ juce::Result ApplicationController::commitImportedLayer(const JobSpec& target,
         result.failed())
         return result;
     undoHistory_.push_back(ProjectEdit{before, project_.state(), "Import sample"});
+    redoHistory_.clear();
+    return juce::Result::ok();
+}
+
+juce::Result ApplicationController::commitDerivedLayer(
+    const JobSpec& target, const std::size_t globalIndex, const std::size_t layerIndex,
+    const juce::String& expectedSourceAssetUuid, ExternalAssetReference derivedAsset,
+    DerivedAssetRecord provenance, SamplePlaybackSettings playback) {
+    if (!isCurrentJobTarget(target))
+        return juce::Result::fail("Derived asset completion is stale");
+    if (globalIndex >= totalPadCount || layerIndex >= minimumLayersPerPad)
+        return juce::Result::fail("Derived asset completion targets an invalid layer");
+    if (project_.pad(globalIndex).uuid != target.targetUuid)
+        return juce::Result::fail("Derived asset completion targets a different pad");
+    if (project_.pad(globalIndex).layers[layerIndex].assetUuid != expectedSourceAssetUuid)
+        return juce::Result::fail("Derived asset source assignment changed");
+    if (derivedAsset.uuid != provenance.derivedAssetUuid ||
+        derivedAsset.contentFingerprint != provenance.outputFingerprint)
+        return juce::Result::fail("Derived asset provenance does not match its output");
+    if (const auto validation = validateSamplePlaybackSettings(playback, derivedAsset.frameCount);
+        validation.failed())
+        return validation;
+
+    const auto before = project_.state();
+    auto candidate = project_.state();
+    auto& replacement = candidate.banks[globalIndex / padsPerBank].pads[globalIndex % padsPerBank];
+    replacement.layers[layerIndex].assetUuid = derivedAsset.uuid;
+    replacement.layers[layerIndex].enabled = true;
+    replacement.layers[layerIndex].playback = playback;
+
+    const auto existingAsset =
+        std::find_if(candidate.assets.begin(), candidate.assets.end(),
+                     [&](const auto& entry) { return entry.uuid == derivedAsset.uuid; });
+    if (existingAsset != candidate.assets.end())
+        *existingAsset = std::move(derivedAsset);
+    else
+        candidate.assets.push_back(std::move(derivedAsset));
+    const auto existingProvenance = std::find_if(
+        candidate.derivedAssets.begin(), candidate.derivedAssets.end(),
+        [&](const auto& entry) { return entry.derivedAssetUuid == provenance.derivedAssetUuid; });
+    if (existingProvenance != candidate.derivedAssets.end())
+        *existingProvenance = std::move(provenance);
+    else
+        candidate.derivedAssets.push_back(std::move(provenance));
+
+    if (const auto validation = validateProjectState(candidate); validation.failed())
+        return validation;
+    if (const auto result = project_.restoreState(std::move(candidate), project_.revision() + 1U);
+        result.failed())
+        return result;
+    undoHistory_.push_back(
+        ProjectEdit{before, project_.state(), "Replace layer with derived asset"});
+    redoHistory_.clear();
+    return juce::Result::ok();
+}
+
+juce::Result ApplicationController::commitRecordedLayer(const JobSpec& target,
+                                                        const std::size_t globalIndex,
+                                                        const std::size_t layerIndex,
+                                                        const juce::String& expectedLayerUuid,
+                                                        ExternalAssetReference recordedAsset,
+                                                        RecordedAssetRecord provenance) {
+    if (!isCurrentJobTarget(target))
+        return juce::Result::fail("Recorded asset completion is stale");
+    if (globalIndex >= totalPadCount || layerIndex >= minimumLayersPerPad)
+        return juce::Result::fail("Recorded asset completion targets an invalid layer");
+    const auto& currentPad = project_.pad(globalIndex);
+    if (currentPad.uuid != target.targetUuid)
+        return juce::Result::fail("Recorded asset completion targets a different pad");
+    if (currentPad.layers[layerIndex].uuid != expectedLayerUuid ||
+        provenance.targetLayerUuid != expectedLayerUuid ||
+        provenance.targetProjectUuid != target.ownerUuid ||
+        provenance.targetPadUuid != currentPad.uuid ||
+        provenance.targetProjectRevision != target.targetRevision)
+        return juce::Result::fail("Recorded asset destination changed");
+    if (recordedAsset.uuid != provenance.recordedAssetUuid ||
+        recordedAsset.contentFingerprint != provenance.contentFingerprint ||
+        recordedAsset.channels != provenance.channels ||
+        recordedAsset.sourceSampleRate != provenance.sampleRate ||
+        recordedAsset.frameCount != provenance.frameCount)
+        return juce::Result::fail("Recorded asset provenance does not match its output");
+
+    const auto before = project_.state();
+    auto candidate = project_.state();
+    auto& replacement = candidate.banks[globalIndex / padsPerBank].pads[globalIndex % padsPerBank];
+    replacement.layers[layerIndex].assetUuid = recordedAsset.uuid;
+    replacement.layers[layerIndex].enabled = true;
+    replacement.layers[layerIndex].playback =
+        resolveSamplePlaybackSettings(replacement.layers[layerIndex], recordedAsset.frameCount);
+
+    const auto existingAsset =
+        std::find_if(candidate.assets.begin(), candidate.assets.end(),
+                     [&](const auto& entry) { return entry.uuid == recordedAsset.uuid; });
+    if (existingAsset != candidate.assets.end())
+        *existingAsset = std::move(recordedAsset);
+    else
+        candidate.assets.push_back(std::move(recordedAsset));
+    const auto existingProvenance = std::find_if(
+        candidate.recordedAssets.begin(), candidate.recordedAssets.end(),
+        [&](const auto& entry) { return entry.recordedAssetUuid == provenance.recordedAssetUuid; });
+    if (existingProvenance != candidate.recordedAssets.end())
+        *existingProvenance = std::move(provenance);
+    else
+        candidate.recordedAssets.push_back(std::move(provenance));
+
+    if (const auto validation = validateProjectState(candidate); validation.failed())
+        return validation;
+    if (const auto result = project_.restoreState(std::move(candidate), project_.revision() + 1U);
+        result.failed())
+        return result;
+    undoHistory_.push_back(ProjectEdit{before, project_.state(), "Assign recorded sample"});
     redoHistory_.clear();
     return juce::Result::ok();
 }
@@ -256,5 +490,33 @@ juce::Result ApplicationController::commitProjectEdit(ProjectState replacement,
     undoHistory_.push_back(ProjectEdit{before, project_.state(), std::move(description)});
     redoHistory_.clear();
     return juce::Result::ok();
+}
+
+const ExternalAssetReference*
+ApplicationController::assetForLayer(const std::size_t globalIndex,
+                                     const std::size_t layerIndex) const noexcept {
+    if (globalIndex >= totalPadCount || layerIndex >= minimumLayersPerPad)
+        return nullptr;
+    const auto& layer = project_.pad(globalIndex).layers[layerIndex];
+    const auto asset =
+        std::find_if(project_.state().assets.begin(), project_.state().assets.end(),
+                     [&](const auto& entry) { return entry.uuid == layer.assetUuid; });
+    return asset == project_.state().assets.end() ? nullptr : std::addressof(*asset);
+}
+
+juce::Result ApplicationController::commitLayerPlayback(const std::size_t globalIndex,
+                                                        const std::size_t layerIndex,
+                                                        SamplePlaybackSettings playback,
+                                                        juce::String description) {
+    const auto* asset = assetForLayer(globalIndex, layerIndex);
+    if (asset == nullptr)
+        return juce::Result::fail("Sample playback edit requires an assigned asset");
+    playback.initialized = true;
+    if (const auto validation = validateSamplePlaybackSettings(playback, asset->frameCount);
+        validation.failed())
+        return validation;
+    auto replacement = project_.pad(globalIndex);
+    replacement.layers[layerIndex].playback = playback;
+    return commitPadEdit(globalIndex, std::move(replacement), std::move(description));
 }
 } // namespace padflow

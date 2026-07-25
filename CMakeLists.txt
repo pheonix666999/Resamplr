@@ -38,6 +38,8 @@ add_library(
     Source/Model/Project.h
     Source/Sampling/SampleAsset.cpp
     Source/Sampling/SampleAsset.h
+    Source/Sampling/WaveformCache.cpp
+    Source/Sampling/WaveformCache.h
     Source/Serialization/ProjectSerializer.cpp
     Source/Serialization/ProjectSerializer.h
     Source/Utilities/BackgroundJobSystem.cpp
@@ -65,6 +67,10 @@ add_library(
     Source/Input/InputRouter.h
     Source/Sampling/SampleImporter.cpp
     Source/Sampling/SampleImporter.h
+    Source/Sampling/DerivedAsset.cpp
+    Source/Sampling/DerivedAsset.h
+    Source/Sampling/RecordedAsset.cpp
+    Source/Sampling/RecordedAsset.h
     Source/Sampling/SamplePreviewController.cpp
     Source/Sampling/SamplePreviewController.h
     Source/Smoke/SmokeScenario.cpp
@@ -83,8 +89,12 @@ add_library(
     padflow_ui STATIC
     Source/App/MainWindow.cpp
     Source/App/MainWindow.h
+    Source/App/RecordingPanel.cpp
+    Source/App/RecordingPanel.h
     Source/App/SamplerView.cpp
-    Source/App/SamplerView.h)
+    Source/App/SamplerView.h
+    Source/App/WaveformEditor.cpp
+    Source/App/WaveformEditor.h)
 target_include_directories(padflow_ui PUBLIC Source)
 target_link_libraries(padflow_ui PUBLIC padflow_audio juce::juce_gui_basics)
 padflow_enable_project_warnings(padflow_ui)

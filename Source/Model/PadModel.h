@@ -26,6 +26,20 @@ struct EnvelopeParameters final {
                                          const EnvelopeParameters&) = default;
 };
 
+struct SamplePlaybackSettings final {
+    std::uint64_t startFrame{0U};
+    std::uint64_t endFrame{0U};
+    std::uint64_t loopStartFrame{0U};
+    std::uint64_t loopEndFrame{0U};
+    bool loopEnabled{false};
+    bool reverseEnabled{false};
+    bool zeroCrossingSnap{false};
+    bool initialized{false};
+
+    [[nodiscard]] friend bool operator==(const SamplePlaybackSettings&,
+                                         const SamplePlaybackSettings&) = default;
+};
+
 struct SampleLayer final {
     juce::String uuid;
     juce::String assetUuid;
@@ -35,6 +49,7 @@ struct SampleLayer final {
     float gainDecibels{0.0F};
     float pan{0.0F};
     float tuningCents{0.0F};
+    SamplePlaybackSettings playback;
 
     [[nodiscard]] friend bool operator==(const SampleLayer&, const SampleLayer&) = default;
 };
@@ -91,6 +106,50 @@ struct ExternalAssetReference final {
                                          const ExternalAssetReference&) = default;
 };
 
+struct DerivedAssetRecord final {
+    juce::String derivedAssetUuid;
+    juce::String parentAssetUuid;
+    juce::String sourceFingerprint;
+    juce::String operationIdentifier;
+    std::uint32_t algorithmVersion{0U};
+    juce::String canonicalOperationParameters;
+    juce::String outputFingerprint;
+    juce::String creationMetadata;
+    juce::String projectOwnedRelativePath;
+
+    [[nodiscard]] friend bool operator==(const DerivedAssetRecord&,
+                                         const DerivedAssetRecord&) = default;
+};
+
+struct RecordedAssetRecord final {
+    juce::String recordedAssetUuid;
+    juce::String sessionUuid;
+    juce::String contentFingerprint;
+    juce::String projectOwnedRelativePath;
+    juce::String inputDeviceIdentifier;
+    juce::String targetProjectUuid;
+    juce::String targetPadUuid;
+    juce::String targetLayerUuid;
+    std::uint64_t targetProjectRevision{0U};
+    std::uint32_t channels{0U};
+    double sampleRate{0.0};
+    std::uint64_t frameCount{0U};
+
+    [[nodiscard]] friend bool operator==(const RecordedAssetRecord&,
+                                         const RecordedAssetRecord&) = default;
+};
+
+struct RecordingPreferences final {
+    std::uint32_t channels{1U};
+    bool thresholdMode{false};
+    float thresholdDecibels{-24.0F};
+    std::uint32_t preRollMilliseconds{0U};
+    bool autoAssign{true};
+
+    [[nodiscard]] friend bool operator==(const RecordingPreferences&,
+                                         const RecordingPreferences&) = default;
+};
+
 struct MidiSettings final {
     juce::String preferredInputIdentifier;
     std::uint8_t channelFilter{0U};
@@ -127,6 +186,9 @@ struct ProjectState final {
     juce::String projectName{"Untitled"};
     std::array<PadBank, padBankCount> banks;
     std::vector<ExternalAssetReference> assets;
+    std::vector<DerivedAssetRecord> derivedAssets;
+    std::vector<RecordedAssetRecord> recordedAssets;
+    RecordingPreferences recording;
     MidiSettings midi;
     AudioSettings audio;
     ProjectUiState ui;
@@ -141,6 +203,10 @@ struct ProjectState final {
 void regeneratePadIdentity(Pad& pad);
 
 [[nodiscard]] juce::Result validateLayer(const SampleLayer& layer);
+[[nodiscard]] juce::Result validateSamplePlaybackSettings(const SamplePlaybackSettings& settings,
+                                                          std::uint64_t sourceFrameCount);
+[[nodiscard]] SamplePlaybackSettings
+resolveSamplePlaybackSettings(const SampleLayer& layer, std::uint64_t sourceFrameCount) noexcept;
 [[nodiscard]] juce::Result validatePad(const Pad& pad);
 [[nodiscard]] juce::Result validateProjectState(const ProjectState& state);
 [[nodiscard]] std::size_t toGlobalPadIndex(std::size_t bankIndex, std::size_t padIndex) noexcept;
