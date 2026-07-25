@@ -2,8 +2,14 @@
 
 ## Current milestone
 
-Milestone 2 — waveform editing and recording: **complete and ready for review on
-`feature/milestone-2-waveform-recording`**.
+Milestone 3 — sample chopping: **started on `feature/milestone-3-sample-chopping`**.
+
+Milestone 2 was merged into `main` at `5cfd0f4942ff02da621f7e086f62e4d8b095d43f`.
+[Post-merge run 30135505455](https://github.com/pheonix666999/Resamplr/actions/runs/30135505455)
+passed Linux Debug/Release, Windows Debug/Release and packaging, macOS universal tests/package,
+macOS Intel smoke, and cross-platform artifact verification before the Milestone 3 branch was
+created. Milestone 3 acceptance authorities are defined in `PLANS.md` and `TEST_PLAN.md`; chopping
+product implementation is not yet claimed complete.
 
 Milestone 1 was merged into `main` at `e11eb4e45b6b04ab6504f070f1ffd646a18f1389`.
 [Post-merge run 30076870715](https://github.com/pheonix666999/Resamplr/actions/runs/30076870715)
