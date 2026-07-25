@@ -41,6 +41,7 @@ add_library(
     Source/Chopping/SliceModel.h
     Source/Chopping/TransientAnalysis.cpp
     Source/Chopping/TransientAnalysis.h
+    Source/Model/MusicalTime.cpp
     Source/Model/MusicalTime.h
     Source/Model/PadModel.cpp
     Source/Model/PadModel.h
