@@ -742,6 +742,7 @@ stable `REGRESSION-M4-*` row here before the fix is claimed.
 | ID | Test |
 |---|---|
 | REGRESSION-M4-001 | Tap-tempo micro-BPM arithmetic has an explicit portable `int64_t` type so GCC/Linux and LLP64 platforms compile the clamp bounds consistently. |
+| REGRESSION-M4-002 | The count-in parameterized regression test binds its fixed cases by reference and remains warning-clean under GCC `-Wrange-loop-construct`. |
 
 ## Sequencer and timing — Milestones 4–5
 

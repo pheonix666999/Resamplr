@@ -106,7 +106,7 @@ class Milestone4TransportTests final : public juce::UnitTest {
         expect(nonSilent);
 
         beginTest("SEQ-M4-033 through SEQ-M4-035 count-in duration and record boundary");
-        for (const auto [bars, multiplier] :
+        for (const auto& [bars, multiplier] :
              {std::pair{CountInBars::one, 1}, std::pair{CountInBars::two, 2}}) {
             TransportEngine countIn;
             expect(countIn.publishConfiguration(&config));
