@@ -44,6 +44,20 @@ void ChoppingSession::cancel() {
     state_ = ChoppingSessionState::cancelled;
 }
 
+bool ChoppingSession::markAnalysing() noexcept {
+    if (!provisional_.has_value())
+        return false;
+    state_ = ChoppingSessionState::analysing;
+    return true;
+}
+
+bool ChoppingSession::markPreviewing() noexcept {
+    if (!provisional_.has_value())
+        return false;
+    state_ = ChoppingSessionState::previewing;
+    return true;
+}
+
 juce::Result ChoppingSession::regenerateEqual(const std::int64_t sliceCount) {
     if (!provisional_.has_value())
         return fail("Chopping session is not ready");
@@ -114,6 +128,18 @@ juce::Result ChoppingSession::clearInternalMarkers() {
     return applyManualBoundaries({target_.trimStart, target_.trimEnd});
 }
 
+juce::Result ChoppingSession::markCurrentSetLazy(const std::int64_t minimumSliceFrames,
+                                                 const std::int64_t quantizeFrames) {
+    if (!provisional_.has_value() || minimumSliceFrames <= 0 || quantizeFrames < 0)
+        return fail("Lazy slice metadata is invalid");
+    provisional_->algorithm = SliceAlgorithm::lazy;
+    provisional_->parameters.minimumSliceFrames = minimumSliceFrames;
+    provisional_->parameters.quantizeFrames = quantizeFrames;
+    lastError_.clear();
+    state_ = ChoppingSessionState::ready;
+    return juce::Result::ok();
+}
+
 juce::Result ChoppingSession::acceptTransientResult(const JobResult& result) {
     if (!provisional_.has_value())
         return fail("Chopping session is not ready");
@@ -127,6 +153,27 @@ juce::Result ChoppingSession::acceptTransientResult(const JobResult& result) {
         payload->sourceFingerprint != target_.sourceFingerprint)
         return fail("Transient result identity does not match the active session");
     return applyProvisional(payload->sliceSet);
+}
+
+bool ChoppingSession::selectSlice(const std::size_t index) noexcept {
+    if (!provisional_.has_value() || index >= provisional_->slices.size())
+        return false;
+    selectedSlice_ = index;
+    return true;
+}
+
+bool ChoppingSession::selectPreviousSlice() noexcept {
+    if (!provisional_.has_value() || provisional_->slices.empty() || selectedSlice_ == 0U)
+        return false;
+    --selectedSlice_;
+    return true;
+}
+
+bool ChoppingSession::selectNextSlice() noexcept {
+    if (!provisional_.has_value() || selectedSlice_ + 1U >= provisional_->slices.size())
+        return false;
+    ++selectedSlice_;
+    return true;
 }
 
 bool ChoppingSession::undoSessionEdit() {

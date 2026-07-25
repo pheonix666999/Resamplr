@@ -1,6 +1,7 @@
 #pragma once
 
 #include "App/ApplicationController.h"
+#include "App/ChoppingWorkspace.h"
 #include "App/RecordingPanel.h"
 #include "App/WaveformEditor.h"
 #include "Audio/AudioRuntime.h"
@@ -52,6 +53,8 @@ class SamplerView final : public juce::Component,
     [[nodiscard]] bool setSelectedLoopEnabled(bool enabled);
     [[nodiscard]] bool setSelectedReverseEnabled(bool enabled);
     void setRecordingPanelVisible(bool visible);
+    [[nodiscard]] bool setChoppingWorkspaceVisible(bool visible);
+    [[nodiscard]] ChoppingWorkspace& choppingWorkspace() noexcept;
     [[nodiscard]] bool armRecording(juce::File destination = {}, double sampleRateOverride = 0.0,
                                     std::uint32_t maximumBlockOverride = 0U);
     [[nodiscard]] bool startRecording();
@@ -147,6 +150,7 @@ class SamplerView final : public juce::Component,
     juce::TextButton audioButton_{"Audio Settings"};
     juce::TextButton midiButton_{"MIDI Settings"};
     juce::TextButton recordingPanelButton_{"Record"};
+    juce::TextButton choppingWorkspaceButton_{"Chop"};
     juce::Label cpuLabel_;
     juce::Label audioStateLabel_;
 
@@ -192,6 +196,7 @@ class SamplerView final : public juce::Component,
     juce::Label memoryStatusLabel_;
     juce::Label operationStatusLabel_;
     RecordingPanel recordingPanel_;
+    ChoppingWorkspace choppingWorkspace_;
 
     std::deque<QueuedImport> importQueue_;
     std::unique_ptr<juce::FileChooser> fileChooser_;
@@ -214,6 +219,7 @@ class SamplerView final : public juce::Component,
     bool modified_{false};
     bool lastOperationWasError_{false};
     bool recordingPanelVisible_{false};
+    bool choppingWorkspaceVisible_{false};
     bool recordingDecodeSubmitted_{false};
     bool recordingAutoAssign_{true};
 };

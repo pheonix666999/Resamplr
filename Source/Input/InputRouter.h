@@ -2,6 +2,8 @@
 
 #include "App/ApplicationController.h"
 #include "Audio/PlaybackEngine.h"
+#include "Audio/PreviewPlayer.h"
+#include "Chopping/LazyMarkerCapture.h"
 
 #include <juce_audio_devices/juce_audio_devices.h>
 
@@ -24,6 +26,7 @@ class InputRouter final : public juce::MidiInputCallback {
     [[nodiscard]] bool keyDown(int keyCode, bool textEntryHasFocus);
     [[nodiscard]] bool keyUp(int keyCode);
     [[nodiscard]] bool handleMidi(const juce::MidiMessage& message);
+    void setLazyMarkerCapture(LazyMarkerCapture* capture, PreviewPlayer* preview) noexcept;
     [[nodiscard]] bool triggerPad(std::size_t globalPadIndex, std::uint32_t sourceId,
                                   std::uint8_t velocity);
     [[nodiscard]] bool releaseSource(std::uint32_t sourceId);
@@ -38,6 +41,7 @@ class InputRouter final : public juce::MidiInputCallback {
     [[nodiscard]] int findMidiPad(int note) const noexcept;
     [[nodiscard]] bool makeMidiCommand(const juce::MidiMessage& message,
                                        AudioCommand& command) const noexcept;
+    [[nodiscard]] bool captureLazyMidi(const juce::MidiMessage& message) noexcept;
     [[nodiscard]] bool markKeyHeld(int keyCode) noexcept;
     void clearKeyHeld(int keyCode) noexcept;
 
@@ -50,6 +54,8 @@ class InputRouter final : public juce::MidiInputCallback {
     std::atomic<std::uint8_t> midiChannelFilter_{0U};
     SpscQueue<AudioCommand, 256U> midiCommands_;
     std::atomic<std::uint64_t> midiIngressOverflows_{0U};
+    std::atomic<LazyMarkerCapture*> lazyCapture_{nullptr};
+    std::atomic<PreviewPlayer*> lazyPreview_{nullptr};
     AudioCommand deferredMidiCommand_;
     bool hasDeferredMidiCommand_{false};
 };

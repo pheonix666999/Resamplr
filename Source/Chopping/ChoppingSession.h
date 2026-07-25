@@ -41,6 +41,8 @@ class ChoppingSession final {
   public:
     [[nodiscard]] juce::Result begin(ChoppingSessionTarget target);
     void cancel();
+    [[nodiscard]] bool markAnalysing() noexcept;
+    [[nodiscard]] bool markPreviewing() noexcept;
 
     [[nodiscard]] juce::Result regenerateEqual(std::int64_t sliceCount);
     [[nodiscard]] juce::Result regenerateFixed(std::int64_t lengthFrames,
@@ -50,7 +52,12 @@ class ChoppingSession final {
     [[nodiscard]] juce::Result deleteMarker(std::int64_t sourceFrame);
     [[nodiscard]] juce::Result moveMarker(std::int64_t sourceFrame, std::int64_t requestedFrame);
     [[nodiscard]] juce::Result clearInternalMarkers();
+    [[nodiscard]] juce::Result markCurrentSetLazy(std::int64_t minimumSliceFrames,
+                                                  std::int64_t quantizeFrames);
     [[nodiscard]] juce::Result acceptTransientResult(const JobResult& result);
+    [[nodiscard]] bool selectSlice(std::size_t index) noexcept;
+    [[nodiscard]] bool selectPreviousSlice() noexcept;
+    [[nodiscard]] bool selectNextSlice() noexcept;
     [[nodiscard]] bool undoSessionEdit();
     [[nodiscard]] bool redoSessionEdit();
 

@@ -163,8 +163,27 @@ bool InputRouter::keyUp(const int keyCode) {
 }
 
 bool InputRouter::handleMidi(const juce::MidiMessage& message) {
+    if (captureLazyMidi(message))
+        return true;
     AudioCommand command;
     return makeMidiCommand(message, command) && engine_.enqueue(command);
+}
+
+void InputRouter::setLazyMarkerCapture(LazyMarkerCapture* const capture,
+                                       PreviewPlayer* const preview) noexcept {
+    lazyPreview_.store(preview, std::memory_order_release);
+    lazyCapture_.store(capture, std::memory_order_release);
+}
+
+bool InputRouter::captureLazyMidi(const juce::MidiMessage& message) noexcept {
+    auto* const capture = lazyCapture_.load(std::memory_order_acquire);
+    auto* const preview = lazyPreview_.load(std::memory_order_acquire);
+    if (capture == nullptr || preview == nullptr || !capture->active() || !message.isNoteOnOrOff())
+        return false;
+    if (message.isNoteOn() && message.getVelocity() > 0U)
+        juce::ignoreUnused(capture->captureFromAudioThread(
+            static_cast<std::int64_t>(preview->sourceFramePosition()), LazyMarkerSource::midi));
+    return true;
 }
 
 bool InputRouter::triggerPad(const std::size_t globalPadIndex, const std::uint32_t sourceId,
@@ -193,6 +212,8 @@ void InputRouter::midiDeviceDisconnected() noexcept {
 void InputRouter::handleIncomingMidiMessage(juce::MidiInput* const source,
                                             const juce::MidiMessage& message) {
     juce::ignoreUnused(source);
+    if (captureLazyMidi(message))
+        return;
     AudioCommand command;
     if (makeMidiCommand(message, command) && !midiCommands_.tryPush(command))
         midiIngressOverflows_.fetch_add(1U, std::memory_order_relaxed);

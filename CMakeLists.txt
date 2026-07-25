@@ -73,6 +73,8 @@ add_library(
     Source/Audio/PlaybackStatePublisher.h
     Source/Audio/PreviewPlayer.cpp
     Source/Audio/PreviewPlayer.h
+    Source/Audio/SliceAuditionController.cpp
+    Source/Audio/SliceAuditionController.h
     Source/Input/InputRouter.cpp
     Source/Input/InputRouter.h
     Source/Sampling/SampleImporter.cpp
@@ -97,6 +99,8 @@ padflow_set_output_directory(padflow_audio)
 
 add_library(
     padflow_ui STATIC
+    Source/App/ChoppingWorkspace.cpp
+    Source/App/ChoppingWorkspace.h
     Source/App/MainWindow.cpp
     Source/App/MainWindow.h
     Source/App/RecordingPanel.cpp
