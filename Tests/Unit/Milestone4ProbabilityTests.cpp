@@ -49,7 +49,7 @@ class Milestone4ProbabilityTests final : public juce::UnitTest {
         beginTest("SEQ-M4-082 repeats siphash24-v1 decisions exactly");
         const auto first = probabilityDrawQ32(context);
         for (int repetition = 0; repetition < 32; ++repetition)
-            expectEquals(probabilityDrawQ32(context), first);
+            expect(probabilityDrawQ32(context) == first);
 
         beginTest("SEQ-M4-083 through SEQ-M4-085 exclude runtime traversal inputs");
         const auto buffer64 = probabilityDrawQ32(context);
@@ -57,9 +57,9 @@ class Milestone4ProbabilityTests final : public juce::UnitTest {
         const auto sample44100 = probabilityDrawQ32(context);
         const auto sample96000 = probabilityDrawQ32(context);
         const auto reordered = probabilityDrawQ32(makeContext());
-        expectEquals(buffer64, buffer1024);
-        expectEquals(sample44100, sample96000);
-        expectEquals(reordered, first);
+        expect(buffer64 == buffer1024);
+        expect(sample44100 == sample96000);
+        expect(reordered == first);
 
         beginTest("SEQ-M4-086 loop iteration participates in the fixed tuple");
         const auto nextLoop = probabilityDrawQ32(makeContext(eventUuid, 1U));
