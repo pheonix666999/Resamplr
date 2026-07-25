@@ -47,6 +47,7 @@ Milestone 3 Actions and remediation history:
 
 | Run | Result | Scope or diagnosis |
 |---|---|---|
+| `30136115498` | cancelled | Initial branch workflow superseded by the Milestone 3 contract commit |
 | `30136198827` | success | Milestone 3 contract and test authorities |
 | `30137037888` | success | Slice model and session state |
 | `30137697305` | success | Transient and lazy marker workflows |
@@ -58,6 +59,7 @@ Milestone 3 Actions and remediation history:
 | `30140882071` | failure | Windows integration hosts still crashed before phase diagnostics |
 | `30141113080` | failure | GUI headless passed; Windows console/unit integration registrations still crashed |
 | `30141364098` | failure | Larger linker stack did not correct the Windows crash |
+| `30141626996` | cancelled | Phase-diagnostic run superseded by the external-asset lifetime correction |
 | `30141698917` | success | Memory-safe external-asset lifetime remediation; all five jobs green |
 | `30142316700` | success | Final named-mode and waveform-ready screenshot regression; all five jobs green |
 
