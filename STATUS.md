@@ -2,32 +2,33 @@
 
 ## Current milestone
 
-Milestone 4 — transport and sequencing: **implementation candidate on
+Milestone 4 — transport and sequencing: **ready for review on
 `feature/milestone-4-transport-sequencer`**.
 
 Implementation candidate update (2026-08-17): the twelve-pad schema/UI migration, deterministic
 transport and scheduler, schema-backed patterns, functional 48-lane workspace, and bounded
-step/live mouse, keyboard, and MIDI pattern recording are implemented and under final
-cross-platform validation. Clean local Windows MSVC Debug and Release builds, the Clang-CL
+step/live mouse, keyboard, and MIDI pattern recording are implemented and validated. Clean local
+Windows MSVC Debug and Release builds, the Clang-CL
 warnings-as-errors audit build, all CTest registrations, explicit console and GUI headless smoke
 runs, static real-time/schema/format checks, and unsigned Windows artifact verification pass.
-Hosted status remains pending until the complete Actions matrix executes for the final
-implementation commit. `BLOCKED_REFERENCE_ASSET` is unchanged and exact Resamplr parity is not
-claimed.
+[Milestone 4 implementation run 31996156019](https://github.com/pheonix666999/Resamplr/actions/runs/31996156019)
+passed Linux Debug/Release validation, Windows Debug/Release tests, smoke, screenshots and
+packaging, macOS universal tests/package, macOS Intel smoke, and cross-platform artifact
+verification for implementation commit `96ce4763b4fc21435ff61c3a6f1645592d268f7c`.
+`BLOCKED_REFERENCE_ASSET` is unchanged and exact Resamplr parity is not claimed.
 
 On 2026-08-17 the client approved a product revision: twelve pads per bank in the supplied 3x4
 curved-corner layout, use of the supplied `logo.gif`, and future iOS/Android delivery. Recording,
 transient chopping, lazy chopping, pad copy/paste, drag-in assignment, and multiple banks already
 exist from Milestones 1–3. The twelve-pad schema/UI migration and Milestone 4 implementation are
-under final validation. Effects, song arrangement, and mobile platform delivery remain assigned
-to their later milestones and are not yet claimed complete.
+ready for review. Effects, song arrangement, and mobile platform delivery remain assigned to
+their later milestones and are not yet claimed complete.
 
 Milestone 3 was merged into `main` at `e26d60e8827af5897c8902d5fc917245288542fe`.
 [Post-merge run 30159899858](https://github.com/pheonix666999/Resamplr/actions/runs/30159899858)
 passed Linux Debug/Release, Windows Debug/Release and packaging, macOS universal tests/package,
 macOS Intel smoke, and cross-platform artifact verification before the Milestone 4 branch was
-created. Milestone 4 acceptance authorities are defined in `PLANS.md` and `TEST_PLAN.md`; hosted
-completion is not claimed until the new matrix is green.
+created. Milestone 4 acceptance authorities are defined in `PLANS.md` and `TEST_PLAN.md`.
 
 Milestone 2 was merged into `main` at `5cfd0f4942ff02da621f7e086f62e4d8b095d43f`.
 [Post-merge run 30135505455](https://github.com/pheonix666999/Resamplr/actions/runs/30135505455)
