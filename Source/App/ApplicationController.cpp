@@ -7,6 +7,12 @@
 #include <utility>
 
 namespace padflow {
+namespace {
+juce::String padIndexError() {
+    return "Pad index is outside 0.." + juce::String{static_cast<int>(totalPadCount - 1U)};
+}
+} // namespace
+
 ApplicationController::ApplicationController() : project_(Project::createEmpty()) {}
 
 void ApplicationController::createEmptyProject(juce::String name, juce::String fixedUuid) {
@@ -55,7 +61,7 @@ bool ApplicationController::isCurrentJobTarget(const JobSpec& spec) const noexce
 
 juce::Result ApplicationController::renamePad(const std::size_t globalIndex, juce::String name) {
     if (globalIndex >= totalPadCount)
-        return juce::Result::fail("Pad index is outside 0..63");
+        return juce::Result::fail(padIndexError());
     auto replacement = project_.pad(globalIndex);
     replacement.name = name.trim();
     return commitPadEdit(globalIndex, std::move(replacement), "Rename pad");
@@ -64,7 +70,7 @@ juce::Result ApplicationController::renamePad(const std::size_t globalIndex, juc
 juce::Result ApplicationController::recolourPad(const std::size_t globalIndex,
                                                 const std::uint32_t colourArgb) {
     if (globalIndex >= totalPadCount)
-        return juce::Result::fail("Pad index is outside 0..63");
+        return juce::Result::fail(padIndexError());
     auto replacement = project_.pad(globalIndex);
     replacement.colourArgb = colourArgb;
     return commitPadEdit(globalIndex, std::move(replacement), "Change pad colour");
@@ -73,7 +79,7 @@ juce::Result ApplicationController::recolourPad(const std::size_t globalIndex,
 juce::Result ApplicationController::setPadParameters(const std::size_t globalIndex,
                                                      PadParameters parameters) {
     if (globalIndex >= totalPadCount)
-        return juce::Result::fail("Pad index is outside 0..63");
+        return juce::Result::fail(padIndexError());
     auto replacement = project_.pad(globalIndex);
     replacement.parameters = parameters;
     return commitPadEdit(globalIndex, std::move(replacement), "Change pad parameters");
@@ -82,7 +88,7 @@ juce::Result ApplicationController::setPadParameters(const std::size_t globalInd
 juce::Result ApplicationController::setLayer(const std::size_t globalIndex,
                                              const std::size_t layerIndex, SampleLayer layer) {
     if (globalIndex >= totalPadCount)
-        return juce::Result::fail("Pad index is outside 0..63");
+        return juce::Result::fail(padIndexError());
     if (layerIndex >= minimumLayersPerPad)
         return juce::Result::fail("Layer index is outside 0..3");
     if (!layer.playback.initialized && layer.assetUuid.isNotEmpty()) {
@@ -208,7 +214,7 @@ juce::Result ApplicationController::setPadMappings(const std::size_t globalIndex
                                                    const std::uint8_t midiNote,
                                                    juce::String keyboardKey) {
     if (globalIndex >= totalPadCount)
-        return juce::Result::fail("Pad index is outside 0..63");
+        return juce::Result::fail(padIndexError());
     auto replacement = project_.pad(globalIndex);
     replacement.midiNote = midiNote;
     replacement.keyboardKey = keyboardKey.trim().toUpperCase();
@@ -241,20 +247,20 @@ juce::Result ApplicationController::setUiState(ProjectUiState state) {
 
 juce::Result ApplicationController::clearPad(const std::size_t globalIndex) {
     if (globalIndex >= totalPadCount)
-        return juce::Result::fail("Pad index is outside 0..63");
+        return juce::Result::fail(padIndexError());
     return commitPadEdit(globalIndex, makeClearedPad(project_.state(), globalIndex), "Clear pad");
 }
 
 juce::Result ApplicationController::copyPad(const std::size_t globalIndex) {
     if (globalIndex >= totalPadCount)
-        return juce::Result::fail("Pad index is outside 0..63");
+        return juce::Result::fail(padIndexError());
     clipboard_ = project_.pad(globalIndex);
     return juce::Result::ok();
 }
 
 juce::Result ApplicationController::pastePad(const std::size_t globalIndex) {
     if (globalIndex >= totalPadCount)
-        return juce::Result::fail("Pad index is outside 0..63");
+        return juce::Result::fail(padIndexError());
     if (!clipboard_.has_value())
         return juce::Result::fail("No pad has been copied");
 
@@ -271,7 +277,7 @@ juce::Result ApplicationController::pastePad(const std::size_t globalIndex) {
 juce::Result ApplicationController::duplicatePad(const std::size_t sourceGlobalIndex,
                                                  const std::size_t destinationGlobalIndex) {
     if (sourceGlobalIndex >= totalPadCount || destinationGlobalIndex >= totalPadCount)
-        return juce::Result::fail("Pad index is outside 0..63");
+        return juce::Result::fail(padIndexError());
     auto replacement = project_.pad(sourceGlobalIndex);
     regeneratePadIdentity(replacement);
     replacement.name = replacement.name.trim().substring(0, 59) + " Copy";
@@ -549,7 +555,7 @@ bool ApplicationController::redo() {
 juce::Result ApplicationController::commitPadEdit(const std::size_t globalIndex, Pad replacement,
                                                   juce::String description) {
     if (globalIndex >= totalPadCount)
-        return juce::Result::fail("Pad index is outside 0..63");
+        return juce::Result::fail(padIndexError());
     const auto before = project_.state();
     if (project_.pad(globalIndex) == replacement)
         return juce::Result::ok();

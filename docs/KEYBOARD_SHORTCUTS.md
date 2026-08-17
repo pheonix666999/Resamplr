@@ -1,12 +1,12 @@
 # Keyboard Shortcuts
 
-Milestone 1 maps the active bank's 4×4 pads to:
+The active bank's 3x4 pads map to:
 
 ```text
-1 2 3 4
-Q W E R
-A S D F
-Z X C V
+1 2 3
+Q W E
+A S D
+Z X C
 ```
 
 Each pad assignment is editable and persists in schema v1. Repeated key-down is suppressed, key-up

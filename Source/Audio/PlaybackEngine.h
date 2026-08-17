@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
 
 namespace padflow {
 struct PlaybackLayerSnapshot final {
@@ -60,6 +61,8 @@ class PlaybackEngine final {
     void publishSnapshot(const PlaybackSnapshot* snapshot) noexcept;
     [[nodiscard]] bool enqueue(const AudioCommand& command) noexcept;
     void processBlock(float* left, float* right, std::size_t frameCount) noexcept;
+    void processBlock(float* left, float* right, std::size_t frameCount,
+                      std::span<const AudioCommand> scheduledCommands) noexcept;
     void panic() noexcept;
 
     [[nodiscard]] PlaybackMetrics metrics() const noexcept;
@@ -75,7 +78,7 @@ class PlaybackEngine final {
     struct Voice final {
         SampleAssetView asset;
         std::uint32_t padIndex{0U};
-        std::uint32_t sourceId{0U};
+        std::uint64_t sourceId{0U};
         std::uint8_t chokeGroup{0U};
         PlaybackMode playbackMode{PlaybackMode::oneShot};
         EnvelopeStage stage{EnvelopeStage::inactive};
@@ -98,8 +101,8 @@ class PlaybackEngine final {
     };
 
     void handleCommand(const AudioCommand& command) noexcept;
-    void trigger(std::uint32_t padIndex, std::uint32_t sourceId, float velocity) noexcept;
-    void release(std::uint32_t sourceId) noexcept;
+    void trigger(std::uint32_t padIndex, std::uint64_t sourceId, float velocity) noexcept;
+    void release(std::uint64_t sourceId) noexcept;
     void releaseVoice(Voice& voice) noexcept;
     [[nodiscard]] std::size_t allocateVoice(std::uint32_t padIndex) noexcept;
     [[nodiscard]] static float interpolate(const SampleAssetView& asset, std::uint32_t channel,

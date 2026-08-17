@@ -69,7 +69,8 @@ class Milestone3AssignmentTests final : public juce::UnitTest {
         expectEquals(plan.destinations.size(), std::size_t{4U});
         for (std::size_t index = 0U; index < plan.destinations.size(); ++index)
             expectEquals(plan.destinations[index].globalPadIndex, index + 1U);
-        expect(buildAssignmentPlan(controller.project().state(), request(controller, 2U, 63U), plan)
+        expect(buildAssignmentPlan(controller.project().state(),
+                                   request(controller, 2U, totalPadCount - 1U), plan)
                    .failed());
 
         beginTest("ASSIGN-M3-005 through ASSIGN-M3-012 layer and conflict plans");

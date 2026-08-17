@@ -14,9 +14,15 @@ other potentially unsafe JSON integers use canonical decimal strings.
 
 Schema v1 remains the active schema. Milestone 1 manifests add required `audio`, `assets`, `banks`,
 `midi`, and `ui` members while retaining the Milestone 0 root metadata. `banks` contains exactly
-four ordered bank objects named A through D; every bank contains exactly sixteen pads; and every pad
-contains exactly four layer records. Project, bank, pad, layer, and asset UUIDs are persisted
+four ordered bank objects named A through D; a current bank contains exactly twelve addressable
+pads; and every pad contains exactly four layer records. Project, bank, pad, layer, and asset UUIDs are persisted
 verbatim.
+
+Legacy schema-v1 banks containing sixteen pads remain loadable. The first twelve pads retain their
+row-major identities and are addressable in the current 3x4 surface. The remaining four are retained
+unchanged as migration overflow data and are written back in their original order; they are never
+silently assigned, triggered, or deleted. A legacy selected-pad index above eleven migrates to pad
+twelve. New projects and banks without migration overflow serialize exactly twelve pads.
 
 Pad records persist name, ARGB colour as an unsigned decimal string, keyboard key, MIDI note,
 playback/polyphony/choke/voice parameters, gain/pan/tuning, and ADSR values. Layer records persist

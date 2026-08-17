@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Adopt the client-approved twelve-pad-per-bank model and supplied 3x4 curved-corner brand layout.
+- Embed the supplied `logo.gif` as a project-owned application resource.
+- Preserve legacy sixteen-pad schema-v1 banks through non-playable migration overflow records.
+- Approve iOS and Android as dedicated future delivery targets after the desktop sequencing,
+  effects, and arrangement contracts are validated.
+
 ## 0.1.0 — unreleased
 
 - Milestone 0 repository, architecture, build, test, smoke, documentation, and CI foundation.

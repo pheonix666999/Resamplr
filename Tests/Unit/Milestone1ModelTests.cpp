@@ -14,7 +14,7 @@ class Milestone1ModelTests final : public juce::UnitTest {
     Milestone1ModelTests() : juce::UnitTest("Milestone 1 model", "PadFlow") {}
 
     void runTest() override {
-        beginTest("MODEL-M1-001 through MODEL-M1-003 fixed banks, pads, and UUIDs");
+        beginTest("MODEL-M1-001 through MODEL-M1-003 and PRODUCT-M4-001 fixed banks, pads, UUIDs");
         const auto project = Project::createEmpty("Model", "model-project");
         const auto repeated = Project::createEmpty("Model", "model-project");
         std::set<std::string> padUuids;
@@ -185,7 +185,7 @@ class Milestone1ModelTests final : public juce::UnitTest {
         persistedState.audio.sampleRate = 48000.0;
         persistedState.audio.bufferSize = 256U;
         persistedState.ui.selectedBank = 3U;
-        persistedState.ui.selectedPad = 12U;
+        persistedState.ui.selectedPad = 11U;
         persistedState.ui.fixedTriggerVelocity = 87U;
         persistedState.ui.previewVolume = 0.45F;
         persistedState.ui.windowX = 111;
@@ -291,6 +291,53 @@ class Milestone1ModelTests final : public juce::UnitTest {
         expectEquals(legacy.name(), juce::String{"Legacy"});
         expectEquals(static_cast<juce::int64>(legacy.revision()), juce::int64{7});
         expectEquals(static_cast<int>(legacy.state().banks.size()), static_cast<int>(padBankCount));
+
+        beginTest("SAVE-M4-013 legacy sixteen-pad banks retain migration overflow");
+        auto legacySixteen = juce::JSON::parse(persistenceManifest);
+        auto* legacyRoot = legacySixteen.getDynamicObject();
+        expect(legacyRoot != nullptr);
+        if (legacyRoot != nullptr) {
+            auto* legacyBanks = legacyRoot->getProperty("banks").getArray();
+            expect(legacyBanks != nullptr);
+            if (legacyBanks != nullptr) {
+                for (std::size_t bankIndex = 0U; bankIndex < padBankCount; ++bankIndex) {
+                    auto* bank = (*legacyBanks)[static_cast<int>(bankIndex)].getDynamicObject();
+                    auto* pads = bank != nullptr ? bank->getProperty("pads").getArray() : nullptr;
+                    expect(pads != nullptr);
+                    if (pads == nullptr)
+                        continue;
+                    for (std::size_t overflow = 0U; overflow < legacyPadsPerBank - padsPerBank;
+                         ++overflow) {
+                        auto clone = juce::JSON::parse(juce::JSON::toString((*pads)[0], false));
+                        auto* pad = clone.getDynamicObject();
+                        const auto suffix = juce::String{static_cast<int>(bankIndex)} + "-" +
+                                            juce::String{static_cast<int>(overflow)};
+                        pad->setProperty("uuid", "legacy-overflow-pad-" + suffix);
+                        pad->setProperty("name", "Legacy overflow " + suffix);
+                        auto* layers = pad->getProperty("layers").getArray();
+                        for (std::size_t layer = 0U; layer < minimumLayersPerPad; ++layer)
+                            (*layers)[static_cast<int>(layer)].getDynamicObject()->setProperty(
+                                "uuid", "legacy-overflow-layer-" + suffix + "-" +
+                                            juce::String{static_cast<int>(layer)});
+                        pads->add(std::move(clone));
+                    }
+                }
+                legacyRoot->getProperty("ui").getDynamicObject()->setProperty("selectedPad", 15);
+                Project migrated = Project::createEmpty();
+                expect(ProjectSerializer::restoreCanonicalManifest(
+                           juce::JSON::toString(legacySixteen, false, 17) + "\n", migrated)
+                           .wasOk());
+                expectEquals(static_cast<int>(migrated.state().ui.selectedPad),
+                             static_cast<int>(padsPerBank - 1U));
+                for (const auto& bank : migrated.state().banks)
+                    expectEquals(bank.legacyOverflowPads.size(), legacyPadsPerBank - padsPerBank);
+                Project repeatedMigration = Project::createEmpty();
+                expect(ProjectSerializer::restoreCanonicalManifest(
+                           ProjectSerializer::canonicalManifest(migrated), repeatedMigration)
+                           .wasOk());
+                expect(repeatedMigration.state() == migrated.state());
+            }
+        }
     }
 };
 

@@ -75,8 +75,17 @@ class SamplerView final : public juce::Component,
         std::function<void(const juce::MouseEvent&)> onPadMouseDown;
         std::function<void(const juce::MouseEvent&)> onPadMouseUp;
 
+        void setLayoutIndex(std::size_t index) noexcept;
+        void paintButton(juce::Graphics& graphics, bool isMouseOverButton,
+                         bool isButtonDown) override;
+        [[nodiscard]] bool hitTest(int x, int y) override;
         void mouseDown(const juce::MouseEvent& event) override;
         void mouseUp(const juce::MouseEvent& event) override;
+
+      private:
+        [[nodiscard]] juce::Path padPath() const;
+
+        std::size_t layoutIndex_{0U};
     };
 
     struct QueuedImport final {
@@ -140,6 +149,7 @@ class SamplerView final : public juce::Component,
     WaveformCacheRegistry waveformCaches_;
 
     juce::Label productLabel_;
+    juce::ImageComponent logoImage_;
     juce::Label projectLabel_;
     juce::Label modifiedLabel_;
     juce::TextButton newButton_{"New"};

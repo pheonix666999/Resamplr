@@ -39,6 +39,13 @@ bool awaitUiImport(SamplerView& view, ApplicationController& controller,
     }
     return false;
 }
+
+bool writeUiEvidence(juce::Component& component, const juce::File& file) {
+    const auto image = component.createComponentSnapshot(component.getLocalBounds(), true, 1.0F);
+    auto stream = file.createOutputStream();
+    return image.isValid() && stream != nullptr && stream->openedOk() &&
+           juce::PNGImageFormat{}.writeImageToStream(image, *stream);
+}
 } // namespace
 
 class Milestone1UiTests final : public juce::UnitTest {
@@ -58,11 +65,17 @@ class Milestone1UiTests final : public juce::UnitTest {
         SamplePreviewController preview{controller, runtime.preview()};
         SamplerView view{controller, jobs, assets, runtime, publisher, input, preview};
         view.setBounds(0, 0, 1180, 760);
+        const auto evidencePath =
+            juce::SystemStats::getEnvironmentVariable("PADFLOW_SCREENSHOT_DIR", {});
+        const auto evidenceDirectory = juce::File{evidencePath};
+        if (evidencePath.isNotEmpty())
+            expect(evidenceDirectory.createDirectory());
 
         beginTest("UIHEADLESS-M1-001 main sampler view exposes accessible named controls");
         expectEquals(view.visiblePadCount(), padsPerBank);
-        for (const auto& id : {"new-project", "open-project", "save-project", "audio-settings",
-                               "midi-settings", "layer-selector", "pad-name", "keyboard-mapping"})
+        for (const auto& id :
+             {"brand-logo", "new-project", "open-project", "save-project", "audio-settings",
+              "midi-settings", "layer-selector", "pad-name", "keyboard-mapping"})
             expect(view.findChildWithID(id) != nullptr, juce::String{"Missing control: "} + id);
         for (std::size_t pad = 0; pad < padsPerBank; ++pad) {
             const auto* component =
@@ -70,6 +83,20 @@ class Milestone1UiTests final : public juce::UnitTest {
             expect(component != nullptr);
             if (component != nullptr)
                 expect(component->getTitle().isNotEmpty());
+        }
+
+        beginTest("PRODUCT-M4-003 and PRODUCT-M4-004 branded 3x4 pad geometry");
+        auto* topRightPad = view.findChildWithID("pad-2");
+        auto* bottomRightPad = view.findChildWithID("pad-11");
+        expect(topRightPad != nullptr && bottomRightPad != nullptr);
+        if (topRightPad != nullptr) {
+            expect(!topRightPad->hitTest(topRightPad->getWidth() - 2, 2));
+            expect(topRightPad->hitTest(2, topRightPad->getHeight() - 2));
+        }
+        if (bottomRightPad != nullptr) {
+            expect(bottomRightPad->hitTest(2, 2));
+            expect(!bottomRightPad->hitTest(bottomRightPad->getWidth() - 2,
+                                            bottomRightPad->getHeight() - 2));
         }
 
         beginTest("UIHEADLESS-M1-002 and UIHEADLESS-M1-003 visit every bank and pad");
@@ -110,6 +137,9 @@ class Milestone1UiTests final : public juce::UnitTest {
         expect(controller.project().pad(0U).layers[0].assetUuid.isNotEmpty());
         expect(controller.project().pad(1U).layers[0].assetUuid.isNotEmpty());
         expectEquals(static_cast<int>(assets.uniqueAssetCount()), 2);
+        if (evidencePath.isNotEmpty())
+            expect(writeUiEvidence(
+                view, evidenceDirectory.getChildFile("padflow-12-pad-brand-layout.png")));
 
         beginTest("UIHEADLESS-M1-005 loaded A1 triggers finite non-silence");
         expect(view.selectBank(0U));
@@ -171,7 +201,7 @@ class Milestone1UiTests final : public juce::UnitTest {
 
         beginTest("UIHEADLESS-M1-011 minimum layout keeps named controls inside bounds");
         for (const auto& id :
-             {"new-project", "save-project", "pad-name", "layer-selector", "pad-0", "pad-15"}) {
+             {"new-project", "save-project", "pad-name", "layer-selector", "pad-0", "pad-11"}) {
             const auto* component = view.findChildWithID(id);
             expect(component != nullptr);
             if (component != nullptr)

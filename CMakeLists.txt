@@ -82,6 +82,8 @@ add_library(
     Source/Audio/SliceAuditionController.h
     Source/Sequencing/Transport.cpp
     Source/Sequencing/Transport.h
+    Source/Sequencing/Scheduler.cpp
+    Source/Sequencing/Scheduler.h
     Source/Input/InputRouter.cpp
     Source/Input/InputRouter.h
     Source/Sampling/SampleImporter.cpp
@@ -104,6 +106,12 @@ target_link_libraries(
 padflow_enable_project_warnings(padflow_audio)
 padflow_set_output_directory(padflow_audio)
 
+juce_add_binary_data(
+    padflow_brand_assets
+    HEADER_NAME PadFlowBrandAssets.h
+    NAMESPACE padflow::BrandAssets
+    SOURCES logo.gif)
+
 add_library(
     padflow_ui STATIC
     Source/App/ChoppingWorkspace.cpp
@@ -117,7 +125,10 @@ add_library(
     Source/App/WaveformEditor.cpp
     Source/App/WaveformEditor.h)
 target_include_directories(padflow_ui PUBLIC Source)
-target_link_libraries(padflow_ui PUBLIC padflow_audio juce::juce_gui_basics)
+target_link_libraries(
+    padflow_ui
+    PUBLIC padflow_audio juce::juce_gui_basics
+    PRIVATE padflow_brand_assets)
 padflow_enable_project_warnings(padflow_ui)
 padflow_set_output_directory(padflow_ui)
 
@@ -128,6 +139,8 @@ if(PADFLOW_BUILD_APP)
         COMPANY_NAME "${PADFLOW_COMPANY_NAME}"
         BUNDLE_ID "${PADFLOW_BUNDLE_ID}"
         VERSION "${PADFLOW_VERSION}"
+        ICON_BIG logo.gif
+        ICON_SMALL logo.gif
         MICROPHONE_PERMISSION_ENABLED TRUE
         MICROPHONE_PERMISSION_TEXT
             "PadFlow uses audio input only after you explicitly enable an input device.")

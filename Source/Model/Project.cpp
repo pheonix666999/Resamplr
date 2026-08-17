@@ -3,6 +3,7 @@
 #include "App/ProductInfo.h"
 
 #include <stdexcept>
+#include <string>
 #include <utility>
 
 namespace padflow {
@@ -42,13 +43,17 @@ const PadBank& Project::bank(const std::size_t index) const {
 
 const Pad& Project::pad(const std::size_t globalIndex) const {
     if (globalIndex >= totalPadCount)
-        throw std::out_of_range("Pad index is outside 0..63");
+        throw std::out_of_range("Pad index is outside 0.." + std::to_string(totalPadCount - 1U));
     return state_.banks[globalIndex / padsPerBank].pads[globalIndex % padsPerBank];
 }
 
 const Pad* Project::findPadByUuid(const juce::String& uuid) const noexcept {
     for (const auto& bankEntry : state_.banks)
         for (const auto& padEntry : bankEntry.pads)
+            if (padEntry.uuid == uuid)
+                return &padEntry;
+    for (const auto& bankEntry : state_.banks)
+        for (const auto& padEntry : bankEntry.legacyOverflowPads)
             if (padEntry.uuid == uuid)
                 return &padEntry;
     return nullptr;
@@ -64,7 +69,8 @@ void Project::setName(juce::String newName) {
 
 juce::Result Project::replacePad(const std::size_t globalIndex, Pad replacement) {
     if (globalIndex >= totalPadCount)
-        return juce::Result::fail("Pad index is outside 0..63");
+        return juce::Result::fail("Pad index is outside 0.." +
+                                  juce::String{static_cast<int>(totalPadCount - 1U)});
 
     auto candidate = state_;
     candidate.banks[globalIndex / padsPerBank].pads[globalIndex % padsPerBank] =

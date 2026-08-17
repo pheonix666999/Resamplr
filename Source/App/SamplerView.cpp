@@ -1,5 +1,7 @@
 #include "SamplerView.h"
 
+#include "PadFlowBrandAssets.h"
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -34,6 +36,64 @@ void styleLabel(juce::Label& label, const juce::Justification justification) {
 }
 } // namespace
 
+void SamplerView::PadButton::setLayoutIndex(const std::size_t index) noexcept {
+    layoutIndex_ = index;
+}
+
+juce::Path SamplerView::PadButton::padPath() const {
+    constexpr auto curve = 0.55228475F;
+    const auto bounds = getLocalBounds().toFloat().reduced(1.5F);
+    juce::Path path;
+    if (layoutIndex_ == 2U) {
+        path.startNewSubPath(bounds.getX(), bounds.getBottom());
+        path.lineTo(bounds.getX(), bounds.getY());
+        path.cubicTo(bounds.getX() + curve * bounds.getWidth(), bounds.getY(), bounds.getRight(),
+                     bounds.getBottom() - curve * bounds.getHeight(), bounds.getRight(),
+                     bounds.getBottom());
+        path.closeSubPath();
+        return path;
+    }
+    if (layoutIndex_ == padsPerBank - 1U) {
+        path.startNewSubPath(bounds.getX(), bounds.getY());
+        path.lineTo(bounds.getRight(), bounds.getY());
+        path.cubicTo(bounds.getRight(), bounds.getY() + curve * bounds.getHeight(),
+                     bounds.getX() + curve * bounds.getWidth(), bounds.getBottom(), bounds.getX(),
+                     bounds.getBottom());
+        path.closeSubPath();
+        return path;
+    }
+    path.addRoundedRectangle(bounds, 8.0F);
+    return path;
+}
+
+void SamplerView::PadButton::paintButton(juce::Graphics& graphics, const bool isMouseOverButton,
+                                         const bool isButtonDown) {
+    const auto path = padPath();
+    auto colour = findColour(juce::TextButton::buttonColourId);
+    if (getToggleState())
+        colour = colour.brighter(0.22F);
+    if (isMouseOverButton)
+        colour = colour.brighter(0.1F);
+    if (isButtonDown)
+        colour = colour.darker(0.18F);
+    graphics.setColour(colour);
+    graphics.fillPath(path);
+    graphics.setColour(juce::Colour{tealColour}.withAlpha(getToggleState() ? 0.95F : 0.58F));
+    graphics.strokePath(path, juce::PathStrokeType{getToggleState() ? 2.25F : 1.25F});
+    graphics.setColour(findColour(juce::TextButton::textColourOffId));
+    graphics.setFont(juce::FontOptions{13.0F, juce::Font::bold});
+    graphics.drawFittedText(getButtonText(), getLocalBounds().reduced(12),
+                            juce::Justification::centred, 3, 0.85F);
+    if (hasKeyboardFocus(true)) {
+        graphics.setColour(juce::Colours::white.withAlpha(0.9F));
+        graphics.strokePath(path, juce::PathStrokeType{3.0F});
+    }
+}
+
+bool SamplerView::PadButton::hitTest(const int x, const int y) {
+    return padPath().contains(static_cast<float>(x), static_cast<float>(y));
+}
+
 void SamplerView::PadButton::mouseDown(const juce::MouseEvent& event) {
     if (onPadMouseDown)
         onPadMouseDown(event);
@@ -54,7 +114,7 @@ SamplerView::SamplerView(ApplicationController& controller, BackgroundJobSystem&
       publisher_(publisher), input_(input), preview_(preview),
       choppingWorkspace_(controller, jobs, assets, runtime.preview()) {
     setTitle("PadFlow playable sampler");
-    setDescription("Four banks of sixteen playable sample pads and a selected-pad editor");
+    setDescription("Four banks of twelve playable sample pads and a selected-pad editor");
     setWantsKeyboardFocus(true);
     addKeyListener(this);
     configureControls();
@@ -84,6 +144,15 @@ SamplerView::~SamplerView() {
 }
 
 void SamplerView::configureControls() {
+    auto logo = juce::ImageFileFormat::loadFrom(BrandAssets::logo_gif, BrandAssets::logo_gifSize);
+    if (logo.isValid())
+        logo = logo.getClippedImage({155, 85, 490, 625});
+    logoImage_.setImage(logo, juce::RectanglePlacement::centred);
+    logoImage_.setComponentID("brand-logo");
+    logoImage_.setTitle("PadFlow brand logo");
+    logoImage_.setDescription("Original twelve-pad PadFlow logo");
+    addAndMakeVisible(logoImage_);
+
     productLabel_.setText("PadFlow", juce::dontSendNotification);
     productLabel_.setFont(juce::FontOptions{27.0F, juce::Font::bold});
     productLabel_.setColour(juce::Label::textColourId, juce::Colour{tealColour});
@@ -186,6 +255,7 @@ void SamplerView::configureControls() {
 
     for (std::size_t pad = 0; pad < padButtons_.size(); ++pad) {
         auto& button = padButtons_[pad];
+        button.setLayoutIndex(pad);
         button.setComponentID("pad-" + juce::String{static_cast<int>(pad)});
         button.setTitle("Playable pad " + juce::String{static_cast<int>(pad + 1U)});
         styleButton(button);
@@ -399,7 +469,8 @@ void SamplerView::paint(juce::Graphics& graphics) {
 void SamplerView::resized() {
     auto bounds = getLocalBounds().reduced(12);
     auto top = bounds.removeFromTop(50);
-    productLabel_.setBounds(top.removeFromLeft(118));
+    logoImage_.setBounds(top.removeFromLeft(46).reduced(2));
+    productLabel_.setBounds(top.removeFromLeft(92));
     projectLabel_.setBounds(top.removeFromLeft(150));
     modifiedLabel_.setBounds(top.removeFromLeft(18));
     top.removeFromLeft(8);
@@ -472,11 +543,11 @@ void SamplerView::resized() {
     for (auto& button : bankButtons_)
         button.setBounds(banks.removeFromLeft(bankWidth).reduced(3));
     grid.removeFromTop(8);
-    const auto padWidth = grid.getWidth() / 4;
+    const auto padWidth = grid.getWidth() / 3;
     const auto padHeight = grid.getHeight() / 4;
     for (std::size_t index = 0; index < padButtons_.size(); ++index) {
-        const auto column = static_cast<int>(index % 4U);
-        const auto row = static_cast<int>(index / 4U);
+        const auto column = static_cast<int>(index % 3U);
+        const auto row = static_cast<int>(index / 3U);
         padButtons_[index].setBounds(grid.getX() + column * padWidth + 4,
                                      grid.getY() + row * padHeight + 4, padWidth - 8,
                                      padHeight - 8);

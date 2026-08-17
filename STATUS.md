@@ -5,6 +5,13 @@
 Milestone 4 — transport and sequencing: **started on
 `feature/milestone-4-transport-sequencer`**.
 
+On 2026-08-17 the client approved a product revision: twelve pads per bank in the supplied 3x4
+curved-corner layout, use of the supplied `logo.gif`, and future iOS/Android delivery. Recording,
+transient chopping, lazy chopping, pad copy/paste, drag-in assignment, and multiple banks already
+exist from Milestones 1–3. The twelve-pad schema/UI migration and Milestone 4 sequencing are in
+progress. Effects, song arrangement, and mobile platform delivery remain assigned to their later
+milestones and are not yet claimed complete.
+
 Milestone 3 was merged into `main` at `e26d60e8827af5897c8902d5fc917245288542fe`.
 [Post-merge run 30159899858](https://github.com/pheonix666999/Resamplr/actions/runs/30159899858)
 passed Linux Debug/Release, Windows Debug/Release and packaging, macOS universal tests/package,

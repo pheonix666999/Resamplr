@@ -63,8 +63,8 @@ must be used; physical audio and MIDI hardware are never required.
 | ID | Acceptance |
 |---|---|
 | MODEL-M1-001 | A new project contains exactly four banks named A–D. |
-| MODEL-M1-002 | Every bank contains exactly sixteen addressable pads. |
-| MODEL-M1-003 | All sixty-four pad UUIDs are non-empty, unique, stable, and deterministic in fixtures. |
+| MODEL-M1-002 | Every bank contains exactly twelve addressable pads. |
+| MODEL-M1-003 | All forty-eight pad UUIDs are non-empty, unique, stable, and deterministic in fixtures. |
 | MODEL-M1-004 | Copy/paste duplicates pad state and asset references without copying decoded PCM. |
 | MODEL-M1-005 | Duplicate preserves values while generating required new pad/layer UUIDs. |
 | MODEL-M1-006 | A parameter command and its undo/redo restore exact prior/next state and revision. |
@@ -138,7 +138,7 @@ must be used; physical audio and MIDI hardware are never required.
 |---|---|
 | INPUT-M1-001 | Mouse press triggers one-shot at configured fixed velocity. |
 | INPUT-M1-002 | Mouse release/capture loss releases gate mode without a stuck note. |
-| INPUT-M1-003 | The default 4×4 keyboard map triggers the active-bank pad. |
+| INPUT-M1-003 | The default 3x4 keyboard map triggers the active-bank pad. |
 | INPUT-M1-004 | Repeated key-down is ignored until a matching release. |
 | INPUT-M1-005 | MIDI note-on triggers the mapped pad and records MIDI ownership. |
 | INPUT-M1-006 | MIDI note-off releases only matching gate ownership. |
@@ -205,7 +205,7 @@ must be used; physical audio and MIDI hardware are never required.
 | ID | Acceptance |
 |---|---|
 | UIHEADLESS-M1-001 | The main sampler view constructs with accessible named controls. |
-| UIHEADLESS-M1-002 | Bank selection visits A–D and exposes sixteen pads each. |
+| UIHEADLESS-M1-002 | Bank selection visits A–D and exposes twelve pads each. |
 | UIHEADLESS-M1-003 | Selection visits every global pad index without invalid access. |
 | UIHEADLESS-M1-004 | A generated sample imports through worker/controller commit into A1. |
 | UIHEADLESS-M1-005 | Triggering loaded A1 renders finite non-silence. |
@@ -576,6 +576,18 @@ deterministic scheduler simulation. No physical audio or MIDI device is required
 positions use signed 960 PPQ ticks plus Q16 fractions; runtime frame offsets are never serialized.
 Parameter locks, per-step slice/reverse overrides, 16 Levels, Roll, performance automation, effects,
 song mode, resampling, skipback, and export remain outside this milestone.
+
+### Milestone 4 product revision
+
+| ID | Test |
+|---|---|
+| PRODUCT-M4-001 | A new project exposes four banks of exactly twelve pads and forty-eight unique pad identities. |
+| PRODUCT-M4-002 | The default active-bank keyboard map addresses the row-major 3x4 pad layout without an unreachable or duplicate pad. |
+| PRODUCT-M4-003 | The sampler UI embeds the supplied `logo.gif` and exposes twelve accessible pad controls in the supplied 3x4 geometry. |
+| PRODUCT-M4-004 | Pad 3 has the branded curved top-right boundary and Pad 12 has the branded curved bottom-right boundary while hit testing remains inside each visible path. |
+| SAVE-M4-013 | Legacy schema-v1 banks with sixteen pads load without partial mutation; the first twelve remain addressable and four overflow pads per bank are retained as migration data. |
+| REGRESSION-M4-004 | Every pad-index diagnostic derives its inclusive maximum from `totalPadCount` and cannot retain the legacy `0..63` limit. |
+| REGRESSION-M4-005 | Minimum-layout acceptance derives the last branded pad component from `padsPerBank` and cannot retain the legacy `pad-15` identifier. |
 
 ### Milestone 4 time and tempo
 

@@ -1,15 +1,16 @@
 # PadFlow
 
-PadFlow is an original, offline, standalone desktop sampler project by Ali Ammar Audio. Version
+PadFlow is an original, offline, standalone sampler project by Ali Ammar Audio. Version
 0.1.0 contains the playable RAM-resident sampler plus Milestone 2 waveform editing/recording and
-Milestone 3 non-destructive sample chopping: four banks of sixteen pads, four velocity layers per
+Milestone 3 non-destructive sample chopping: four banks of twelve pads, four velocity layers per
 pad, WAV/AIFF/FLAC import and preview, mouse/keyboard/MIDI triggering, deterministic 128-voice
 playback, device settings, frame-bound trim/loop/reverse, derived PCM operations, input capture,
 five chopping modes, transactional slice assignment, and schema-v1 project save/load.
 
 ## Status and platforms
 
-- Target: Windows 10/11 x64 and macOS 12+ arm64/x86_64/universal.
+- Validated target: Windows 10/11 x64 and macOS 12+ arm64/x86_64/universal. Touch-first iOS and
+  Android delivery is approved for the dedicated mobile milestone.
 - Technology: C++20, CMake 3.28+, pinned JUCE 8.0.13.
 - Current reference status: `BLOCKED_REFERENCE_ASSET` because the supplied MP4 is empty.
 - No Resamplr branding, artwork, samples, or exact interface is included or claimed.

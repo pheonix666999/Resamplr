@@ -4,6 +4,7 @@
 #include "Audio/PlaybackEngine.h"
 #include "Audio/PreviewPlayer.h"
 #include "Model/PadModel.h"
+#include "Sequencing/Scheduler.h"
 #include "Sequencing/Transport.h"
 
 #include <juce_audio_devices/juce_audio_devices.h>
@@ -58,6 +59,8 @@ class AudioRuntime final : public juce::AudioIODeviceCallback {
     [[nodiscard]] const CaptureSession& capture() const noexcept;
     [[nodiscard]] TransportEngine& transport() noexcept;
     [[nodiscard]] const TransportEngine& transport() const noexcept;
+    [[nodiscard]] PatternScheduler& scheduler() noexcept;
+    [[nodiscard]] const PatternScheduler& scheduler() const noexcept;
 
     void
     audioDeviceIOCallbackWithContext(const float* const* inputChannelData, int numInputChannels,
@@ -76,6 +79,8 @@ class AudioRuntime final : public juce::AudioIODeviceCallback {
     PreviewPlayer preview_;
     CaptureSession capture_;
     TransportEngine transport_;
+    PatternScheduler scheduler_;
+    ScheduledCommandBuffer scheduledCommands_;
     std::array<float, scratchFrames> leftScratch_{};
     std::array<float, scratchFrames> rightScratch_{};
     std::atomic<bool> callbackRegistered_{false};

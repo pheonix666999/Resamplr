@@ -59,6 +59,12 @@ void PlaybackEngine::handleCommand(const AudioCommand& command) noexcept {
 
 void PlaybackEngine::processBlock(float* const left, float* const right,
                                   const std::size_t frameCount) noexcept {
+    processBlock(left, right, frameCount, {});
+}
+
+void PlaybackEngine::processBlock(float* const left, float* const right,
+                                  const std::size_t frameCount,
+                                  const std::span<const AudioCommand> scheduledCommands) noexcept {
     if (left == nullptr || right == nullptr)
         return;
     std::fill_n(left, frameCount, 0.0F);
@@ -72,18 +78,23 @@ void PlaybackEngine::processBlock(float* const left, float* const right,
         position.store(std::numeric_limits<std::uint64_t>::max(), std::memory_order_relaxed);
     float peakLeft = 0.0F;
     float peakRight = 0.0F;
-    std::uint32_t active = 0U;
-    for (auto& voice : voices_) {
-        if (voice.stage == EnvelopeStage::inactive)
-            continue;
-
-        for (std::size_t frame = 0; frame < frameCount; ++frame) {
+    std::size_t scheduledIndex = 0U;
+    for (std::size_t frame = 0U; frame < frameCount; ++frame) {
+        while (scheduledIndex < scheduledCommands.size() &&
+               scheduledCommands[scheduledIndex].frameOffset == frame) {
+            handleCommand(scheduledCommands[scheduledIndex]);
+            ++scheduledIndex;
+        }
+        while (scheduledIndex < scheduledCommands.size() &&
+               scheduledCommands[scheduledIndex].frameOffset < frame)
+            ++scheduledIndex;
+        for (auto& voice : voices_) {
             if (voice.stage == EnvelopeStage::inactive)
-                break;
+                continue;
             if (voice.position < static_cast<double>(voice.startFrame) ||
                 voice.position >= static_cast<double>(voice.endFrame)) {
                 voice = {};
-                break;
+                continue;
             }
 
             const auto envelope = advanceEnvelope(voice);
@@ -95,10 +106,13 @@ void PlaybackEngine::processBlock(float* const left, float* const right,
             const auto renderedRight = sampleRight * voice.rightGain * envelope;
             left[frame] += std::isfinite(renderedLeft) ? renderedLeft : 0.0F;
             right[frame] += std::isfinite(renderedRight) ? renderedRight : 0.0F;
-            peakLeft = std::max(peakLeft, std::abs(left[frame]));
-            peakRight = std::max(peakRight, std::abs(right[frame]));
             advancePosition(voice);
         }
+        peakLeft = std::max(peakLeft, std::abs(left[frame]));
+        peakRight = std::max(peakRight, std::abs(right[frame]));
+    }
+    std::uint32_t active = 0U;
+    for (const auto& voice : voices_)
         if (voice.stage != EnvelopeStage::inactive) {
             ++active;
             const auto frame = static_cast<std::uint64_t>(
@@ -106,7 +120,6 @@ void PlaybackEngine::processBlock(float* const left, float* const right,
                            static_cast<double>(voice.endFrame - 1U)));
             playbackPositions_[voice.padIndex].store(frame, std::memory_order_release);
         }
-    }
     activeVoices_.store(active, std::memory_order_release);
     peakLeft_.store(peakLeft, std::memory_order_release);
     peakRight_.store(peakRight, std::memory_order_release);
@@ -124,7 +137,7 @@ void PlaybackEngine::processBlock(float* const left, float* const right,
         std::memory_order_release);
 }
 
-void PlaybackEngine::trigger(const std::uint32_t padIndex, const std::uint32_t sourceId,
+void PlaybackEngine::trigger(const std::uint32_t padIndex, const std::uint64_t sourceId,
                              const float velocityInput) noexcept {
     const auto* snapshot = snapshot_.load(std::memory_order_acquire);
     if (snapshot == nullptr || padIndex >= totalPadCount)
@@ -212,7 +225,7 @@ void PlaybackEngine::trigger(const std::uint32_t padIndex, const std::uint32_t s
     }
 }
 
-void PlaybackEngine::release(const std::uint32_t sourceId) noexcept {
+void PlaybackEngine::release(const std::uint64_t sourceId) noexcept {
     for (auto& voice : voices_)
         if (voice.stage != EnvelopeStage::inactive && voice.sourceId == sourceId &&
             voice.playbackMode != PlaybackMode::oneShot)

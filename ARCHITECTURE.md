@@ -4,8 +4,9 @@
 
 - `padflow_core`: product configuration, project model, immutable assets, jobs, and serialization.
 - `padflow_audio`: real-time interfaces and deterministic render/capture infrastructure.
-- `padflow_ui`: JUCE desktop components only.
-- `PadFlow`: standalone GUI application.
+- `padflow_ui`: shared JUCE components with responsive desktop and touch presentation boundaries.
+- `PadFlow`: standalone GUI application; desktop is the currently validated host and mobile
+  platform wrappers are added at their dedicated milestone.
 - `padflow_tests`: headless JUCE unit/integration tests registered with CTest.
 - `padflow_smoke`: console executable using the same core smoke scenario as GUI headless mode.
 
@@ -13,6 +14,11 @@ The message thread owns live model commits and undo history. Workers own expensi
 and return immutable results. The audio callback consumes prepublished snapshots and fixed-size
 commands. Writer threads own files and audio-file encoders. UI observes controller snapshots and
 never reaches into audio state directly.
+
+The sampler exposes twelve addressable pads per bank in a row-major 3x4 layout. Pad identity is
+model-owned and independent of display geometry. The supplied `logo.gif` is a project-owned brand
+asset; curved corner hit regions are implemented as original vector paths so mouse, keyboard,
+accessibility, and touch behavior share the same logical pad indices.
 
 ## Musical time
 

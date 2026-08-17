@@ -1,8 +1,10 @@
 # PadFlow User Guide
 
-PadFlow Milestone 1 is a playable RAM-resident desktop sampler. It provides four banks (A–D) of
-sixteen pads, with four velocity layers per pad. Waveform editing, recording, chopping, sequencing,
-effects, resampling, and export are not part of this milestone.
+PadFlow is a playable RAM-resident sampler. It provides four banks (A–D) of twelve pads in the
+supplied original 3x4 layout, with four velocity layers per pad. Waveform editing, input recording,
+transient and lazy chopping, and transactional slice assignment are available. Transport and step
+sequencing are in active development; effects, song arrangement, and mobile delivery follow their
+dedicated milestones.
 
 ## Load and play samples
 

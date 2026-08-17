@@ -18,7 +18,7 @@ resampling, skipback, export, MIDI clock, parameter locks, 16 Levels, or Roll.
 
 ### Phase 1 — model and persistence contract
 
-- Add four fixed banks, sixteen pads per bank, four-or-more layers per pad, stable UUIDs, validated
+- Add four fixed banks, twelve pads per bank, four-or-more layers per pad, stable UUIDs, validated
   pad/layer parameters, keyboard/MIDI mappings, UI state, and external asset records.
 - Add controller commands plus unified undo/redo for rename, recolor, parameter edits, layer
   assignment/clear, copy, paste, duplicate, and clear.
@@ -58,7 +58,7 @@ resampling, skipback, export, MIDI clock, parameter locks, 16 Levels, or Roll.
 ### Phase 5 — functional sampler UI
 
 - Replace `FoundationView` with the original dark-charcoal/teal sampler layout: top bar, selected-pad
-  editor, bank tabs, accessible 4×4 pad grid, and status area.
+  editor, bank tabs, accessible 3x4 pad grid, and status area.
 - Wire mouse press/release, selection, context operations, file chooser, file drag/drop,
   sequential multi-file assignment with overwrite confirmation, audition, project open/save, and
   audio/MIDI settings.
@@ -241,6 +241,13 @@ which schedules the existing sampler engine. It retains all Milestone 1–3 beha
 compatibility. It does not add Milestone 5 parameter locks, per-step slice/reverse overrides,
 16 Levels, Roll, performance automation, effects, song mode, resampling, skipback, or export.
 
+The client-approved product revision is applied at this milestone boundary: exactly twelve
+addressable pads per bank, the supplied `logo.gif`, and the original 3x4 curved-corner pad layout.
+Legacy schema-v1 projects containing sixteen pads per bank must load deterministically without a
+partial commit; out-of-layout pads are retained as migration data until the user explicitly remaps
+or removes them. Mobile, effects, and song-arrangement implementation remain in their dedicated
+milestones below.
+
 ### Phase 1 — timing, tempo, and pattern contract
 
 - Complete signed 960 PPQ/Q16 musical time, checked ties-to-even frame conversion, step-change
@@ -317,7 +324,16 @@ and optional MIDI clock after the internal transport is stable.
 Original responsive UI, accessibility, high DPI, shortcuts, persistence, repaint profiling, and
 real-time audit. Reference-specific approval requires a valid video.
 
-## Milestone 10 — distribution
+## Milestone 10 — iOS and Android
 
-Windows portable/installer, universal macOS app/DMG, symbols, checksums, conditional signing and
-notarization, release workflow, manuals, licences, and regression gates.
+Create touch-first iOS and Android application targets from the shared core/audio/UI boundaries.
+Implement mobile audio-session interruption and route changes, microphone/storage permissions,
+sandboxed import/share flows, lifecycle-safe capture cancellation, responsive twelve-pad and
+sequencer workspaces, device test fixtures, and real-device validation. Desktop project files stay
+schema-compatible and no desktop callback rule is relaxed.
+
+## Milestone 11 — distribution
+
+Windows portable/installer, universal macOS app/DMG, iOS archive, Android app bundle, symbols,
+checksums, conditional signing/notarization, release workflow, manuals, licences, and regression
+gates.

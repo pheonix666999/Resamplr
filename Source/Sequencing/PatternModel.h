@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Model/MusicalTime.h"
+#include "Model/PadModel.h"
 
 #include <juce_core/juce_core.h>
 
@@ -12,7 +13,7 @@ namespace padflow {
 inline constexpr std::uint64_t probabilityQ32Maximum = std::uint64_t{1} << 32U;
 inline constexpr std::size_t maximumPatternCount = 128U;
 inline constexpr std::size_t maximumPatternEventCount = 8192U;
-inline constexpr std::uint16_t maximumPatternLaneCount = 64U;
+inline constexpr std::uint16_t maximumPatternLaneCount = static_cast<std::uint16_t>(totalPadCount);
 
 using ProbabilityQ32 = std::uint64_t;
 

@@ -234,6 +234,14 @@ const TransportEngine& AudioRuntime::transport() const noexcept {
     return transport_;
 }
 
+PatternScheduler& AudioRuntime::scheduler() noexcept {
+    return scheduler_;
+}
+
+const PatternScheduler& AudioRuntime::scheduler() const noexcept {
+    return scheduler_;
+}
+
 void AudioRuntime::audioDeviceIOCallbackWithContext(
     const float* const* const inputChannelData, const int numInputChannels,
     float* const* const outputChannelData, const int numOutputChannels, const int numSamples,
@@ -265,7 +273,10 @@ void AudioRuntime::audioDeviceIOCallbackWithContext(
         transport_.beginBlock();
         if (transport_.consumePanicRequest())
             engine_.panic();
-        engine_.processBlock(left, right, static_cast<std::size_t>(count));
+        scheduler_.processBlock(transport_.snapshot(), static_cast<std::size_t>(count),
+                                scheduledCommands_);
+        engine_.processBlock(left, right, static_cast<std::size_t>(count),
+                             scheduledCommands_.view());
         preview_.processAdd(left, right, static_cast<std::size_t>(count));
         transport_.processMetronomeAdd(left, right, static_cast<std::size_t>(count));
 

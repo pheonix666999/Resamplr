@@ -9,8 +9,8 @@
 
 namespace padflow {
 namespace {
-constexpr std::array<const char*, padsPerBank> defaultKeyboardKeys{
-    "1", "2", "3", "4", "Q", "W", "E", "R", "A", "S", "D", "F", "Z", "X", "C", "V"};
+constexpr std::array<const char*, padsPerBank> defaultKeyboardKeys{"1", "2", "3", "Q", "W", "E",
+                                                                   "A", "S", "D", "Z", "X", "C"};
 
 juce::String formatUuidHex(const juce::String& hex) {
     return hex.substring(0, 8) + "-" + hex.substring(8, 12) + "-" + hex.substring(12, 16) + "-" +
@@ -246,6 +246,15 @@ juce::Result validateProjectState(const ProjectState& state) {
             for (const auto& layer : pad.layers)
                 addUuid(uuids, layer.uuid, result);
         }
+        if (bank.legacyOverflowPads.size() > legacyPadsPerBank - padsPerBank)
+            return juce::Result::fail("A bank contains too many legacy overflow pads");
+        for (const auto& pad : bank.legacyOverflowPads) {
+            if (const auto padResult = validatePad(pad); padResult.failed())
+                return padResult;
+            addUuid(uuids, pad.uuid, result);
+            for (const auto& layer : pad.layers)
+                addUuid(uuids, layer.uuid, result);
+        }
     }
 
     for (const auto& asset : state.assets) {
@@ -301,13 +310,16 @@ juce::Result validateProjectState(const ProjectState& state) {
             return juce::Result::fail("Recorded asset provenance targets a different project");
         const auto targetPad =
             std::find_if(state.banks.begin(), state.banks.end(), [&](const auto& bank) {
-                return std::any_of(bank.pads.begin(), bank.pads.end(), [&](const auto& pad) {
+                const auto matches = [&](const auto& pad) {
                     return pad.uuid == recorded.targetPadUuid &&
                            std::any_of(pad.layers.begin(), pad.layers.end(),
                                        [&](const auto& layer) {
                                            return layer.uuid == recorded.targetLayerUuid;
                                        });
-                });
+                };
+                return std::any_of(bank.pads.begin(), bank.pads.end(), matches) ||
+                       std::any_of(bank.legacyOverflowPads.begin(), bank.legacyOverflowPads.end(),
+                                   matches);
             });
         if (targetPad == state.banks.end())
             return juce::Result::fail("Recorded asset provenance targets an unknown layer");
@@ -327,11 +339,14 @@ juce::Result validateProjectState(const ProjectState& state) {
             return juce::Result::fail("Slice set references unknown immutable source data");
         const auto sourceLayerExists =
             std::any_of(state.banks.begin(), state.banks.end(), [&](const auto& bank) {
-                return std::any_of(bank.pads.begin(), bank.pads.end(), [&](const auto& pad) {
+                const auto containsLayer = [&](const auto& pad) {
                     return std::any_of(
                         pad.layers.begin(), pad.layers.end(),
                         [&](const auto& layer) { return layer.uuid == sliceSet.sourceLayerUuid; });
-                });
+                };
+                return std::any_of(bank.pads.begin(), bank.pads.end(), containsLayer) ||
+                       std::any_of(bank.legacyOverflowPads.begin(), bank.legacyOverflowPads.end(),
+                                   containsLayer);
             });
         if (!sourceLayerExists)
             return juce::Result::fail("Slice set references an unknown source layer");
@@ -343,40 +358,46 @@ juce::Result validateProjectState(const ProjectState& state) {
         !isFiniteInRange(state.recording.thresholdDecibels, -96.0F, 0.0F) ||
         state.recording.preRollMilliseconds > 2000U)
         return juce::Result::fail("Recording preferences are outside their supported range");
-    for (const auto& bank : state.banks)
-        for (const auto& pad : bank.pads)
-            for (const auto& layer : pad.layers) {
-                if (!layer.playback.initialized)
-                    continue;
-                const auto asset =
-                    std::find_if(state.assets.begin(), state.assets.end(),
-                                 [&](const auto& entry) { return entry.uuid == layer.assetUuid; });
-                if (asset == state.assets.end())
-                    return juce::Result::fail(
-                        "Initialized layer playback state references an unknown asset");
-                if (const auto playbackResult =
-                        validateSamplePlaybackSettings(layer.playback, asset->frameCount);
-                    playbackResult.failed())
-                    return playbackResult;
-                if (layer.sliceUuid.isNotEmpty()) {
-                    const auto sliceSet = std::find_if(
-                        state.sliceSets.begin(), state.sliceSets.end(),
-                        [&](const auto& set) { return set.uuid == layer.sliceSetUuid; });
-                    if (sliceSet == state.sliceSets.end() ||
-                        sliceSet->sourceAssetUuid != layer.assetUuid)
-                        return juce::Result::fail(
-                            "Layer slice reference targets an unknown slice set");
-                    const auto slice = std::find_if(
-                        sliceSet->slices.begin(), sliceSet->slices.end(),
-                        [&](const auto& region) { return region.uuid == layer.sliceUuid; });
-                    if (slice == sliceSet->slices.end() ||
-                        layer.playback.startFrame !=
-                            static_cast<std::uint64_t>(slice->startFrame) ||
-                        layer.playback.endFrame != static_cast<std::uint64_t>(slice->endFrame))
-                        return juce::Result::fail(
-                            "Layer playback does not match its assigned slice");
-                }
+    const auto validatePlayback = [&](const Pad& pad) {
+        for (const auto& layer : pad.layers) {
+            if (!layer.playback.initialized)
+                continue;
+            const auto asset =
+                std::find_if(state.assets.begin(), state.assets.end(),
+                             [&](const auto& entry) { return entry.uuid == layer.assetUuid; });
+            if (asset == state.assets.end())
+                return juce::Result::fail(
+                    "Initialized layer playback state references an unknown asset");
+            if (const auto playbackResult =
+                    validateSamplePlaybackSettings(layer.playback, asset->frameCount);
+                playbackResult.failed())
+                return playbackResult;
+            if (layer.sliceUuid.isNotEmpty()) {
+                const auto sliceSet =
+                    std::find_if(state.sliceSets.begin(), state.sliceSets.end(),
+                                 [&](const auto& set) { return set.uuid == layer.sliceSetUuid; });
+                if (sliceSet == state.sliceSets.end() ||
+                    sliceSet->sourceAssetUuid != layer.assetUuid)
+                    return juce::Result::fail("Layer slice reference targets an unknown slice set");
+                const auto slice = std::find_if(
+                    sliceSet->slices.begin(), sliceSet->slices.end(),
+                    [&](const auto& region) { return region.uuid == layer.sliceUuid; });
+                if (slice == sliceSet->slices.end() ||
+                    layer.playback.startFrame != static_cast<std::uint64_t>(slice->startFrame) ||
+                    layer.playback.endFrame != static_cast<std::uint64_t>(slice->endFrame))
+                    return juce::Result::fail("Layer playback does not match its assigned slice");
             }
+        }
+        return juce::Result::ok();
+    };
+    for (const auto& bank : state.banks) {
+        for (const auto& pad : bank.pads)
+            if (const auto playbackResult = validatePlayback(pad); playbackResult.failed())
+                return playbackResult;
+        for (const auto& pad : bank.legacyOverflowPads)
+            if (const auto playbackResult = validatePlayback(pad); playbackResult.failed())
+                return playbackResult;
+    }
     return result;
 }
 

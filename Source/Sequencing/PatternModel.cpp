@@ -93,6 +93,11 @@ juce::Result validateSequenceEvent(const SequenceEvent& event, const Pattern& pa
         return juce::Result::fail("Sequence event ratchet count must be between 1 and 16");
     if (spacingQ16 <= 0 || spacingQ16 > durationQ16)
         return juce::Result::fail("Sequence event ratchet spacing is invalid");
+    const auto maximumNudgeQ16 =
+        resolutionTicks(pattern.stepResolution) * static_cast<std::int64_t>(subTickUnitsPerTick);
+    const auto microOffset = static_cast<std::int64_t>(event.microOffset.rawValue);
+    if (microOffset < -maximumNudgeQ16 || microOffset > maximumNudgeQ16)
+        return juce::Result::fail("Sequence event nudge exceeds one pattern step");
     if (event.ratchetCount > 1U &&
         spacingQ16 > std::numeric_limits<std::int64_t>::max() /
                          static_cast<std::int64_t>(event.ratchetCount - 1U))

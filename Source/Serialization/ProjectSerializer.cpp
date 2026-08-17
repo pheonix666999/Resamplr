@@ -2,6 +2,7 @@
 
 #include "App/ProductInfo.h"
 
+#include <algorithm>
 #include <charconv>
 #include <cmath>
 #include <limits>
@@ -207,8 +208,10 @@ juce::var bankValue(const PadBank& bank) {
     setProperty(value, "name", bank.name);
 
     std::vector<juce::var> pads;
-    pads.reserve(bank.pads.size());
+    pads.reserve(bank.pads.size() + bank.legacyOverflowPads.size());
     for (const auto& pad : bank.pads)
+        pads.push_back(padValue(pad));
+    for (const auto& pad : bank.legacyOverflowPads)
         pads.push_back(padValue(pad));
     setProperty(value, "pads", makeArray(pads));
 
@@ -752,12 +755,21 @@ juce::Result readBank(const juce::var& value, PadBank& bank) {
 
     const auto padsValue = object->getProperty("pads");
     const auto* pads = padsValue.getArray();
-    if (pads == nullptr || pads->size() != static_cast<int>(padsPerBank))
-        return juce::Result::fail("pads must contain exactly sixteen entries");
+    if (pads == nullptr || (pads->size() != static_cast<int>(padsPerBank) &&
+                            pads->size() != static_cast<int>(legacyPadsPerBank)))
+        return juce::Result::fail("pads must contain exactly twelve or sixteen entries");
     for (std::size_t index = 0; index < padsPerBank; ++index)
         if (const auto result = readPad((*pads)[static_cast<int>(index)], bank.pads[index]);
             result.failed())
             return result;
+    bank.legacyOverflowPads.clear();
+    bank.legacyOverflowPads.reserve(static_cast<std::size_t>(pads->size()) - padsPerBank);
+    for (std::size_t index = padsPerBank; index < static_cast<std::size_t>(pads->size()); ++index) {
+        Pad pad;
+        if (const auto result = readPad((*pads)[static_cast<int>(index)], pad); result.failed())
+            return result;
+        bank.legacyOverflowPads.push_back(std::move(pad));
+    }
     return readString(*object, "uuid", bank.uuid);
 }
 
@@ -1067,6 +1079,10 @@ juce::Result parseManifest(const juce::String& text, Project& project) {
             return result;
     if (const auto result = readUi(root->getProperty("ui"), state.ui); result.failed())
         return result;
+    if (state.ui.selectedPad >= padsPerBank &&
+        std::any_of(state.banks.begin(), state.banks.end(),
+                    [](const auto& bank) { return !bank.legacyOverflowPads.empty(); }))
+        state.ui.selectedPad = static_cast<std::uint8_t>(padsPerBank - 1U);
     return project.restoreState(std::move(state), revision);
 }
 } // namespace

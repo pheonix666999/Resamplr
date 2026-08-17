@@ -75,8 +75,10 @@ enum class AudioCommandType : std::uint8_t {
 struct AudioCommand final {
     AudioCommandType type{AudioCommandType::none};
     std::uint32_t objectIndex{0U};
-    std::uint32_t generation{0U};
+    std::uint64_t generation{0U};
     float value{0.0F};
+    std::uint32_t frameOffset{0U};
+    std::uint32_t sequenceOrder{0U};
 };
 
 using AudioCommandQueue = SpscQueue<AudioCommand, 1024U>;
