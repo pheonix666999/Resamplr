@@ -166,13 +166,42 @@ bool InputRouter::handleMidi(const juce::MidiMessage& message) {
     if (captureLazyMidi(message))
         return true;
     AudioCommand command;
-    return makeMidiCommand(message, command) && engine_.enqueue(command);
+    if (!makeMidiCommand(message, command) || !engine_.enqueue(command))
+        return false;
+    capturePatternInput(command);
+    return true;
 }
 
 void InputRouter::setLazyMarkerCapture(LazyMarkerCapture* const capture,
                                        PreviewPlayer* const preview) noexcept {
     lazyPreview_.store(preview, std::memory_order_release);
     lazyCapture_.store(capture, std::memory_order_release);
+}
+
+void InputRouter::setPatternRecorder(PatternRecorder* const recorder,
+                                     TransportEngine* const transport) noexcept {
+    recordTransport_.store(transport, std::memory_order_release);
+    patternRecorder_.store(recorder, std::memory_order_release);
+}
+
+void InputRouter::capturePatternInput(const AudioCommand& command) noexcept {
+    auto* const recorder = patternRecorder_.load(std::memory_order_acquire);
+    auto* const transport = recordTransport_.load(std::memory_order_acquire);
+    if (recorder == nullptr || transport == nullptr ||
+        (command.type != AudioCommandType::triggerPad &&
+         command.type != AudioCommandType::releaseSource))
+        return;
+    const auto position = transport->snapshot();
+    const PatternRecordInput input{
+        command.type == AudioCommandType::triggerPad ? PatternRecordInputType::noteOn
+                                                     : PatternRecordInputType::noteOff,
+        command.objectIndex,
+        command.generation,
+        static_cast<std::uint8_t>(std::clamp(static_cast<int>(command.value), 1, 127)),
+        position.framePosition,
+        position.loopIteration,
+    };
+    juce::ignoreUnused(recorder->capture(input, position.state));
 }
 
 bool InputRouter::captureLazyMidi(const juce::MidiMessage& message) noexcept {
@@ -190,13 +219,21 @@ bool InputRouter::triggerPad(const std::size_t globalPadIndex, const std::uint32
                              const std::uint8_t velocity) {
     if (globalPadIndex >= totalPadCount)
         return false;
-    return engine_.enqueue(AudioCommand{AudioCommandType::triggerPad,
-                                        static_cast<std::uint32_t>(globalPadIndex), sourceId,
-                                        static_cast<float>(velocity)});
+    const AudioCommand command{AudioCommandType::triggerPad,
+                               static_cast<std::uint32_t>(globalPadIndex), sourceId,
+                               static_cast<float>(velocity)};
+    if (!engine_.enqueue(command))
+        return false;
+    capturePatternInput(command);
+    return true;
 }
 
 bool InputRouter::releaseSource(const std::uint32_t sourceId) {
-    return engine_.enqueue(AudioCommand{AudioCommandType::releaseSource, 0U, sourceId, 0.0F});
+    const AudioCommand command{AudioCommandType::releaseSource, 0U, sourceId, 0.0F};
+    if (!engine_.enqueue(command))
+        return false;
+    capturePatternInput(command);
+    return true;
 }
 
 void InputRouter::panic() noexcept {
@@ -215,7 +252,11 @@ void InputRouter::handleIncomingMidiMessage(juce::MidiInput* const source,
     if (captureLazyMidi(message))
         return;
     AudioCommand command;
-    if (makeMidiCommand(message, command) && !midiCommands_.tryPush(command))
-        midiIngressOverflows_.fetch_add(1U, std::memory_order_relaxed);
+    if (makeMidiCommand(message, command)) {
+        if (!midiCommands_.tryPush(command))
+            midiIngressOverflows_.fetch_add(1U, std::memory_order_relaxed);
+        else
+            capturePatternInput(command);
+    }
 }
 } // namespace padflow

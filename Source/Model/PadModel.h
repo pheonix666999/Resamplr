@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Chopping/SliceModel.h"
+#include "Model/ProductModelConstants.h"
+#include "Sequencing/PatternModel.h"
 
 #include <juce_core/juce_core.h>
 
@@ -10,12 +12,6 @@
 #include <vector>
 
 namespace padflow {
-inline constexpr std::size_t padBankCount = 4U;
-inline constexpr std::size_t padsPerBank = 12U;
-inline constexpr std::size_t legacyPadsPerBank = 16U;
-inline constexpr std::size_t totalPadCount = padBankCount * padsPerBank;
-inline constexpr std::size_t minimumLayersPerPad = 4U;
-
 enum class PlaybackMode : std::uint8_t { oneShot, gate, toggle };
 enum class PolyphonyMode : std::uint8_t { poly, mono };
 
@@ -188,6 +184,37 @@ struct ProjectUiState final {
     [[nodiscard]] friend bool operator==(const ProjectUiState&, const ProjectUiState&) = default;
 };
 
+struct TransportPreferences final {
+    bool loopEnabled{true};
+    bool metronomeEnabled{false};
+    std::uint8_t countInBars{0U};
+    float metronomeVolume{0.5F};
+
+    [[nodiscard]] friend bool operator==(const TransportPreferences&,
+                                         const TransportPreferences&) = default;
+};
+
+struct SequencerUiState final {
+    juce::String selectedEventUuid;
+    std::int64_t stepCursorTicks{0};
+    std::uint16_t firstVisibleLane{0U};
+
+    [[nodiscard]] friend bool operator==(const SequencerUiState&,
+                                         const SequencerUiState&) = default;
+};
+
+struct ProjectSequencerState final {
+    std::vector<TempoPoint> tempoPoints{{MusicalTime{}, defaultTempoMicroBpm}};
+    juce::String probabilitySeed;
+    juce::String probabilityAlgorithm{"siphash24-v1"};
+    PatternCollection patterns;
+    TransportPreferences transport;
+    SequencerUiState ui;
+
+    [[nodiscard]] friend bool operator==(const ProjectSequencerState&,
+                                         const ProjectSequencerState&) = default;
+};
+
 struct ProjectState final {
     juce::String projectUuid;
     juce::String projectName{"Untitled"};
@@ -200,6 +227,7 @@ struct ProjectState final {
     MidiSettings midi;
     AudioSettings audio;
     ProjectUiState ui;
+    ProjectSequencerState sequencer;
 
     [[nodiscard]] friend bool operator==(const ProjectState&, const ProjectState&) = default;
 };

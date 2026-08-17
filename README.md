@@ -1,11 +1,12 @@
 # PadFlow
 
 PadFlow is an original, offline, standalone sampler project by Ali Ammar Audio. Version
-0.1.0 contains the playable RAM-resident sampler plus Milestone 2 waveform editing/recording and
-Milestone 3 non-destructive sample chopping: four banks of twelve pads, four velocity layers per
+0.1.0 contains the playable RAM-resident sampler, waveform editing/recording, non-destructive
+sample chopping, and the Milestone 4 pattern sequencer: four banks of twelve pads, four velocity layers per
 pad, WAV/AIFF/FLAC import and preview, mouse/keyboard/MIDI triggering, deterministic 128-voice
 playback, device settings, frame-bound trim/loop/reverse, derived PCM operations, input capture,
-five chopping modes, transactional slice assignment, and schema-v1 project save/load.
+five chopping modes, transactional slice assignment, deterministic transport/pattern playback,
+step/live pattern recording, and schema-v1 project save/load.
 
 ## Status and platforms
 
@@ -51,7 +52,20 @@ edit and render trim/reverse/loop playback, create normalize/crop derived assets
 the source, record mocked input through the capture FIFO/writer, exercise equal, fixed, transient,
 manual, and simulated lazy chopping, preview and transactionally assign shared-PCM slices,
 round-trip a populated schema-v1 project, retrigger restored slices, verify undo/redo and
-cancellation, and clean temporary files. No physical audio, MIDI, or input device is required.
+cancellation, deterministic multi-buffer sequence playback, step/live takes, and clean temporary
+files. No physical audio, MIDI, or input device is required.
+
+## Transport and pattern sequencer
+
+Open Sequence to use the internal Play, Stop, Record, Panic, Loop, Metronome, Count-in, and BPM
+controls. The pattern header creates, selects, renames, duplicates, deletes, or clears patterns.
+The scrollable grid exposes all 48 pad lanes; click any of the sixteen visible steps to add or remove
+an event. Selected events expose velocity, probability, ratchet count, and signed timing nudge.
+
+Record starts a bounded live overdub after the configured count-in. Mouse, computer keyboard, and
+MIDI all enter the same capture queue, and note release determines gate duration. Press Record again
+to commit the complete take as one undo entry, or Panic/cancel to discard it. Stored musical time is
+960 PPQ with Q16 fractions; project files never persist callback frame offsets or mutable RNG state.
 
 ## Sample chopping
 

@@ -84,6 +84,18 @@ state. A malformed, zero-length, overlapping, dangling, fingerprint-mismatched, 
 playback-mismatched slice reference rejects the complete candidate state without partial project
 mutation.
 
+## Milestone 4 additive sequencer payload
+
+Schema v1 remains active. The optional root `sequencer` object stores an ordered integer micro-BPM
+tempo map, the stable project probability seed and `siphash24-v1` identifier, transport preferences,
+patterns, selected pattern, and sequencer UI state. Older Milestone 0-3 manifests omit the object
+and receive one deterministic empty 4/4 pattern at 120 BPM.
+
+Pattern and event UUIDs persist verbatim. Positions and durations store signed 960-PPQ whole ticks
+as decimal strings plus unsigned Q16 fractions. Probability is a canonical unsigned Q32 decimal
+string; ratchet spacing and signed Q16 nudge also round-trip exactly. Callback block offsets, sample
+positions, live voice state, and mutable random-generator state are never serialized.
+
 ## Musical time
 
 All musical positions use 960 PPQ. Absolute positions are `{ wholePpqTicks: int64,

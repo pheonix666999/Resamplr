@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Model/MusicalTime.h"
-#include "Model/PadModel.h"
+#include "Model/ProductModelConstants.h"
 
 #include <juce_core/juce_core.h>
 

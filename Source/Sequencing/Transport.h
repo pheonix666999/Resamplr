@@ -89,6 +89,7 @@ class TransportEngine final {
     void processMetronomeAdd(float* left, float* right, std::size_t frameCount) noexcept;
     [[nodiscard]] bool consumePanicRequest() noexcept;
     void stopAndPanicWhenQuiescent() noexcept;
+    void clearConfigurationWhenQuiescent() noexcept;
 
     [[nodiscard]] TransportPositionSnapshot snapshot() const noexcept;
     [[nodiscard]] std::uint64_t commandOverflowCount() const noexcept;

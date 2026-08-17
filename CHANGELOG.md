@@ -7,6 +7,9 @@
 - Preserve legacy sixteen-pad schema-v1 banks through non-playable migration overflow records.
 - Approve iOS and Android as dedicated future delivery targets after the desktop sequencing,
   effects, and arrangement contracts are validated.
+- Add the deterministic 960-PPQ internal transport, metronome/count-in, immutable pattern scheduler,
+  schema-v1 pattern persistence, scrollable 48-lane step grid, event editing, and bounded mouse,
+  keyboard, and MIDI step/live recording with take-level undo.
 
 ## 0.1.0 — unreleased
 

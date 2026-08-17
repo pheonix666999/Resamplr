@@ -45,6 +45,7 @@ add_library(
     Source/Model/MusicalTime.h
     Source/Model/PadModel.cpp
     Source/Model/PadModel.h
+    Source/Model/ProductModelConstants.h
     Source/Model/Project.cpp
     Source/Model/Project.h
     Source/Sequencing/PatternModel.cpp
@@ -84,6 +85,10 @@ add_library(
     Source/Sequencing/Transport.h
     Source/Sequencing/Scheduler.cpp
     Source/Sequencing/Scheduler.h
+    Source/Sequencing/PatternRecorder.cpp
+    Source/Sequencing/PatternRecorder.h
+    Source/Sequencing/SequencerStatePublisher.cpp
+    Source/Sequencing/SequencerStatePublisher.h
     Source/Input/InputRouter.cpp
     Source/Input/InputRouter.h
     Source/Sampling/SampleImporter.cpp
@@ -122,6 +127,8 @@ add_library(
     Source/App/RecordingPanel.h
     Source/App/SamplerView.cpp
     Source/App/SamplerView.h
+    Source/App/SequencerWorkspace.cpp
+    Source/App/SequencerWorkspace.h
     Source/App/WaveformEditor.cpp
     Source/App/WaveformEditor.h)
 target_include_directories(padflow_ui PUBLIC Source)

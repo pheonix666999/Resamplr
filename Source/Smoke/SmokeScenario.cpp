@@ -13,6 +13,8 @@
 #include "Sampling/RecordedAsset.h"
 #include "Sampling/SampleImporter.h"
 #include "Sampling/WaveformCache.h"
+#include "Sequencing/PatternRecorder.h"
+#include "Sequencing/SequencerStatePublisher.h"
 #include "Serialization/ProjectSerializer.h"
 
 #include <juce_audio_formats/juce_audio_formats.h>
@@ -596,6 +598,74 @@ SmokeResult runSmokeScenario() {
         !restoredInput.mouseUp(1U))
         return {false, "SMOKE failure: restored chopped A2 did not retrigger"};
 
+    SequenceEvent smokeEvent;
+    smokeEvent.uuid = "44444444-4444-4444-8444-444444444444";
+    smokeEvent.padUuid = restoredController.project().pad(0U).uuid;
+    smokeEvent.duration = {240, 0U};
+    smokeEvent.ratchetSpacing = {120, 0U};
+    smokeEvent.ratchetCount = 2U;
+    smokeEvent.probability = probabilityQ32Maximum;
+    if (restoredController.addEventToSelectedPattern(smokeEvent).failed())
+        return {false, "SMOKE failure: sequence event creation failed"};
+    PatternRecorder patternRecorder;
+    auto recordedPattern =
+        *findPattern(restoredController.project().state().sequencer.patterns,
+                     restoredController.project().state().sequencer.patterns.selectedPatternUuid);
+    auto stepCursor = std::int64_t{240};
+    if (PatternRecorder::stepRecord(recordedPattern, restoredController.project().pad(1U).uuid, 1U,
+                                    103U, stepCursor, restoredController.project().revision() + 1U)
+            .failed() ||
+        restoredController
+            .replaceSelectedPattern(std::move(recordedPattern), "Smoke step-record take")
+            .failed())
+        return {false, "SMOKE failure: step recording failed"};
+    if (patternRecorder
+            .beginTake(restoredController.project().state(), PatternRecordMode::overdub, 48'000U)
+            .failed() ||
+        !patternRecorder.capture({PatternRecordInputType::noteOn, 0U, 77U, 96U, 12'000, 0U},
+                                 TransportState::recording) ||
+        !patternRecorder.capture({PatternRecordInputType::noteOff, 0U, 77U, 1U, 18'000, 0U},
+                                 TransportState::recording))
+        return {false, "SMOKE failure: bounded live-record ingress failed"};
+    Pattern liveTake;
+    if (patternRecorder.finishTake(18'000, liveTake).failed() ||
+        restoredController.replaceSelectedPattern(std::move(liveTake), "Smoke live take")
+            .failed() ||
+        !restoredController.undo() || !restoredController.redo())
+        return {false, "SMOKE failure: live take or take-level undo/redo failed"};
+
+    TransportEngine smokeTransport;
+    PatternScheduler smokeScheduler;
+    SequencerStatePublisher sequencerPublisher{smokeScheduler, smokeTransport};
+    if (sequencerPublisher.publish(restoredController.project().state(), 48'000U).failed() ||
+        !smokeTransport.play())
+        return {false, "SMOKE failure: sequencer snapshot publication failed"};
+    std::array<float, 256U> sequenceLeft{};
+    std::array<float, 256U> sequenceRight{};
+    ScheduledCommandBuffer scheduled;
+    auto sequenceHasSignal = false;
+    for (std::size_t block = 0U; block < 100U; ++block) {
+        sequenceLeft.fill(0.0F);
+        sequenceRight.fill(0.0F);
+        smokeTransport.beginBlock();
+        smokeScheduler.processBlock(smokeTransport.snapshot(), sequenceLeft.size(), scheduled);
+        restoredEngine.processBlock(sequenceLeft.data(), sequenceRight.data(), sequenceLeft.size(),
+                                    scheduled.view());
+        smokeTransport.processMetronomeAdd(sequenceLeft.data(), sequenceRight.data(),
+                                           sequenceLeft.size());
+        for (std::size_t frame = 0U; frame < sequenceLeft.size(); ++frame) {
+            if (!std::isfinite(sequenceLeft[frame]) || !std::isfinite(sequenceRight[frame]))
+                return {false, "SMOKE failure: sequencer rendered non-finite audio"};
+            sequenceHasSignal = sequenceHasSignal || std::abs(sequenceLeft[frame]) > 1.0e-6F ||
+                                std::abs(sequenceRight[frame]) > 1.0e-6F;
+        }
+    }
+    if (!sequenceHasSignal)
+        return {false, "SMOKE failure: sequencer rendered silence"};
+    smokeTransport.stopAndPanicWhenQuiescent();
+    sequencerPublisher.clearWhenAudioIsStopped();
+    reportSmokeStage("transport-sequencer-recording");
+
     const auto finalSave = ProjectSerializer::save(restoredController.project(), projectFile);
     auto finalLoadedStorage = std::make_unique<Project>(Project::createEmpty());
     auto& finalLoaded = *finalLoadedStorage;
@@ -603,7 +673,7 @@ SmokeResult runSmokeScenario() {
         finalLoaded.state() != restoredController.project().state() ||
         finalLoaded.state().recordedAssets.size() != 1U ||
         finalLoaded.state().sliceSets.size() != 1U)
-        return {false, "SMOKE failure: final Milestone 3 semantic round trip failed"};
+        return {false, "SMOKE failure: final Milestone 4 semantic round trip failed"};
 
     restoredInput.panic();
     renderFiniteSignal(restoredEngine, 256U, false);
@@ -619,6 +689,7 @@ SmokeResult runSmokeScenario() {
             "SMOKE success: import, waveform cache, trim/reverse/loop, equal/fixed/transient/"
             "manual/lazy chopping, bounded audition, occupied preview, transactional assignment, "
             "normalize/crop, schema-v1 round trip, mocked WAV capture, retrigger, undo/redo, "
-            "finite render, cancellation, and temporary cleanup passed"};
+            "transport, deterministic scheduling, step/live recording, finite render, "
+            "cancellation, and temporary cleanup passed"};
 }
 } // namespace padflow

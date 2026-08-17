@@ -313,6 +313,13 @@ void TransportEngine::stopAndPanicWhenQuiescent() noexcept {
     publishSnapshot();
 }
 
+void TransportEngine::clearConfigurationWhenQuiescent() noexcept {
+    stopAndPanicWhenQuiescent();
+    configuration_.store(nullptr, std::memory_order_release);
+    activeConfiguration_ = nullptr;
+    publishSnapshot();
+}
+
 void TransportEngine::publishSnapshot() noexcept {
     publishedState_.store(static_cast<std::uint8_t>(state_), std::memory_order_release);
     publishedFramePosition_.store(framePosition_, std::memory_order_release);

@@ -112,13 +112,16 @@ SamplerView::SamplerView(ApplicationController& controller, BackgroundJobSystem&
                          SamplePreviewController& preview)
     : controller_(controller), jobs_(jobs), assets_(assets), runtime_(runtime),
       publisher_(publisher), input_(input), preview_(preview),
-      choppingWorkspace_(controller, jobs, assets, runtime.preview()) {
+      sequencerPublisher_(runtime.scheduler(), runtime.transport()),
+      choppingWorkspace_(controller, jobs, assets, runtime.preview()),
+      sequencerWorkspace_(controller, runtime, input) {
     setTitle("PadFlow playable sampler");
     setDescription("Four banks of twelve playable sample pads and a selected-pad editor");
     setWantsKeyboardFocus(true);
     addKeyListener(this);
     configureControls();
     publisher_.publish(controller_.project().state());
+    juce::ignoreUnused(sequencerPublisher_.publish(controller_.project().state(), 48'000U));
     lastSeenRevision_ = controller_.project().revision();
     refreshAll();
     startTimerHz(20);
@@ -137,6 +140,9 @@ SamplerView::~SamplerView() {
     input_.panic();
     juce::ignoreUnused(preview_.stop());
     runtime_.capture().cancel();
+    juce::ignoreUnused(runtime_.transport().stop());
+    runtime_.close();
+    sequencerPublisher_.clearWhenAudioIsStopped();
     if (derivedJob_.has_value())
         derivedJob_->cancel();
     if (recordingDecodeJob_.has_value())
@@ -172,12 +178,26 @@ void SamplerView::configureControls() {
     audioStateLabel_.setTitle("Audio device status");
     operationStatusLabel_.setTitle("Last operation result");
 
-    for (auto* button :
-         {&newButton_, &openButton_, &saveButton_, &undoButton_, &redoButton_, &audioButton_,
-          &midiButton_, &recordingPanelButton_, &choppingWorkspaceButton_, &importButton_,
-          &clearLayerButton_, &clearPadButton_, &auditionButton_, &stopAuditionButton_,
-          &fitWaveformButton_, &fitSelectionButton_, &resetTrimButton_, &resetLoopButton_,
-          &processButton_}) {
+    for (auto* button : {&newButton_,
+                         &openButton_,
+                         &saveButton_,
+                         &undoButton_,
+                         &redoButton_,
+                         &audioButton_,
+                         &midiButton_,
+                         &recordingPanelButton_,
+                         &choppingWorkspaceButton_,
+                         &importButton_,
+                         &sequencerWorkspaceButton_,
+                         &clearLayerButton_,
+                         &clearPadButton_,
+                         &auditionButton_,
+                         &stopAuditionButton_,
+                         &fitWaveformButton_,
+                         &fitSelectionButton_,
+                         &resetTrimButton_,
+                         &resetLoopButton_,
+                         &processButton_}) {
         styleButton(*button);
         addAndMakeVisible(*button);
         button->setTitle(button->getButtonText());
@@ -189,6 +209,7 @@ void SamplerView::configureControls() {
     midiButton_.setComponentID("midi-settings");
     recordingPanelButton_.setComponentID("recording-panel-toggle");
     choppingWorkspaceButton_.setComponentID("chopping-workspace-toggle");
+    sequencerWorkspaceButton_.setComponentID("sequencer-workspace-toggle");
     auditionButton_.setComponentID("waveform-audition");
     stopAuditionButton_.setComponentID("waveform-stop");
     fitWaveformButton_.setComponentID("waveform-fit");
@@ -241,6 +262,9 @@ void SamplerView::configureControls() {
     choppingWorkspaceButton_.onClick = [this] {
         juce::ignoreUnused(setChoppingWorkspaceVisible(!choppingWorkspaceVisible_));
     };
+    sequencerWorkspaceButton_.onClick = [this] {
+        setSequencerWorkspaceVisible(!sequencerWorkspaceVisible_);
+    };
 
     for (std::size_t bank = 0; bank < bankButtons_.size(); ++bank) {
         auto& button = bankButtons_[bank];
@@ -292,6 +316,10 @@ void SamplerView::configureControls() {
             juce::ignoreUnused(setChoppingWorkspaceVisible(false));
     };
     addChildComponent(choppingWorkspace_);
+    sequencerWorkspace_.setVisible(false);
+    sequencerWorkspace_.onClose = [this] { setSequencerWorkspaceVisible(false); };
+    sequencerWorkspace_.onProjectChanged = [this] { publishModel(true); };
+    addChildComponent(sequencerWorkspace_);
 
     padNameEditor_.setComponentID("pad-name");
     padNameEditor_.setTitle("Selected pad name");
@@ -481,7 +509,8 @@ void SamplerView::resized() {
     midiButton_.setBounds(top.removeFromLeft(104).reduced(2, 7));
     recordingPanelButton_.setBounds(top.removeFromLeft(82).reduced(2, 7));
     choppingWorkspaceButton_.setBounds(top.removeFromLeft(70).reduced(2, 7));
-    cpuLabel_.setBounds(top.removeFromLeft(80));
+    sequencerWorkspaceButton_.setBounds(top.removeFromLeft(86).reduced(2, 7));
+    cpuLabel_.setBounds(top.removeFromLeft(42));
     audioStateLabel_.setBounds(top);
 
     auto status = bounds.removeFromBottom(34);
@@ -554,6 +583,28 @@ void SamplerView::resized() {
     }
     recordingPanel_.setBounds(bounds.reduced(14));
     choppingWorkspace_.setBounds(bounds.reduced(6));
+    sequencerWorkspace_.setBounds(getLocalBounds());
+}
+
+void SamplerView::setSequencerWorkspaceVisible(const bool visible) {
+    if (visible) {
+        if (recordingPanelVisible_)
+            setRecordingPanelVisible(false);
+        if (choppingWorkspaceVisible_)
+            juce::ignoreUnused(setChoppingWorkspaceVisible(false));
+        sequencerWorkspace_.refresh();
+    }
+    sequencerWorkspaceVisible_ = visible;
+    sequencerWorkspace_.setVisible(visible);
+    sequencerWorkspaceButton_.setToggleState(visible, juce::dontSendNotification);
+    if (visible)
+        sequencerWorkspace_.toFront(true);
+    else
+        grabKeyboardFocus();
+}
+
+SequencerWorkspace& SamplerView::sequencerWorkspace() noexcept {
+    return sequencerWorkspace_;
 }
 
 bool SamplerView::selectBank(const std::size_t bankIndex) {
@@ -1223,6 +1274,14 @@ void SamplerView::refreshStatus() {
 void SamplerView::publishModel(const bool markModified) {
     modified_ = modified_ || markModified;
     publisher_.publish(controller_.project().state());
+    const auto status = runtime_.status();
+    const auto sampleRate = status.sampleRate > 0.0
+                                ? static_cast<std::uint32_t>(std::llround(status.sampleRate))
+                                : 48'000U;
+    const auto sequencerResult =
+        sequencerPublisher_.publish(controller_.project().state(), sampleRate);
+    if (sequencerResult.failed())
+        setOperationMessage(sequencerResult.getErrorMessage(), true);
     input_.refreshFromProject();
     lastSeenRevision_ = controller_.project().revision();
     refreshAll();
@@ -1539,6 +1598,7 @@ void SamplerView::timerCallback() {
     waveformEditor_.setPlaybackPosition(runtime_.engine().playbackPosition(selectedGlobalPad()));
     juce::ignoreUnused(preview_.collectRetired());
     juce::ignoreUnused(publisher_.collectAcknowledged());
+    juce::ignoreUnused(sequencerPublisher_.collectAcknowledged());
     if (controller_.project().revision() != lastSeenRevision_) {
         lastSeenRevision_ = controller_.project().revision();
         refreshAll();

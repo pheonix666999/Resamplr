@@ -309,6 +309,96 @@ juce::var uiValue(const ProjectUiState& ui) {
     return value;
 }
 
+juce::var musicalTimeValue(const MusicalTime& time) {
+    auto value = makeObject();
+    setProperty(value, "fractionalTickQ16", static_cast<int>(time.fractionalTickQ16));
+    setProperty(value, "wholePpqTicks", decimalString(time.wholePpqTicks));
+    return value;
+}
+
+juce::var musicalDurationValue(const MusicalDuration& duration) {
+    auto value = makeObject();
+    setProperty(value, "fractionalTickQ16", static_cast<int>(duration.fractionalTickQ16));
+    setProperty(value, "wholePpqTicks", decimalString(duration.wholePpqTicks));
+    return value;
+}
+
+juce::var sequenceEventValue(const SequenceEvent& event) {
+    auto value = makeObject();
+    setProperty(value, "duration", musicalDurationValue(event.duration));
+    setProperty(value, "microOffsetQ16", decimalString(event.microOffset.rawValue));
+    setProperty(value, "padUuid", event.padUuid);
+    setProperty(value, "probabilityQ32", decimalString(event.probability));
+    setProperty(value, "ratchetCount", static_cast<int>(event.ratchetCount));
+    setProperty(value, "ratchetSpacing", musicalDurationValue(event.ratchetSpacing));
+    setProperty(value, "stablePadOrder", static_cast<int>(event.stablePadOrder));
+    setProperty(value, "start", musicalTimeValue(event.start));
+    setProperty(value, "uuid", event.uuid);
+    setProperty(value, "velocity", static_cast<int>(event.velocity));
+    return value;
+}
+
+juce::var patternValue(const Pattern& pattern) {
+    auto value = makeObject();
+    setProperty(value, "creationRevision", decimalString(pattern.creationRevision));
+    std::vector<juce::var> events;
+    events.reserve(pattern.events.size());
+    for (const auto& event : pattern.events)
+        events.push_back(sequenceEventValue(event));
+    setProperty(value, "events", makeArray(events));
+    setProperty(value, "length", musicalDurationValue(pattern.length));
+    setProperty(value, "modificationRevision", decimalString(pattern.modificationRevision));
+    setProperty(value, "name", pattern.name);
+    setProperty(value, "quantizeStrengthPercent",
+                static_cast<int>(pattern.quantizeStrengthPercent));
+    setProperty(value, "recordQuantization", static_cast<int>(pattern.recordQuantization));
+    setProperty(value, "stepResolution", static_cast<int>(pattern.stepResolution));
+    setProperty(value, "swingPercent", static_cast<int>(pattern.swingPercent));
+    auto signature = makeObject();
+    setProperty(signature, "denominator", static_cast<int>(pattern.timeSignature.denominator));
+    setProperty(signature, "numerator", static_cast<int>(pattern.timeSignature.numerator));
+    setProperty(value, "timeSignature", signature);
+    setProperty(value, "uuid", pattern.uuid);
+    return value;
+}
+
+juce::var sequencerValue(const ProjectSequencerState& sequencer) {
+    auto value = makeObject();
+    std::vector<juce::var> patterns;
+    patterns.reserve(sequencer.patterns.patterns.size());
+    for (const auto& pattern : sequencer.patterns.patterns)
+        patterns.push_back(patternValue(pattern));
+    setProperty(value, "patterns", makeArray(patterns));
+    setProperty(value, "probabilityAlgorithm", sequencer.probabilityAlgorithm);
+    setProperty(value, "probabilitySeed", sequencer.probabilitySeed);
+    setProperty(value, "selectedPatternUuid", sequencer.patterns.selectedPatternUuid);
+
+    std::vector<juce::var> tempoPoints;
+    tempoPoints.reserve(sequencer.tempoPoints.size());
+    for (const auto& point : sequencer.tempoPoints) {
+        auto pointValue = makeObject();
+        setProperty(pointValue, "microBpm", decimalString(point.microBpm));
+        setProperty(pointValue, "position", musicalTimeValue(point.position));
+        tempoPoints.push_back(std::move(pointValue));
+    }
+    setProperty(value, "tempoPoints", makeArray(tempoPoints));
+
+    auto transport = makeObject();
+    setProperty(transport, "countInBars", static_cast<int>(sequencer.transport.countInBars));
+    setProperty(transport, "loopEnabled", sequencer.transport.loopEnabled);
+    setProperty(transport, "metronomeEnabled", sequencer.transport.metronomeEnabled);
+    setProperty(transport, "metronomeVolume",
+                static_cast<double>(sequencer.transport.metronomeVolume));
+    setProperty(value, "transport", transport);
+
+    auto ui = makeObject();
+    setProperty(ui, "firstVisibleLane", static_cast<int>(sequencer.ui.firstVisibleLane));
+    setProperty(ui, "selectedEventUuid", sequencer.ui.selectedEventUuid);
+    setProperty(ui, "stepCursorTicks", decimalString(sequencer.ui.stepCursorTicks));
+    setProperty(value, "ui", ui);
+    return value;
+}
+
 juce::var manifestValue(const Project& project) {
     const auto& state = project.state();
     auto value = makeObject();
@@ -355,6 +445,7 @@ juce::var manifestValue(const Project& project) {
     setProperty(value, "recording", recordingValue(state.recording));
     setProperty(value, "revision", decimalString(project.revision()));
     setProperty(value, "schemaVersion", project.schemaVersion());
+    setProperty(value, "sequencer", sequencerValue(state.sequencer));
     setProperty(value, "ui", uiValue(state.ui));
     return value;
 }
@@ -957,6 +1048,203 @@ juce::Result readUi(const juce::var& value, ProjectUiState& ui) {
     return readInteger(*object, "windowY", ui.windowY);
 }
 
+juce::Result readMusicalTime(const juce::var& value, MusicalTime& time) {
+    const juce::DynamicObject* object = nullptr;
+    if (const auto result = requireObject(value, "musical time", object); result.failed())
+        return result;
+    if (const auto result = readInteger(*object, "fractionalTickQ16", time.fractionalTickQ16);
+        result.failed())
+        return result;
+    return readDecimalString(*object, "wholePpqTicks", time.wholePpqTicks);
+}
+
+juce::Result readMusicalDuration(const juce::var& value, MusicalDuration& duration) {
+    const juce::DynamicObject* object = nullptr;
+    if (const auto result = requireObject(value, "musical duration", object); result.failed())
+        return result;
+    if (const auto result = readInteger(*object, "fractionalTickQ16", duration.fractionalTickQ16);
+        result.failed())
+        return result;
+    return readDecimalString(*object, "wholePpqTicks", duration.wholePpqTicks);
+}
+
+juce::Result readSequenceEvent(const juce::var& value, SequenceEvent& event) {
+    const juce::DynamicObject* object = nullptr;
+    if (const auto result = requireObject(value, "sequence event", object); result.failed())
+        return result;
+    if (const auto result = readMusicalDuration(object->getProperty("duration"), event.duration);
+        result.failed())
+        return result;
+    if (const auto result =
+            readDecimalString(*object, "microOffsetQ16", event.microOffset.rawValue);
+        result.failed())
+        return result;
+    if (const auto result = readString(*object, "padUuid", event.padUuid); result.failed())
+        return result;
+    if (const auto result = readDecimalString(*object, "probabilityQ32", event.probability);
+        result.failed())
+        return result;
+    if (const auto result = readInteger(*object, "ratchetCount", event.ratchetCount);
+        result.failed())
+        return result;
+    if (const auto result =
+            readMusicalDuration(object->getProperty("ratchetSpacing"), event.ratchetSpacing);
+        result.failed())
+        return result;
+    if (const auto result = readInteger(*object, "stablePadOrder", event.stablePadOrder);
+        result.failed())
+        return result;
+    if (const auto result = readMusicalTime(object->getProperty("start"), event.start);
+        result.failed())
+        return result;
+    if (const auto result = readString(*object, "uuid", event.uuid); result.failed())
+        return result;
+    return readInteger(*object, "velocity", event.velocity);
+}
+
+juce::Result readPattern(const juce::var& value, Pattern& pattern) {
+    const juce::DynamicObject* object = nullptr;
+    if (const auto result = requireObject(value, "pattern", object); result.failed())
+        return result;
+    if (const auto result =
+            readDecimalString(*object, "creationRevision", pattern.creationRevision);
+        result.failed())
+        return result;
+    if (const auto result = readMusicalDuration(object->getProperty("length"), pattern.length);
+        result.failed())
+        return result;
+    if (const auto result =
+            readDecimalString(*object, "modificationRevision", pattern.modificationRevision);
+        result.failed())
+        return result;
+    if (const auto result = readString(*object, "name", pattern.name); result.failed())
+        return result;
+    if (const auto result =
+            readInteger(*object, "quantizeStrengthPercent", pattern.quantizeStrengthPercent);
+        result.failed())
+        return result;
+    std::uint16_t quantization = 0U;
+    std::uint16_t resolution = 0U;
+    if (const auto result = readInteger(*object, "recordQuantization", quantization);
+        result.failed())
+        return result;
+    if (const auto result = readInteger(*object, "stepResolution", resolution); result.failed())
+        return result;
+    pattern.recordQuantization = static_cast<RecordQuantization>(quantization);
+    pattern.stepResolution = static_cast<StepResolution>(resolution);
+    if (const auto result = readInteger(*object, "swingPercent", pattern.swingPercent);
+        result.failed())
+        return result;
+    const juce::DynamicObject* signature = nullptr;
+    if (const auto result =
+            requireObject(object->getProperty("timeSignature"), "time signature", signature);
+        result.failed())
+        return result;
+    if (const auto result =
+            readInteger(*signature, "denominator", pattern.timeSignature.denominator);
+        result.failed())
+        return result;
+    if (const auto result = readInteger(*signature, "numerator", pattern.timeSignature.numerator);
+        result.failed())
+        return result;
+    if (const auto result = readString(*object, "uuid", pattern.uuid); result.failed())
+        return result;
+    const auto* events = object->getProperty("events").getArray();
+    if (events == nullptr)
+        return juce::Result::fail("events must be an array");
+    pattern.events.clear();
+    pattern.events.reserve(static_cast<std::size_t>(events->size()));
+    for (const auto& eventValue : *events) {
+        SequenceEvent event;
+        if (const auto result = readSequenceEvent(eventValue, event); result.failed())
+            return result;
+        pattern.events.push_back(std::move(event));
+    }
+    sortPatternEvents(pattern);
+    return juce::Result::ok();
+}
+
+juce::Result readSequencer(const juce::var& value, ProjectSequencerState& sequencer) {
+    const juce::DynamicObject* object = nullptr;
+    if (const auto result = requireObject(value, "sequencer", object); result.failed())
+        return result;
+    if (const auto result =
+            readString(*object, "probabilityAlgorithm", sequencer.probabilityAlgorithm);
+        result.failed())
+        return result;
+    if (const auto result = readString(*object, "probabilitySeed", sequencer.probabilitySeed);
+        result.failed())
+        return result;
+    if (const auto result =
+            readString(*object, "selectedPatternUuid", sequencer.patterns.selectedPatternUuid);
+        result.failed())
+        return result;
+
+    const auto* tempoPoints = object->getProperty("tempoPoints").getArray();
+    if (tempoPoints == nullptr)
+        return juce::Result::fail("tempoPoints must be an array");
+    sequencer.tempoPoints.clear();
+    sequencer.tempoPoints.reserve(static_cast<std::size_t>(tempoPoints->size()));
+    for (const auto& pointValue : *tempoPoints) {
+        const juce::DynamicObject* pointObject = nullptr;
+        if (const auto result = requireObject(pointValue, "tempo point", pointObject);
+            result.failed())
+            return result;
+        TempoPoint point;
+        if (const auto result = readDecimalString(*pointObject, "microBpm", point.microBpm);
+            result.failed())
+            return result;
+        if (const auto result =
+                readMusicalTime(pointObject->getProperty("position"), point.position);
+            result.failed())
+            return result;
+        sequencer.tempoPoints.push_back(point);
+    }
+
+    const auto* patterns = object->getProperty("patterns").getArray();
+    if (patterns == nullptr)
+        return juce::Result::fail("patterns must be an array");
+    sequencer.patterns.patterns.clear();
+    sequencer.patterns.patterns.reserve(static_cast<std::size_t>(patterns->size()));
+    for (const auto& patternValueEntry : *patterns) {
+        Pattern pattern;
+        if (const auto result = readPattern(patternValueEntry, pattern); result.failed())
+            return result;
+        sequencer.patterns.patterns.push_back(std::move(pattern));
+    }
+
+    const juce::DynamicObject* transport = nullptr;
+    if (const auto result = requireObject(object->getProperty("transport"), "transport", transport);
+        result.failed())
+        return result;
+    if (const auto result = readInteger(*transport, "countInBars", sequencer.transport.countInBars);
+        result.failed())
+        return result;
+    if (const auto result = readBool(*transport, "loopEnabled", sequencer.transport.loopEnabled);
+        result.failed())
+        return result;
+    if (const auto result =
+            readBool(*transport, "metronomeEnabled", sequencer.transport.metronomeEnabled);
+        result.failed())
+        return result;
+    if (const auto result =
+            readFloat(*transport, "metronomeVolume", sequencer.transport.metronomeVolume);
+        result.failed())
+        return result;
+
+    const juce::DynamicObject* ui = nullptr;
+    if (const auto result = requireObject(object->getProperty("ui"), "sequencer ui", ui);
+        result.failed())
+        return result;
+    if (const auto result = readInteger(*ui, "firstVisibleLane", sequencer.ui.firstVisibleLane);
+        result.failed())
+        return result;
+    if (const auto result = readString(*ui, "selectedEventUuid", sequencer.ui.selectedEventUuid);
+        result.failed())
+        return result;
+    return readDecimalString(*ui, "stepCursorTicks", sequencer.ui.stepCursorTicks);
+}
+
 juce::Result parseManifest(const juce::String& text, Project& project) {
     const auto parsed = juce::JSON::parse(text);
     const juce::DynamicObject* root = nullptr;
@@ -990,7 +1278,7 @@ juce::Result parseManifest(const juce::String& text, Project& project) {
     const auto banksIdentifier = juce::Identifier{"banks"};
     if (!root->hasProperty(banksIdentifier)) {
         for (const auto* property : {"assets", "audio", "derivedAssets", "midi", "recordedAssets",
-                                     "recording", "sliceSets", "ui"})
+                                     "recording", "sequencer", "sliceSets", "ui"})
             if (root->hasProperty(juce::Identifier{property}))
                 return juce::Result::fail("Project manifest has an incomplete model payload");
         auto legacy = Project::createEmpty(name, uuid);
@@ -1079,6 +1367,12 @@ juce::Result parseManifest(const juce::String& text, Project& project) {
             return result;
     if (const auto result = readUi(root->getProperty("ui"), state.ui); result.failed())
         return result;
+    const auto sequencerIdentifier = juce::Identifier{"sequencer"};
+    if (root->hasProperty(sequencerIdentifier))
+        if (const auto result =
+                readSequencer(root->getProperty(sequencerIdentifier), state.sequencer);
+            result.failed())
+            return result;
     if (state.ui.selectedPad >= padsPerBank &&
         std::any_of(state.banks.begin(), state.banks.end(),
                     [](const auto& bank) { return !bank.legacyOverflowPads.empty(); }))

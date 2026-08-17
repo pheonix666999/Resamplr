@@ -100,6 +100,10 @@ ProjectState makeDefaultProjectState(const juce::String& projectUuid, juce::Stri
         }
     }
 
+    state.sequencer.probabilitySeed = makeStableUuid(projectUuid + "/probability-seed");
+    auto defaultPattern = makeDefaultPattern(makeStableUuid(projectUuid + "/pattern/0"));
+    juce::ignoreUnused(addPattern(state.sequencer.patterns, std::move(defaultPattern)));
+
     return state;
 }
 
@@ -358,6 +362,46 @@ juce::Result validateProjectState(const ProjectState& state) {
         !isFiniteInRange(state.recording.thresholdDecibels, -96.0F, 0.0F) ||
         state.recording.preRollMilliseconds > 2000U)
         return juce::Result::fail("Recording preferences are outside their supported range");
+
+    if (state.sequencer.probabilitySeed.trim().isEmpty() ||
+        state.sequencer.probabilityAlgorithm != "siphash24-v1")
+        return juce::Result::fail("Sequencer probability configuration is invalid");
+    if (state.sequencer.transport.countInBars > 2U ||
+        !isFiniteInRange(state.sequencer.transport.metronomeVolume, 0.0F, 1.0F) ||
+        state.sequencer.ui.firstVisibleLane >= totalPadCount ||
+        state.sequencer.ui.stepCursorTicks < 0)
+        return juce::Result::fail("Sequencer preferences are outside their supported range");
+    TempoMap tempoMap;
+    if (const auto tempoResult = tempoMap.replacePoints(state.sequencer.tempoPoints);
+        tempoResult.failed())
+        return tempoResult;
+    const auto& collection = state.sequencer.patterns;
+    if (collection.patterns.empty() || collection.patterns.size() > maximumPatternCount ||
+        findPattern(collection, collection.selectedPatternUuid) == nullptr)
+        return juce::Result::fail("Sequencer pattern selection is invalid");
+    for (const auto& pattern : collection.patterns) {
+        if (const auto patternResult = validatePattern(pattern); patternResult.failed())
+            return patternResult;
+        addUuid(uuids, pattern.uuid, result);
+        for (const auto& event : pattern.events) {
+            addUuid(uuids, event.uuid, result);
+            const auto padExists =
+                std::any_of(state.banks.begin(), state.banks.end(), [&](const auto& bank) {
+                    return std::any_of(bank.pads.begin(), bank.pads.end(),
+                                       [&](const auto& pad) { return pad.uuid == event.padUuid; });
+                });
+            if (!padExists)
+                return juce::Result::fail("Sequence event references an unknown active pad");
+        }
+    }
+    if (state.sequencer.ui.selectedEventUuid.isNotEmpty()) {
+        const auto* selectedPattern = findPattern(collection, collection.selectedPatternUuid);
+        const auto selectedEvent = std::find_if(
+            selectedPattern->events.begin(), selectedPattern->events.end(),
+            [&](const auto& event) { return event.uuid == state.sequencer.ui.selectedEventUuid; });
+        if (selectedEvent == selectedPattern->events.end())
+            return juce::Result::fail("Sequencer UI references an unknown event");
+    }
     const auto validatePlayback = [&](const Pad& pad) {
         for (const auto& layer : pad.layers) {
             if (!layer.playback.initialized)

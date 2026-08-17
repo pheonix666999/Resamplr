@@ -588,6 +588,9 @@ song mode, resampling, skipback, and export remain outside this milestone.
 | SAVE-M4-013 | Legacy schema-v1 banks with sixteen pads load without partial mutation; the first twelve remain addressable and four overflow pads per bank are retained as migration data. |
 | REGRESSION-M4-004 | Every pad-index diagnostic derives its inclusive maximum from `totalPadCount` and cannot retain the legacy `0..63` limit. |
 | REGRESSION-M4-005 | Minimum-layout acceptance derives the last branded pad component from `padsPerBank` and cannot retain the legacy `pad-15` identifier. |
+| REGRESSION-M4-006 | Sequencer snapshot ownership is released only after the audio callback is quiescent, and clearing the publisher also clears the transport's active raw configuration pointer. |
+| REGRESSION-M4-007 | Pattern-recording fixtures explicitly isolate tempo, count-in, and pre-existing overdub events so unrelated project edits cannot alter timing or event-count expectations. |
+| REGRESSION-M4-008 | Sequencer step-record locals do not shadow JUCE component members and remain warning-clean under MSVC `/W4 /WX`. |
 
 ### Milestone 4 time and tempo
 

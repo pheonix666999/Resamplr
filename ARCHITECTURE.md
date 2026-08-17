@@ -73,6 +73,20 @@ The global pool has 128 stable-index voices. Allocation applies choke, local pad
 completed-release reuse, lowest released envelope, lowest release-stage envelope, oldest monotonic
 trigger age, then stable index. Stop/panic clears all ownership.
 
+## Transport, scheduling, and pattern recording
+
+The project model owns tempo points, probability identity, transport preferences, patterns, and UI
+selection. The message thread converts the selected pattern into paired immutable transport and
+scheduler snapshots. Their raw callback pointers remain owned by an epoch-retired publisher until
+both consumers acknowledge the generation; shutdown quiesces the callback and clears both pointers
+before destroying storage.
+
+The callback expands only precomputed pulses into a fixed 4096-command buffer and sorts them by
+frame, release-before-trigger rank, stable sequence order, and generation. Mouse, keyboard, and MIDI
+recording ingress writes POD note events into a bounded SPSC queue. The message thread pairs gates,
+quantizes musical positions, builds immutable pattern replacements, and commits an entire completed
+take through the unified project undo stack.
+
 ## Persistence and editing
 
 `.padflow` is a ZIP-compatible archive with canonical `manifest.json`, optional collected sources,

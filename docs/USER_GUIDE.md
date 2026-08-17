@@ -2,9 +2,20 @@
 
 PadFlow is a playable RAM-resident sampler. It provides four banks (A–D) of twelve pads in the
 supplied original 3x4 layout, with four velocity layers per pad. Waveform editing, input recording,
-transient and lazy chopping, and transactional slice assignment are available. Transport and step
-sequencing are in active development; effects, song arrangement, and mobile delivery follow their
+transient and lazy chopping, transactional slice assignment, internal transport, pattern editing,
+and step/live sequencing are available. Effects, song arrangement, and mobile delivery follow their
 dedicated milestones.
+
+## Make a pattern
+
+Choose Sequence in the top bar. Set BPM, Loop, Metronome, and Count-in in the transport row. Use the
+pattern row to create, rename, duplicate, select, clear, or delete a pattern. Scroll through the 48
+pad lanes and click a cell to toggle a step. Click an event and use the bottom controls for velocity,
+probability, ratchets, or timing nudge. Playhead motion is read from the audio transport snapshot.
+
+Record starts a live overdub; input during count-in is heard but is not written. Pad mouse gestures,
+the 3x4 computer-key map, and MIDI notes share the same bounded recording path and preserve MIDI
+velocity. Stop/Record completes held gates and commits one undoable take; Panic cancels it.
 
 ## Load and play samples
 

@@ -245,6 +245,178 @@ juce::Result ApplicationController::setUiState(ProjectUiState state) {
     return project_.restoreState(std::move(candidate), project_.revision() + 1U);
 }
 
+juce::Result ApplicationController::setTempo(const std::int64_t microBpm) {
+    auto candidate = project_.state();
+    TempoMap map;
+    if (const auto result = map.replacePoints(candidate.sequencer.tempoPoints); result.failed())
+        return result;
+    if (const auto result = map.setTempo(MusicalTime{}, microBpm); result.failed())
+        return result;
+    candidate.sequencer.tempoPoints = map.points();
+    return commitProjectEdit(std::move(candidate), "Change tempo");
+}
+
+juce::Result ApplicationController::setTransportPreferences(TransportPreferences preferences) {
+    auto candidate = project_.state();
+    candidate.sequencer.transport = preferences;
+    return commitProjectEdit(std::move(candidate), "Change transport preferences");
+}
+
+juce::Result ApplicationController::setSequencerUiState(SequencerUiState state) {
+    auto candidate = project_.state();
+    candidate.sequencer.ui = std::move(state);
+    return project_.restoreState(std::move(candidate), project_.revision() + 1U);
+}
+
+juce::Result ApplicationController::selectPattern(const juce::String& patternUuid) {
+    auto candidate = project_.state();
+    if (findPattern(candidate.sequencer.patterns, patternUuid) == nullptr)
+        return juce::Result::fail("Pattern was not found");
+    candidate.sequencer.patterns.selectedPatternUuid = patternUuid;
+    candidate.sequencer.ui.selectedEventUuid.clear();
+    candidate.sequencer.ui.stepCursorTicks = 0;
+    return project_.restoreState(std::move(candidate), project_.revision() + 1U);
+}
+
+juce::Result ApplicationController::createPattern(juce::String name) {
+    auto candidate = project_.state();
+    auto pattern =
+        makeDefaultPattern(juce::Uuid{}.toString(), name.trim(), project_.revision() + 1U);
+    if (const auto result = addPattern(candidate.sequencer.patterns, std::move(pattern));
+        result.failed())
+        return result;
+    candidate.sequencer.patterns.selectedPatternUuid =
+        candidate.sequencer.patterns.patterns.back().uuid;
+    candidate.sequencer.ui = {};
+    return commitProjectEdit(std::move(candidate), "Create pattern");
+}
+
+juce::Result ApplicationController::renameSelectedPattern(juce::String name) {
+    auto candidate = project_.state();
+    auto* pattern =
+        findPattern(candidate.sequencer.patterns, candidate.sequencer.patterns.selectedPatternUuid);
+    if (pattern == nullptr)
+        return juce::Result::fail("Selected pattern was not found");
+    pattern->name = name.trim();
+    pattern->modificationRevision = project_.revision() + 1U;
+    return commitProjectEdit(std::move(candidate), "Rename pattern");
+}
+
+juce::Result ApplicationController::duplicateSelectedPattern() {
+    auto candidate = project_.state();
+    const auto& selected = candidate.sequencer.patterns.selectedPatternUuid;
+    const auto* source = findPattern(candidate.sequencer.patterns, selected);
+    if (source == nullptr)
+        return juce::Result::fail("Selected pattern was not found");
+    std::vector<juce::String> eventUuids(source->events.size());
+    std::generate(eventUuids.begin(), eventUuids.end(), [] { return juce::Uuid{}.toString(); });
+    if (const auto result =
+            duplicatePattern(candidate.sequencer.patterns, selected, juce::Uuid{}.toString(),
+                             eventUuids, project_.revision() + 1U);
+        result.failed())
+        return result;
+    candidate.sequencer.ui = {};
+    return commitProjectEdit(std::move(candidate), "Duplicate pattern");
+}
+
+juce::Result ApplicationController::deleteSelectedPattern() {
+    auto candidate = project_.state();
+    if (const auto result = deletePattern(candidate.sequencer.patterns,
+                                          candidate.sequencer.patterns.selectedPatternUuid);
+        result.failed())
+        return result;
+    candidate.sequencer.ui = {};
+    return commitProjectEdit(std::move(candidate), "Delete pattern");
+}
+
+juce::Result ApplicationController::clearSelectedPattern() {
+    auto candidate = project_.state();
+    auto* pattern =
+        findPattern(candidate.sequencer.patterns, candidate.sequencer.patterns.selectedPatternUuid);
+    if (pattern == nullptr)
+        return juce::Result::fail("Selected pattern was not found");
+    pattern->events.clear();
+    pattern->modificationRevision = project_.revision() + 1U;
+    candidate.sequencer.ui.selectedEventUuid.clear();
+    return commitProjectEdit(std::move(candidate), "Clear pattern");
+}
+
+juce::Result ApplicationController::replaceSelectedPattern(Pattern pattern,
+                                                           juce::String description) {
+    auto candidate = project_.state();
+    auto* selected =
+        findPattern(candidate.sequencer.patterns, candidate.sequencer.patterns.selectedPatternUuid);
+    if (selected == nullptr || selected->uuid != pattern.uuid)
+        return juce::Result::fail("Recorded pattern no longer matches the selected pattern");
+    *selected = std::move(pattern);
+    return commitProjectEdit(std::move(candidate), std::move(description));
+}
+
+juce::Result ApplicationController::addEventToSelectedPattern(SequenceEvent event) {
+    auto candidate = project_.state();
+    auto* pattern =
+        findPattern(candidate.sequencer.patterns, candidate.sequencer.patterns.selectedPatternUuid);
+    if (pattern == nullptr)
+        return juce::Result::fail("Selected pattern was not found");
+    if (event.uuid.isEmpty())
+        event.uuid = juce::Uuid{}.toString();
+    if (const auto result = addSequenceEvent(*pattern, event, project_.revision() + 1U);
+        result.failed())
+        return result;
+    candidate.sequencer.ui.selectedEventUuid = event.uuid;
+    return commitProjectEdit(std::move(candidate), "Add sequence event");
+}
+
+juce::Result ApplicationController::updateSelectedEvent(SequenceEvent event) {
+    auto candidate = project_.state();
+    auto* pattern =
+        findPattern(candidate.sequencer.patterns, candidate.sequencer.patterns.selectedPatternUuid);
+    if (pattern == nullptr)
+        return juce::Result::fail("Selected pattern was not found");
+    const auto found = std::find_if(pattern->events.begin(), pattern->events.end(),
+                                    [&](const auto& entry) { return entry.uuid == event.uuid; });
+    if (found == pattern->events.end())
+        return juce::Result::fail("Sequence event was not found");
+    if (const auto result = validateSequenceEvent(event, *pattern); result.failed())
+        return result;
+    *found = std::move(event);
+    sortPatternEvents(*pattern);
+    pattern->modificationRevision = project_.revision() + 1U;
+    return commitProjectEdit(std::move(candidate), "Edit sequence event");
+}
+
+juce::Result ApplicationController::duplicateSelectedEvent(const juce::String& eventUuid) {
+    auto candidate = project_.state();
+    auto* pattern =
+        findPattern(candidate.sequencer.patterns, candidate.sequencer.patterns.selectedPatternUuid);
+    if (pattern == nullptr)
+        return juce::Result::fail("Selected pattern was not found");
+    const auto duplicateUuid = juce::Uuid{}.toString();
+    if (const auto result =
+            duplicateSequenceEvent(*pattern, eventUuid, duplicateUuid, project_.revision() + 1U);
+        result.failed())
+        return result;
+    candidate.sequencer.ui.selectedEventUuid = duplicateUuid;
+    return commitProjectEdit(std::move(candidate), "Duplicate sequence event");
+}
+
+juce::Result ApplicationController::deleteSelectedEvent(const juce::String& eventUuid) {
+    auto candidate = project_.state();
+    auto* pattern =
+        findPattern(candidate.sequencer.patterns, candidate.sequencer.patterns.selectedPatternUuid);
+    if (pattern == nullptr)
+        return juce::Result::fail("Selected pattern was not found");
+    const auto found = std::find_if(pattern->events.begin(), pattern->events.end(),
+                                    [&](const auto& event) { return event.uuid == eventUuid; });
+    if (found == pattern->events.end())
+        return juce::Result::fail("Sequence event was not found");
+    pattern->events.erase(found);
+    pattern->modificationRevision = project_.revision() + 1U;
+    if (candidate.sequencer.ui.selectedEventUuid == eventUuid)
+        candidate.sequencer.ui.selectedEventUuid.clear();
+    return commitProjectEdit(std::move(candidate), "Delete sequence event");
+}
+
 juce::Result ApplicationController::clearPad(const std::size_t globalIndex) {
     if (globalIndex >= totalPadCount)
         return juce::Result::fail(padIndexError());

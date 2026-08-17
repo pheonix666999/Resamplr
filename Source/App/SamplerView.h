@@ -3,6 +3,7 @@
 #include "App/ApplicationController.h"
 #include "App/ChoppingWorkspace.h"
 #include "App/RecordingPanel.h"
+#include "App/SequencerWorkspace.h"
 #include "App/WaveformEditor.h"
 #include "Audio/AudioRuntime.h"
 #include "Audio/PlaybackStatePublisher.h"
@@ -11,6 +12,7 @@
 #include "Sampling/RecordedAsset.h"
 #include "Sampling/SamplePreviewController.h"
 #include "Sampling/WaveformCache.h"
+#include "Sequencing/SequencerStatePublisher.h"
 #include "Serialization/ProjectSerializer.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -55,6 +57,8 @@ class SamplerView final : public juce::Component,
     void setRecordingPanelVisible(bool visible);
     [[nodiscard]] bool setChoppingWorkspaceVisible(bool visible);
     [[nodiscard]] ChoppingWorkspace& choppingWorkspace() noexcept;
+    void setSequencerWorkspaceVisible(bool visible);
+    [[nodiscard]] SequencerWorkspace& sequencerWorkspace() noexcept;
     [[nodiscard]] bool armRecording(juce::File destination = {}, double sampleRateOverride = 0.0,
                                     std::uint32_t maximumBlockOverride = 0U);
     [[nodiscard]] bool startRecording();
@@ -146,6 +150,7 @@ class SamplerView final : public juce::Component,
     PlaybackStatePublisher& publisher_;
     InputRouter& input_;
     SamplePreviewController& preview_;
+    SequencerStatePublisher sequencerPublisher_;
     WaveformCacheRegistry waveformCaches_;
 
     juce::Label productLabel_;
@@ -161,6 +166,7 @@ class SamplerView final : public juce::Component,
     juce::TextButton midiButton_{"MIDI Settings"};
     juce::TextButton recordingPanelButton_{"Record"};
     juce::TextButton choppingWorkspaceButton_{"Chop"};
+    juce::TextButton sequencerWorkspaceButton_{"Sequence"};
     juce::Label cpuLabel_;
     juce::Label audioStateLabel_;
 
@@ -207,6 +213,7 @@ class SamplerView final : public juce::Component,
     juce::Label operationStatusLabel_;
     RecordingPanel recordingPanel_;
     ChoppingWorkspace choppingWorkspace_;
+    SequencerWorkspace sequencerWorkspace_;
 
     std::deque<QueuedImport> importQueue_;
     std::unique_ptr<juce::FileChooser> fileChooser_;
@@ -230,6 +237,7 @@ class SamplerView final : public juce::Component,
     bool lastOperationWasError_{false};
     bool recordingPanelVisible_{false};
     bool choppingWorkspaceVisible_{false};
+    bool sequencerWorkspaceVisible_{false};
     bool recordingDecodeSubmitted_{false};
     bool recordingAutoAssign_{true};
 };

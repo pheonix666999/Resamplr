@@ -48,6 +48,20 @@ class ApplicationController final {
     [[nodiscard]] juce::Result pastePad(std::size_t globalIndex);
     [[nodiscard]] juce::Result duplicatePad(std::size_t sourceGlobalIndex,
                                             std::size_t destinationGlobalIndex);
+    [[nodiscard]] juce::Result setTempo(std::int64_t microBpm);
+    [[nodiscard]] juce::Result setTransportPreferences(TransportPreferences preferences);
+    [[nodiscard]] juce::Result setSequencerUiState(SequencerUiState state);
+    [[nodiscard]] juce::Result selectPattern(const juce::String& patternUuid);
+    [[nodiscard]] juce::Result createPattern(juce::String name = "Pattern");
+    [[nodiscard]] juce::Result renameSelectedPattern(juce::String name);
+    [[nodiscard]] juce::Result duplicateSelectedPattern();
+    [[nodiscard]] juce::Result deleteSelectedPattern();
+    [[nodiscard]] juce::Result clearSelectedPattern();
+    [[nodiscard]] juce::Result replaceSelectedPattern(Pattern pattern, juce::String description);
+    [[nodiscard]] juce::Result addEventToSelectedPattern(SequenceEvent event);
+    [[nodiscard]] juce::Result updateSelectedEvent(SequenceEvent event);
+    [[nodiscard]] juce::Result duplicateSelectedEvent(const juce::String& eventUuid);
+    [[nodiscard]] juce::Result deleteSelectedEvent(const juce::String& eventUuid);
     [[nodiscard]] juce::Result commitImportedLayer(const JobSpec& target, std::size_t globalIndex,
                                                    std::size_t layerIndex,
                                                    ExternalAssetReference asset);

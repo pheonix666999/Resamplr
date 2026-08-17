@@ -4,6 +4,7 @@
 #include "Audio/PlaybackEngine.h"
 #include "Audio/PreviewPlayer.h"
 #include "Chopping/LazyMarkerCapture.h"
+#include "Sequencing/PatternRecorder.h"
 
 #include <juce_audio_devices/juce_audio_devices.h>
 
@@ -27,6 +28,7 @@ class InputRouter final : public juce::MidiInputCallback {
     [[nodiscard]] bool keyUp(int keyCode);
     [[nodiscard]] bool handleMidi(const juce::MidiMessage& message);
     void setLazyMarkerCapture(LazyMarkerCapture* capture, PreviewPlayer* preview) noexcept;
+    void setPatternRecorder(PatternRecorder* recorder, TransportEngine* transport) noexcept;
     [[nodiscard]] bool triggerPad(std::size_t globalPadIndex, std::uint32_t sourceId,
                                   std::uint8_t velocity);
     [[nodiscard]] bool releaseSource(std::uint32_t sourceId);
@@ -42,6 +44,7 @@ class InputRouter final : public juce::MidiInputCallback {
     [[nodiscard]] bool makeMidiCommand(const juce::MidiMessage& message,
                                        AudioCommand& command) const noexcept;
     [[nodiscard]] bool captureLazyMidi(const juce::MidiMessage& message) noexcept;
+    void capturePatternInput(const AudioCommand& command) noexcept;
     [[nodiscard]] bool markKeyHeld(int keyCode) noexcept;
     void clearKeyHeld(int keyCode) noexcept;
 
@@ -56,6 +59,8 @@ class InputRouter final : public juce::MidiInputCallback {
     std::atomic<std::uint64_t> midiIngressOverflows_{0U};
     std::atomic<LazyMarkerCapture*> lazyCapture_{nullptr};
     std::atomic<PreviewPlayer*> lazyPreview_{nullptr};
+    std::atomic<PatternRecorder*> patternRecorder_{nullptr};
+    std::atomic<TransportEngine*> recordTransport_{nullptr};
     AudioCommand deferredMidiCommand_;
     bool hasDeferredMidiCommand_{false};
 };
