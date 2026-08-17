@@ -17,6 +17,9 @@ packaging, macOS universal tests/package, macOS Intel smoke, and cross-platform 
 verification for implementation commit `96ce4763b4fc21435ff61c3a6f1645592d268f7c`.
 `BLOCKED_REFERENCE_ASSET` is unchanged and exact Resamplr parity is not claimed.
 
+Follow-up correction (2026-08-17): the supplied 87-frame `logo.gif` now animates in the header;
+previously JUCE's default GIF image loader displayed only its first frame.
+
 On 2026-08-17 the client approved a product revision: twelve pads per bank in the supplied 3x4
 curved-corner layout, use of the supplied `logo.gif`, and future iOS/Android delivery. Recording,
 transient chopping, lazy chopping, pad copy/paste, drag-in assignment, and multiple banks already

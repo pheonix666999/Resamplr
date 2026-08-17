@@ -150,13 +150,14 @@ SamplerView::~SamplerView() {
 }
 
 void SamplerView::configureControls() {
-    auto logo = juce::ImageFileFormat::loadFrom(BrandAssets::logo_gif, BrandAssets::logo_gifSize);
-    if (logo.isValid())
-        logo = logo.getClippedImage({155, 85, 490, 625});
-    logoImage_.setImage(logo, juce::RectanglePlacement::centred);
+    const auto logoCrop = juce::Rectangle<int>{155, 85, 490, 625};
+    if (!logoImage_.loadGif(BrandAssets::logo_gif, BrandAssets::logo_gifSize, logoCrop))
+        logoImage_.setStaticImage(
+            juce::ImageFileFormat::loadFrom(BrandAssets::logo_gif, BrandAssets::logo_gifSize),
+            logoCrop);
     logoImage_.setComponentID("brand-logo");
     logoImage_.setTitle("PadFlow brand logo");
-    logoImage_.setDescription("Original twelve-pad PadFlow logo");
+    logoImage_.setDescription("Animated original twelve-pad PadFlow logo");
     addAndMakeVisible(logoImage_);
 
     productLabel_.setText("PadFlow", juce::dontSendNotification);

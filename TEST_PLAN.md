@@ -591,6 +591,9 @@ song mode, resampling, skipback, and export remain outside this milestone.
 | REGRESSION-M4-006 | Sequencer snapshot ownership is released only after the audio callback is quiescent, and clearing the publisher also clears the transport's active raw configuration pointer. |
 | REGRESSION-M4-007 | Pattern-recording fixtures explicitly isolate tempo, count-in, and pre-existing overdub events so unrelated project edits cannot alter timing or event-count expectations. |
 | REGRESSION-M4-008 | Sequencer step-record locals do not shadow JUCE component members and remain warning-clean under MSVC `/W4 /WX`. |
+| REGRESSION-M4-009 | The supplied animated GIF decodes to multiple composited header frames and advances beyond its first frame instead of being flattened by JUCE's single-image loader. |
+| REGRESSION-M4-010 | GIF parser positions use platform-sized cursor arithmetic and compile without a 32-bit-to-`size_t` reference mismatch on Windows. |
+| REGRESSION-M4-011 | The header crop uses JUCE's runtime rectangle constructor and does not incorrectly require it to be a constant expression. |
 
 ### Milestone 4 time and tempo
 

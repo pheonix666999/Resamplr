@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Animate all composited frames of the supplied PadFlow GIF in the application header.
+
 - Adopt the client-approved twelve-pad-per-bank model and supplied 3x4 curved-corner brand layout.
 - Embed the supplied `logo.gif` as a project-owned application resource.
 - Preserve legacy sixteen-pad schema-v1 banks through non-playable migration overflow records.

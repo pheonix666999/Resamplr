@@ -119,6 +119,8 @@ juce_add_binary_data(
 
 add_library(
     padflow_ui STATIC
+    Source/App/AnimatedLogoComponent.cpp
+    Source/App/AnimatedLogoComponent.h
     Source/App/ChoppingWorkspace.cpp
     Source/App/ChoppingWorkspace.h
     Source/App/MainWindow.cpp

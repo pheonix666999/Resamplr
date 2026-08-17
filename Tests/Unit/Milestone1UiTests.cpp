@@ -46,6 +46,22 @@ bool writeUiEvidence(juce::Component& component, const juce::File& file) {
     return image.isValid() && stream != nullptr && stream->openedOk() &&
            juce::PNGImageFormat{}.writeImageToStream(image, *stream);
 }
+
+bool writeImageEvidence(const juce::Image& image, const juce::File& file) {
+    auto stream = file.createOutputStream();
+    return image.isValid() && stream != nullptr && stream->openedOk() &&
+           juce::PNGImageFormat{}.writeImageToStream(image, *stream);
+}
+
+bool imagesDiffer(const juce::Image& first, const juce::Image& second) {
+    if (!first.isValid() || !second.isValid() || first.getBounds() != second.getBounds())
+        return true;
+    for (int y = 0; y < first.getHeight(); ++y)
+        for (int x = 0; x < first.getWidth(); ++x)
+            if (first.getPixelAt(x, y) != second.getPixelAt(x, y))
+                return true;
+    return false;
+}
 } // namespace
 
 class Milestone1UiTests final : public juce::UnitTest {
@@ -77,6 +93,35 @@ class Milestone1UiTests final : public juce::UnitTest {
              {"brand-logo", "new-project", "open-project", "save-project", "audio-settings",
               "midi-settings", "layer-selector", "pad-name", "keyboard-mapping"})
             expect(view.findChildWithID(id) != nullptr, juce::String{"Missing control: "} + id);
+        auto* animatedLogo =
+            dynamic_cast<AnimatedLogoComponent*>(view.findChildWithID("brand-logo"));
+        expect(animatedLogo != nullptr);
+        if (animatedLogo != nullptr) {
+            expectGreaterThan(static_cast<int>(animatedLogo->frameCount()), 1);
+            const auto initialFrame = animatedLogo->currentFrameIndex();
+            const auto initialImage =
+                animatedLogo->createComponentSnapshot(animatedLogo->getLocalBounds(), true, 1.0F);
+            auto visiblyChanged = false;
+            for (std::size_t frame = 1U; frame < animatedLogo->frameCount(); ++frame) {
+                animatedLogo->advanceFrameForTesting();
+                const auto nextImage = animatedLogo->createComponentSnapshot(
+                    animatedLogo->getLocalBounds(), true, 1.0F);
+                if (imagesDiffer(initialImage, nextImage)) {
+                    visiblyChanged = true;
+                    break;
+                }
+            }
+            expect(animatedLogo->currentFrameIndex() != initialFrame);
+            expect(visiblyChanged);
+            if (evidencePath.isNotEmpty()) {
+                expect(writeImageEvidence(initialImage, evidenceDirectory.getChildFile(
+                                                            "padflow-logo-animation-frame-a.png")));
+                expect(writeImageEvidence(
+                    animatedLogo->createComponentSnapshot(animatedLogo->getLocalBounds(), true,
+                                                          1.0F),
+                    evidenceDirectory.getChildFile("padflow-logo-animation-frame-b.png")));
+            }
+        }
         for (std::size_t pad = 0; pad < padsPerBank; ++pad) {
             const auto* component =
                 view.findChildWithID("pad-" + juce::String{static_cast<int>(pad)});

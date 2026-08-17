@@ -1,5 +1,6 @@
 #pragma once
 
+#include "App/AnimatedLogoComponent.h"
 #include "App/ApplicationController.h"
 #include "App/ChoppingWorkspace.h"
 #include "App/RecordingPanel.h"
@@ -154,7 +155,7 @@ class SamplerView final : public juce::Component,
     WaveformCacheRegistry waveformCaches_;
 
     juce::Label productLabel_;
-    juce::ImageComponent logoImage_;
+    AnimatedLogoComponent logoImage_;
     juce::Label projectLabel_;
     juce::Label modifiedLabel_;
     juce::TextButton newButton_{"New"};
