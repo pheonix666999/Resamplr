@@ -38,11 +38,22 @@ jobs:
           python3 scripts/verify-project-schema.py
       - name: Configure, build, and test Debug
         run: |
-          cmake --preset tests-debug --fresh
-          cmake --build --preset tests-debug
-          ctest --preset tests-debug --output-on-failure
-          ./build/tests-debug/bin/padflow_smoke
-          ./build/tests-debug/bin/PadFlow --headless-smoke-test --no-audio-device
+          set -o pipefail
+          mkdir -p artifacts/ci-logs
+          {
+            cmake --preset tests-debug --fresh
+            cmake --build --preset tests-debug
+            ctest --preset tests-debug --output-on-failure
+            ./build/tests-debug/bin/padflow_smoke
+            ./build/tests-debug/bin/PadFlow --headless-smoke-test --no-audio-device
+          } 2>&1 | tee artifacts/ci-logs/linux-debug.log || {
+            status=${PIPESTATUS[0]}
+            while IFS= read -r line; do
+              line=${line//'%'/'%25'}
+              printf '::error title=Linux Debug failure::%s\n' "$line"
+            done < <(tail -n 40 artifacts/ci-logs/linux-debug.log)
+            exit "$status"
+          }
       - name: Configure, build, and test Release
         run: |
           cmake --preset tests-release --fresh
@@ -54,7 +65,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: validation-test-logs
-          path: build/**/Testing/Temporary/**
+          path: |
+            build/**/Testing/Temporary/**
+            artifacts/ci-logs/*.log
 
   windows-x64:
     runs-on: windows-2025
