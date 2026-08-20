@@ -51,6 +51,7 @@ bit-stable platform/compiler or proven integer-only path.
 | PACKAGE-PLUGIN-004 | FL Studio macOS | VST3 and AU pass the documented native Apple Silicon, Intel, and applicable Rosetta scan/play/state/render matrix in licensed FL Studio. |
 | REGRESSION-PLUGIN-001 | Editor-independent audio lifecycle | Destroying the editor cannot close hosted audio; MIDI immediately after editor destruction still renders non-silent finite output. |
 | REGRESSION-PLUGIN-002 | Combined command ordering | When host and sequencer commands share a frame, releases sort before triggers, then by stable sequence/generation; a same-frame host release/retrigger leaves the retriggered gate audible. |
+| REGRESSION-CI-015 | Linux shared-module PIC | Project-owned static core, audio, UI, and asset objects are position-independent so GNU ld can link the Linux VST3 shared module without `R_X86_64_PC32` relocation failures. |
 
 `PLUGIN-006`, `PACKAGE-PLUGIN-002`, and `PACKAGE-PLUGIN-004` require macOS. FL Studio rows require
 an installed licensed host and are never inferred from a successful compiler or format scanner.

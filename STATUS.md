@@ -27,6 +27,12 @@ yet run for this candidate and are not claimed passed. `BLOCKED_REFERENCE_ASSET`
 QuadBeatFX binaries were inspected only as separately licensed reference packages and are not
 copied, modified, renamed, or redistributed.
 
+Hosted run `32360123613` diagnosed a Linux-only VST3 link failure: project static libraries lacked
+position-independent code, and GNU ld rejected an `R_X86_64_PC32` relocation while creating the
+shared module. `REGRESSION-CI-015` enables CMake position-independent code globally for project
+objects. The same run completed the macOS universal and Intel jobs successfully before being
+superseded; the correction requires a fresh full hosted run before final status is claimed.
+
 ## Current milestone
 
 Milestone 4 — transport and sequencing: **ready for review on

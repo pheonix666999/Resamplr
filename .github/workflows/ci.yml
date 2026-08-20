@@ -41,10 +41,10 @@ jobs:
           set -o pipefail
           mkdir -p artifacts/ci-logs
           {
-            cmake --preset tests-debug --fresh
-            cmake --build --preset tests-debug
-            ctest --preset tests-debug --output-on-failure
-            ./build/tests-debug/bin/padflow_smoke
+            cmake --preset tests-debug --fresh &&
+            cmake --build --preset tests-debug &&
+            ctest --preset tests-debug --output-on-failure &&
+            ./build/tests-debug/bin/padflow_smoke &&
             ./build/tests-debug/bin/PadFlow --headless-smoke-test --no-audio-device
           } 2>&1 | tee artifacts/ci-logs/linux-debug.log || {
             status=${PIPESTATUS[0]}
@@ -56,9 +56,20 @@ jobs:
           }
       - name: Configure, build, and test Release
         run: |
-          cmake --preset tests-release --fresh
-          cmake --build --preset tests-release
-          ctest --preset tests-release --output-on-failure
+          set -o pipefail
+          mkdir -p artifacts/ci-logs
+          {
+            cmake --preset tests-release --fresh &&
+            cmake --build --preset tests-release &&
+            ctest --preset tests-release --output-on-failure
+          } 2>&1 | tee artifacts/ci-logs/linux-release.log || {
+            status=${PIPESTATUS[0]}
+            while IFS= read -r line; do
+              line=${line//'%'/'%25'}
+              printf '::error title=Linux Release failure::%s\n' "$line"
+            done < <(tail -n 40 artifacts/ci-logs/linux-release.log)
+            exit "$status"
+          }
       # actions/upload-artifact v7.0.1
       - name: Upload test logs on failure
         if: failure()
