@@ -13,6 +13,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <vector>
 
 namespace padflow {
@@ -39,6 +40,12 @@ class AudioRuntime final : public juce::AudioIODeviceCallback {
     [[nodiscard]] juce::Result applySettings(const AudioSettings& settings);
     void close();
     [[nodiscard]] juce::Result restart();
+    void prepareHosted(double sampleRate, std::uint32_t maximumBlockSize) noexcept;
+    void releaseHosted() noexcept;
+    void processHosted(const float* const* inputChannelData, int numInputChannels,
+                       float* const* outputChannelData, int numOutputChannels, int numSamples,
+                       std::span<const AudioCommand> hostCommands = {}) noexcept;
+    [[nodiscard]] bool isHosted() const noexcept;
 
     [[nodiscard]] std::vector<AudioDeviceInfo> outputDevices();
     [[nodiscard]] std::vector<AudioDeviceInfo> inputDevices();
@@ -74,6 +81,10 @@ class AudioRuntime final : public juce::AudioIODeviceCallback {
   private:
     static constexpr std::size_t scratchFrames = 8192U;
 
+    void processAudio(const float* const* inputChannelData, int numInputChannels,
+                      float* const* outputChannelData, int numOutputChannels, int numSamples,
+                      std::span<const AudioCommand> hostCommands) noexcept;
+
     juce::AudioDeviceManager manager_;
     PlaybackEngine engine_;
     PreviewPlayer preview_;
@@ -81,12 +92,16 @@ class AudioRuntime final : public juce::AudioIODeviceCallback {
     TransportEngine transport_;
     PatternScheduler scheduler_;
     ScheduledCommandBuffer scheduledCommands_;
+    ScheduledCommandBuffer combinedCommands_;
     std::array<float, scratchFrames> leftScratch_{};
     std::array<float, scratchFrames> rightScratch_{};
     std::atomic<bool> callbackRegistered_{false};
     std::atomic<bool> testToneEnabled_{false};
     std::atomic<bool> deviceError_{false};
     std::atomic<bool> panicRequested_{false};
+    std::atomic<bool> hosted_{false};
+    std::atomic<bool> hostedPrepared_{false};
+    std::atomic<std::uint32_t> hostedBufferSize_{0U};
     std::atomic<std::uint64_t> dropoutBaseline_{0U};
     juce::String activeMidiIdentifier_;
     juce::MidiInputCallback* activeMidiCallback_{nullptr};

@@ -7,6 +7,11 @@
 - `padflow_ui`: shared JUCE components with responsive desktop and touch presentation boundaries.
 - `PadFlow`: standalone GUI application; desktop is the currently validated host and mobile
   platform wrappers are added at their dedicated milestone.
+- `PadFlowPlugin`: shared host-driven processor/editor code wrapped as VST3 on Windows/macOS and AU
+  v2 on macOS. The processor owns model, jobs, immutable assets, publishers, and hosted runtime;
+  editors are disposable views and never own or close the host audio lifecycle.
+- `padflow_plugin_smoke`: creates the real processor, assigns synthetic immutable PCM, destroys and
+  recreates the editor boundary, routes host MIDI, renders finite audio, and round-trips state.
 - `padflow_tests`: headless JUCE unit/integration tests registered with CTest.
 - `padflow_smoke`: console executable using the same core smoke scenario as GUI headless mode.
 
@@ -14,6 +19,11 @@ The message thread owns live model commits and undo history. Workers own expensi
 and return immutable results. The audio callback consumes prepublished snapshots and fixed-size
 commands. Writer threads own files and audio-file encoders. UI observes controller snapshots and
 never reaches into audio state directly.
+
+Standalone mode owns `AudioDeviceManager`. Hosted mode does not enumerate, open, restart, or close
+hardware and receives preallocated host buffers directly. Incoming host MIDI becomes a sorted,
+fixed-capacity command span with sample offsets and is merged with internal sequencer commands
+without allocation. The processor and engine outlive every editor instance.
 
 The sampler exposes twelve addressable pads per bank in a row-major 3x4 layout. Pad identity is
 model-owned and independent of display geometry. The supplied `logo.gif` is a project-owned brand

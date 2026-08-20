@@ -3,6 +3,16 @@
 Only one milestone is implemented and reviewed at a time. Every completion report references named
 tests from `TEST_PLAN.md`, updates `STATUS.md`, lists exact commands/results, and uses one scoped commit.
 
+## Approved desktop plug-in delivery extension (implementation candidate)
+
+The client-approved delivery extension adds VST3 on Windows/macOS and AU v2 on macOS without
+changing the Milestone 4 sampler/sequencer feature boundary. It includes host-owned audio/MIDI
+lifecycle, schema-v1 host-state round trips, disposable editors, static-runtime Windows packaging,
+universal macOS packaging, install instructions, an FL Studio validation matrix, and unsigned CI
+artifacts. It does not add effects, arrangement, mobile delivery, or production signing credentials.
+Acceptance is `PLUGIN-001` through `PLUGIN-006`, `PACKAGE-PLUGIN-001` through
+`PACKAGE-PLUGIN-004`, and `REGRESSION-PLUGIN-001` in `TEST_PLAN.md`.
+
 ## Milestone 0 — foundation (complete)
 
 Documentation, Git/JUCE bootstrap, central product configuration, empty resizable app, six CMake

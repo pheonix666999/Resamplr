@@ -5,7 +5,9 @@
 #include "Audio/PreviewPlayer.h"
 #include "Chopping/LazyMarkerCapture.h"
 #include "Sequencing/PatternRecorder.h"
+#include "Sequencing/Scheduler.h"
 
+#include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_audio_devices/juce_audio_devices.h>
 
 #include <array>
@@ -27,6 +29,8 @@ class InputRouter final : public juce::MidiInputCallback {
     [[nodiscard]] bool keyDown(int keyCode, bool textEntryHasFocus);
     [[nodiscard]] bool keyUp(int keyCode);
     [[nodiscard]] bool handleMidi(const juce::MidiMessage& message);
+    void collectHostMidi(const juce::MidiBuffer& midi, std::uint32_t frameCount,
+                         ScheduledCommandBuffer& output) noexcept;
     void setLazyMarkerCapture(LazyMarkerCapture* capture, PreviewPlayer* preview) noexcept;
     void setPatternRecorder(PatternRecorder* recorder, TransportEngine* transport) noexcept;
     [[nodiscard]] bool triggerPad(std::size_t globalPadIndex, std::uint32_t sourceId,

@@ -172,6 +172,30 @@ bool InputRouter::handleMidi(const juce::MidiMessage& message) {
     return true;
 }
 
+void InputRouter::collectHostMidi(const juce::MidiBuffer& midi, const std::uint32_t frameCount,
+                                  ScheduledCommandBuffer& output) noexcept {
+    output.clear();
+    std::uint32_t sequence = 0U;
+    for (const auto metadata : midi) {
+        const auto message = metadata.getMessage();
+        if (captureLazyMidi(message))
+            continue;
+        AudioCommand command;
+        if (!makeMidiCommand(message, command))
+            continue;
+        if (output.size >= output.commands.size()) {
+            ++output.dropped;
+            continue;
+        }
+        const auto maximumOffset = frameCount > 0U ? frameCount - 1U : 0U;
+        command.frameOffset = static_cast<std::uint32_t>(
+            std::clamp(metadata.samplePosition, 0, static_cast<int>(maximumOffset)));
+        command.sequenceOrder = 0x80000000U + sequence++;
+        output.commands[output.size++] = command;
+        capturePatternInput(command);
+    }
+}
+
 void InputRouter::setLazyMarkerCapture(LazyMarkerCapture* const capture,
                                        PreviewPlayer* const preview) noexcept {
     lazyPreview_.store(preview, std::memory_order_release);

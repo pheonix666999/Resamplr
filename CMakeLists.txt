@@ -4,10 +4,11 @@ include(cmake/ProductConfig.cmake)
 project(
     PadFlow
     VERSION ${PADFLOW_VERSION}
-    DESCRIPTION "Offline standalone sampler and drum-machine foundation"
+    DESCRIPTION "Standalone and plug-in sampler and drum machine"
     LANGUAGES C CXX)
 
 option(PADFLOW_BUILD_APP "Build the PadFlow desktop application" ON)
+option(PADFLOW_BUILD_PLUGIN "Build the PadFlow VST3 and Apple Audio Unit plug-ins" ON)
 option(PADFLOW_BUILD_TESTS "Build PadFlow tests and smoke tools" ON)
 option(PADFLOW_ENABLE_FFMPEG "Enable optional user-installed FFmpeg discovery" OFF)
 option(PADFLOW_ENABLE_ASIO "Enable separately licensed ASIO SDK integration" OFF)
@@ -16,6 +17,9 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+if(MSVC)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
 
 include(cmake/CompilerWarnings.cmake)
 add_subdirectory(external/JUCE SYSTEM)
@@ -165,6 +169,52 @@ if(PADFLOW_BUILD_APP)
     padflow_set_output_directory(PadFlow)
 endif()
 
+if(PADFLOW_BUILD_PLUGIN)
+    set(PADFLOW_PLUGIN_FORMATS VST3)
+    if(APPLE)
+        list(APPEND PADFLOW_PLUGIN_FORMATS AU)
+    endif()
+    juce_add_plugin(
+        PadFlowPlugin
+        PRODUCT_NAME "${PADFLOW_PRODUCT_NAME}"
+        COMPANY_NAME "${PADFLOW_COMPANY_NAME}"
+        BUNDLE_ID "${PADFLOW_BUNDLE_ID}.plugin"
+        VERSION "${PADFLOW_VERSION}"
+        PLUGIN_MANUFACTURER_CODE Amma
+        PLUGIN_CODE PdFw
+        FORMATS ${PADFLOW_PLUGIN_FORMATS}
+        VST3_CATEGORIES Instrument Sampler
+        AU_MAIN_TYPE kAudioUnitType_MusicDevice
+        IS_SYNTH TRUE
+        NEEDS_MIDI_INPUT TRUE
+        NEEDS_MIDI_OUTPUT FALSE
+        IS_MIDI_EFFECT FALSE
+        EDITOR_WANTS_KEYBOARD_FOCUS TRUE
+        COPY_PLUGIN_AFTER_BUILD FALSE
+        MICROPHONE_PERMISSION_ENABLED TRUE
+        MICROPHONE_PERMISSION_TEXT
+            "PadFlow receives audio input only when the plug-in host enables its input bus.")
+    target_sources(
+        PadFlowPlugin
+        PRIVATE Source/Plugin/PadFlowAudioProcessor.cpp
+                Source/Plugin/PadFlowAudioProcessor.h
+                Source/Plugin/PadFlowPluginEditor.cpp
+                Source/Plugin/PadFlowPluginEditor.h)
+    target_link_libraries(
+        PadFlowPlugin
+        PRIVATE padflow_audio
+                padflow_ui
+                juce::juce_audio_processors
+                juce::juce_recommended_config_flags
+                juce::juce_recommended_lto_flags)
+    target_compile_definitions(
+        PadFlowPlugin
+        PUBLIC JUCE_VST3_CAN_REPLACE_VST2=0
+        PRIVATE JUCE_DISPLAY_SPLASH_SCREEN=0)
+    padflow_enable_project_warnings(PadFlowPlugin)
+    padflow_set_output_directory(PadFlowPlugin)
+endif()
+
 if(PADFLOW_BUILD_TESTS)
     enable_testing()
     add_subdirectory(Tests)
@@ -180,5 +230,18 @@ if(PADFLOW_BUILD_TESTS)
         add_test(
             NAME UIHEADLESS-002-gui-headless-smoke
             COMMAND PadFlow --headless-smoke-test --no-audio-device)
+    endif()
+    if(PADFLOW_BUILD_PLUGIN)
+        add_executable(padflow_plugin_smoke)
+        target_sources(padflow_plugin_smoke PRIVATE Source/Plugin/PluginSmokeMain.cpp)
+        target_include_directories(
+            padflow_plugin_smoke
+            PRIVATE Source "${CMAKE_CURRENT_BINARY_DIR}/PadFlowPlugin_artefacts/JuceLibraryCode")
+        target_include_directories(
+            padflow_plugin_smoke SYSTEM PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/external/JUCE/modules")
+        target_link_libraries(padflow_plugin_smoke PRIVATE PadFlowPlugin)
+        padflow_enable_project_warnings(padflow_plugin_smoke)
+        padflow_set_output_directory(padflow_plugin_smoke)
+        add_test(NAME PLUGIN-001-processor-smoke COMMAND padflow_plugin_smoke)
     endif()
 endif()

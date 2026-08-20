@@ -124,6 +124,7 @@ SamplerView::SamplerView(ApplicationController& controller, BackgroundJobSystem&
     juce::ignoreUnused(sequencerPublisher_.publish(controller_.project().state(), 48'000U));
     lastSeenRevision_ = controller_.project().revision();
     refreshAll();
+    resolveProjectAssets();
     startTimerHz(20);
 }
 
@@ -141,7 +142,6 @@ SamplerView::~SamplerView() {
     juce::ignoreUnused(preview_.stop());
     runtime_.capture().cancel();
     juce::ignoreUnused(runtime_.transport().stop());
-    runtime_.close();
     sequencerPublisher_.clearWhenAudioIsStopped();
     if (derivedJob_.has_value())
         derivedJob_->cancel();
@@ -1760,6 +1760,13 @@ void SamplerView::showPadMenu(const std::size_t globalPadIndex) {
 }
 
 void SamplerView::showAudioSettings() {
+    if (runtime_.isHosted()) {
+        juce::AlertWindow::showMessageBoxAsync(
+            juce::MessageBoxIconType::InfoIcon, "Audio Settings",
+            "Sample rate, buffer size, audio input, and output are controlled by the plug-in "
+            "host. Change them in FL Studio or your current DAW.");
+        return;
+    }
     const auto status = runtime_.status();
     auto* alert = new juce::AlertWindow{
         "Audio Settings",
@@ -1866,6 +1873,13 @@ void SamplerView::showAudioSettings() {
 }
 
 void SamplerView::showMidiSettings() {
+    if (runtime_.isHosted()) {
+        juce::AlertWindow::showMessageBoxAsync(
+            juce::MessageBoxIconType::InfoIcon, "MIDI Settings",
+            "MIDI input is supplied by the plug-in host. Use the host channel and MIDI routing "
+            "controls, then play notes mapped to the active bank.");
+        return;
+    }
     auto* alert = new juce::AlertWindow{"MIDI Settings", "Select a MIDI input and channel.",
                                         juce::MessageBoxIconType::InfoIcon};
     juce::StringArray deviceNames;

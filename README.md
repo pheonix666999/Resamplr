@@ -1,12 +1,13 @@
 # PadFlow
 
-PadFlow is an original, offline, standalone sampler project by Ali Ammar Audio. Version
+PadFlow is an original, offline sampler project by Ali Ammar Audio. Version
 0.1.0 contains the playable RAM-resident sampler, waveform editing/recording, non-destructive
 sample chopping, and the Milestone 4 pattern sequencer: four banks of twelve pads, four velocity layers per
 pad, WAV/AIFF/FLAC import and preview, mouse/keyboard/MIDI triggering, deterministic 128-voice
 playback, device settings, frame-bound trim/loop/reverse, derived PCM operations, input capture,
 five chopping modes, transactional slice assignment, deterministic transport/pattern playback,
-step/live pattern recording, and schema-v1 project save/load.
+step/live pattern recording, and schema-v1 project save/load. Desktop builds include a standalone
+application and VST3 instrument; macOS builds also include an AU v2 instrument.
 
 ## Status and platforms
 
@@ -45,6 +46,7 @@ Smoke paths:
 ```bash
 padflow_smoke
 PadFlow --headless-smoke-test --no-audio-device
+padflow_plugin_smoke
 ```
 
 They generate temporary synthetic WAV data, import and analyse it through bounded worker paths,
@@ -118,9 +120,11 @@ CI-generated Milestone 2 UI evidence:
 
 ## Installation, settings, and projects
 
-Development archives are unsigned and contain `UNSIGNED.txt`. Production installers and DMG
-publication arrive in Milestone 10. Gatekeeper or SmartScreen may warn about unsigned development
-builds.
+Development archives are unsigned and contain `UNSIGNED.txt`. Windows archives contain the x64
+standalone app and VST3 bundle; macOS archives contain universal standalone, VST3, and AU bundles.
+See `docs/CLIENT_INSTALLATION.md` and `docs/FL_STUDIO_VALIDATION.md`. Production signing,
+notarization, and installer/DMG publication still require owner credentials. Gatekeeper or
+SmartScreen may warn about unsigned development builds.
 
 Planned settings locations:
 

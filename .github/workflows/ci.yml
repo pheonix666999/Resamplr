@@ -83,17 +83,38 @@ jobs:
           if errorlevel 1 exit /b %errorlevel%
           cmake --build --preset windows-release
           if errorlevel 1 exit /b %errorlevel%
+          if not exist "build\windows-release\lib\VST3\PadFlow.vst3\Contents\Resources\moduleinfo.json" exit /b 1
+          dumpbin /dependents "build\windows-release\bin\PadFlow.exe" > "build\windows-release\PadFlow-dependencies.txt"
+          dumpbin /dependents "build\windows-release\lib\VST3\PadFlow.vst3\Contents\x86_64-win\PadFlow.vst3" > "build\windows-release\PadFlow-VST3-dependencies.txt"
+          findstr /i "VCRUNTIME MSVCP" "build\windows-release\PadFlow-dependencies.txt" && exit /b 1 || ver > nul
+          findstr /i "VCRUNTIME MSVCP" "build\windows-release\PadFlow-VST3-dependencies.txt" && exit /b 1 || ver > nul
       - name: Test and smoke
         run: |
           $env:PADFLOW_SCREENSHOT_DIR = "$env:GITHUB_WORKSPACE\artifacts\screenshots"
           ctest --preset windows-release --output-on-failure
           .\build\windows-release\bin\padflow_smoke.exe
+          .\build\windows-release\bin\padflow_plugin_smoke.exe
           .\build\windows-release\bin\PadFlow.exe --headless-smoke-test --no-audio-device
+      - name: Validate VST3 with pluginval strictness 10
+        shell: powershell
+        run: |
+          $archive = "$env:RUNNER_TEMP\pluginval_Windows.zip"
+          Invoke-WebRequest -Uri "https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_Windows.zip" -OutFile $archive
+          $expected = "c08e61ce3b96db41636f8ec7e76f4c7e2c13ebdac7fa1b5a1f52b4f32ec715ab"
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) { throw "pluginval checksum mismatch" }
+          Expand-Archive -LiteralPath $archive -DestinationPath "$env:RUNNER_TEMP\pluginval"
+          & "$env:RUNNER_TEMP\pluginval\pluginval.exe" --validate-in-process --strictness-level 10 --output-dir artifacts\pluginval build\windows-release\lib\VST3\PadFlow.vst3
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Upload Milestone 4 UI evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: milestone4-ui-screenshots
           path: artifacts/screenshots/*.png
+      - name: Upload VST3 validator log
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: windows-pluginval-log
+          path: artifacts/pluginval/*.txt
       - name: Create unsigned development archive
         shell: powershell
         run: scripts\package-windows.ps1 -DevelopmentArchive
@@ -120,8 +141,15 @@ jobs:
         run: |
           ctest --preset macos-universal-release --output-on-failure
           ./build/macos-universal-release/bin/padflow_smoke
+          ./build/macos-universal-release/bin/padflow_plugin_smoke
           ./build/macos-universal-release/bin/PadFlow.app/Contents/MacOS/PadFlow --headless-smoke-test --no-audio-device
           lipo -archs build/macos-universal-release/bin/PadFlow.app/Contents/MacOS/PadFlow | grep arm64 | grep x86_64
+          lipo -archs build/macos-universal-release/lib/VST3/PadFlow.vst3/Contents/MacOS/PadFlow | grep arm64 | grep x86_64
+          lipo -archs build/macos-universal-release/lib/AU/PadFlow.component/Contents/MacOS/PadFlow | grep arm64 | grep x86_64
+          mkdir -p "$HOME/Library/Audio/Plug-Ins/Components"
+          ditto build/macos-universal-release/lib/AU/PadFlow.component "$HOME/Library/Audio/Plug-Ins/Components/PadFlow.component"
+          killall -9 AudioComponentRegistrar 2>/dev/null || true
+          auval -v aumu PdFw Amma
       - name: Create unsigned development archive
         run: bash scripts/package-macos.sh --development-archive
       - name: Verify archive
@@ -145,8 +173,11 @@ jobs:
           cmake --build --preset macos-intel-release
           ctest --preset macos-intel-release --output-on-failure
           ./build/macos-intel-release/bin/padflow_smoke
+          ./build/macos-intel-release/bin/padflow_plugin_smoke
           ./build/macos-intel-release/bin/PadFlow.app/Contents/MacOS/PadFlow --headless-smoke-test --no-audio-device
           lipo -archs build/macos-intel-release/bin/PadFlow.app/Contents/MacOS/PadFlow | grep x86_64
+          lipo -archs build/macos-intel-release/lib/VST3/PadFlow.vst3/Contents/MacOS/PadFlow | grep x86_64
+          lipo -archs build/macos-intel-release/lib/AU/PadFlow.component/Contents/MacOS/PadFlow | grep x86_64
 
   artifact-verification:
     runs-on: ubuntu-24.04

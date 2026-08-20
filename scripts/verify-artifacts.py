@@ -10,7 +10,7 @@ import sys
 import zipfile
 
 
-def verify_archive(path: pathlib.Path) -> list[str]:
+def verify_archive(path: pathlib.Path, platform: str) -> list[str]:
     failures: list[str] = []
     if not path.is_file() or path.stat().st_size == 0:
         return [f"missing or empty archive: {path}"]
@@ -27,6 +27,20 @@ def verify_archive(path: pathlib.Path) -> list[str]:
                 data = json.loads(archive.read(manifest).decode("utf-8"))
                 if data.get("signed") is not False:
                     failures.append(f"{path}: manifest must contain signed=false")
+                expected_formats = {"Standalone", "VST3"}
+                expected_suffixes = ["Standalone/PadFlow.exe", "VST3/PadFlow.vst3/Contents/Resources/moduleinfo.json"]
+                if platform == "macos":
+                    expected_formats.add("AU")
+                    expected_suffixes = [
+                        "Standalone/PadFlow.app/Contents/MacOS/PadFlow",
+                        "VST3/PadFlow.vst3/Contents/MacOS/PadFlow",
+                        "AU/PadFlow.component/Contents/MacOS/PadFlow",
+                    ]
+                if set(data.get("formats", [])) != expected_formats:
+                    failures.append(f"{path}: unexpected format manifest")
+                for suffix in expected_suffixes:
+                    if not any(name.endswith(suffix) for name in names):
+                        failures.append(f"{path}: missing {suffix}")
     except (OSError, zipfile.BadZipFile, json.JSONDecodeError) as error:
         failures.append(f"{path}: {error}")
     return failures
@@ -50,7 +64,7 @@ def main() -> int:
         if len(matches) != 1:
             failures.append(f"expected one {platform} archive, found {len(matches)}")
         for match in matches:
-            failures.extend(verify_archive(match))
+            failures.extend(verify_archive(match, platform))
     if failures:
         print("Artifact verification failed:", *failures, sep="\n- ", file=sys.stderr)
         return 1

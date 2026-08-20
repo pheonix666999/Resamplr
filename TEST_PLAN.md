@@ -34,6 +34,27 @@ bit-stable platform/compiler or proven integer-only path.
 | UIHEADLESS-001 | Console smoke | Metadata, schema round trip, finite non-silent synthetic render, cleanup, exit 0. |
 | UIHEADLESS-002 | GUI headless smoke | Same path with required flag, no window/devices/permission, exit 0. |
 
+## Desktop plug-in and client-package extension
+
+| ID | Test | Acceptance |
+|---|---|---|
+| PLUGIN-001 | Real processor smoke | The real processor constructs, prepares at 48 kHz/512, accepts host MIDI note 36, renders finite non-silent synthetic PCM, serializes/restores schema-v1 state, releases, and exits 0. |
+| PLUGIN-002 | Host audio lifecycle | Hosted mode never opens/enumerates/restarts a hardware device; host format preparation and release safely reset runtime state. |
+| PLUGIN-003 | Sample-accurate bounded MIDI | Host MIDI enters a fixed 4096-command buffer, preserves bounded sample offsets/order, and performs no callback allocation or blocking operation. |
+| PLUGIN-004 | Bus layouts | Stereo output with disabled, mono, or stereo input is accepted; other main-output layouts are rejected and extra channels are silent. |
+| PLUGIN-005 | State persistence | Canonical schema-v1 state survives host save/restore without serializing callback frame offsets or mutable RNG state. |
+| PLUGIN-006 | Apple Audio Unit | Universal AU passes `auval -v aumu PdFw Amma` and both arm64/x86_64 executable slices are present. |
+| PLUGIN-007 | Strict independent validator | Tracktion pluginval strictness 10 passes scan, cold/warm open, editor while processing, 44.1/48/96 kHz at 64/128/256/512/1024 frames, state restoration, threading, fuzz, and bus tests. |
+| PACKAGE-PLUGIN-001 | Windows client archive | Archive contains standalone x64 EXE, complete VST3 bundle/moduleinfo, installer, docs, manifest, and checksum; binaries have no dynamic MSVC runtime dependency. |
+| PACKAGE-PLUGIN-002 | macOS client archive | Archive contains universal standalone app, VST3, and AU bundles plus installer/docs/manifest/checksum; all executables contain arm64 and x86_64. |
+| PACKAGE-PLUGIN-003 | FL Studio Windows | Installed VST3 scans, opens/resizes/reopens, plays MIDI/UI pads, restores state, survives the documented rate/buffer matrix, and renders in licensed FL Studio on Windows x64. |
+| PACKAGE-PLUGIN-004 | FL Studio macOS | VST3 and AU pass the documented native Apple Silicon, Intel, and applicable Rosetta scan/play/state/render matrix in licensed FL Studio. |
+| REGRESSION-PLUGIN-001 | Editor-independent audio lifecycle | Destroying the editor cannot close hosted audio; MIDI immediately after editor destruction still renders non-silent finite output. |
+| REGRESSION-PLUGIN-002 | Combined command ordering | When host and sequencer commands share a frame, releases sort before triggers, then by stable sequence/generation; a same-frame host release/retrigger leaves the retriggered gate audible. |
+
+`PLUGIN-006`, `PACKAGE-PLUGIN-002`, and `PACKAGE-PLUGIN-004` require macOS. FL Studio rows require
+an installed licensed host and are never inferred from a successful compiler or format scanner.
+
 ### Milestone 0 CI regressions
 
 | ID | Test | Acceptance |

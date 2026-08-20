@@ -1,5 +1,32 @@
 # PadFlow Status
 
+## Desktop plug-in delivery extension — local implementation candidate (2026-08-20)
+
+Original PadFlow VST3 processor/editor integration is implemented locally for Windows/macOS, with
+an AU v2 target enabled only on macOS. The Release Windows VST3 bundle builds and its generated
+VST3 manifest is present. `PLUGIN-001` passes with real synthetic sample playback, host MIDI,
+editor destruction before playback, and schema-v1 state round trip. Windows Release CTest passes
+4/4 registrations. The standalone EXE and VST3 use the static MSVC runtime; `dumpbin /dependents`
+shows only Windows system libraries.
+
+Tracktion pluginval v1.0.4 strictness 10 independently passes the VST3: one plug-in found; cold and
+warm open; editor and editor-while-processing; 44.1/48/96 kHz at 64/128/256/512/1024 frames;
+non-releasing processing; state/restoration; automation, background/parameter thread safety;
+parameter fuzzing; and bus-layout tests. The retained log ends in `SUCCESS`.
+
+FL Studio 2026 is installed locally and its configured user VST3 path contains the packaged
+PadFlow bundle. Its Plugin Manager could be opened and the configured path inspected, but the
+background non-elevated session could not operate the manager's protected custom controls to start
+the interactive scan. No FL Studio scan/open/play/save/render pass is claimed; `PACKAGE-PLUGIN-003`
+remains pending manual or suitably interactive host execution.
+
+Client packaging now includes standalone, VST3, platform installer, installation guide, and FL
+Studio validation checklist; macOS packaging additionally requires the built universal AU. Hosted
+macOS universal/Intel compilation, `auval`, signing/notarization, and FL Studio execution have not
+yet run for this candidate and are not claimed passed. `BLOCKED_REFERENCE_ASSET` is unchanged;
+QuadBeatFX binaries were inspected only as separately licensed reference packages and are not
+copied, modified, renamed, or redistributed.
+
 ## Current milestone
 
 Milestone 4 — transport and sequencing: **ready for review on

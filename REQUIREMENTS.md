@@ -2,12 +2,19 @@
 
 ## Product
 
-PadFlow 0.1.0 is a proprietary, offline, standalone C++20/JUCE sampler and drum machine by
+PadFlow 0.1.0 is a proprietary, offline C++20/JUCE sampler and drum machine by
 Ali Ammar Audio (`com.aliammaraudio.padflow`). The validated development targets are Windows 10/11
 x64 and macOS 12+ arm64/x86_64, including a universal macOS package. The approved product target
 also includes touch-first iOS and Android applications after the desktop audio, sequencing,
-effects, and arrangement contracts are stable. PadFlow has no plug-in formats, telemetry, cloud
-service, bundled FFmpeg, or bundled ASIO SDK.
+effects, and arrangement contracts are stable. Desktop delivery includes the standalone application
+and a VST3 instrument on Windows/macOS, plus an Audio Unit v2 music-device instrument on macOS.
+PadFlow has no telemetry, cloud service, bundled FFmpeg, or bundled ASIO SDK.
+
+The plug-in receives audio, MIDI, sample rate, buffer size, and lifecycle control from its host and
+never opens an independent device. VST3 is the cross-platform FL Studio project format. AU is a
+macOS-only alternative. Windows deliverables are x64 and use the static MSVC runtime. macOS release
+deliverables are universal arm64/x86_64; client release builds require Developer ID signing and
+Apple notarization.
 
 Commercial distribution is conditional on the owner maintaining an appropriate JUCE licence or
 fully satisfying the applicable open-source obligations.

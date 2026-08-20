@@ -54,6 +54,8 @@ juce::Result AudioRuntime::initialise(const AudioSettings& preferred) {
 }
 
 juce::Result AudioRuntime::applySettings(const AudioSettings& settings) {
+    if (isHosted())
+        return juce::Result::fail("Audio routing is controlled by the plug-in host");
     capture_.cancel();
     auto setup = manager_.getAudioDeviceSetup();
     setup.outputDeviceName = settings.outputDeviceIdentifier;
@@ -98,9 +100,13 @@ void AudioRuntime::close() {
     preview_.panicWhenQuiescent();
     transport_.stopAndPanicWhenQuiescent();
     manager_.closeAudioDevice();
+    hostedPrepared_.store(false, std::memory_order_release);
+    hosted_.store(false, std::memory_order_release);
 }
 
 juce::Result AudioRuntime::restart() {
+    if (isHosted())
+        return juce::Result::fail("Audio restart is controlled by the plug-in host");
     capture_.cancel();
     const auto callbackWasRegistered = callbackRegistered_.load(std::memory_order_acquire);
     if (callbackWasRegistered)
@@ -119,8 +125,52 @@ juce::Result AudioRuntime::restart() {
     return juce::Result::ok();
 }
 
+void AudioRuntime::prepareHosted(const double sampleRate,
+                                 const std::uint32_t maximumBlockSize) noexcept {
+    hosted_.store(true, std::memory_order_release);
+    activeSampleRate_ = sampleRate > 0.0 ? sampleRate : 48000.0;
+    hostedBufferSize_.store(maximumBlockSize, std::memory_order_release);
+    engine_.prepare(activeSampleRate_);
+    preview_.prepare(activeSampleRate_);
+    transport_.stopAndPanicWhenQuiescent();
+    testTonePhase_ = 0.0;
+    deviceError_.store(false, std::memory_order_release);
+    hostedPrepared_.store(true, std::memory_order_release);
+}
+
+void AudioRuntime::releaseHosted() noexcept {
+    hostedPrepared_.store(false, std::memory_order_release);
+    capture_.cancel();
+    transport_.stopAndPanicWhenQuiescent();
+    engine_.panic();
+    preview_.panicWhenQuiescent();
+    testTonePhase_ = 0.0;
+}
+
+void AudioRuntime::processHosted(const float* const* const inputChannelData,
+                                 const int numInputChannels, float* const* const outputChannelData,
+                                 const int numOutputChannels, const int numSamples,
+                                 const std::span<const AudioCommand> hostCommands) noexcept {
+    if (!hostedPrepared_.load(std::memory_order_acquire)) {
+        if (outputChannelData != nullptr)
+            for (int channel = 0; channel < numOutputChannels; ++channel)
+                if (outputChannelData[channel] != nullptr && numSamples > 0)
+                    std::fill_n(outputChannelData[channel], static_cast<std::size_t>(numSamples),
+                                0.0F);
+        return;
+    }
+    processAudio(inputChannelData, numInputChannels, outputChannelData, numOutputChannels,
+                 numSamples, hostCommands);
+}
+
+bool AudioRuntime::isHosted() const noexcept {
+    return hosted_.load(std::memory_order_acquire);
+}
+
 std::vector<AudioDeviceInfo> AudioRuntime::outputDevices() {
     std::vector<AudioDeviceInfo> result;
+    if (isHosted())
+        return result;
     for (const auto* type : manager_.getAvailableDeviceTypes())
         if (type != nullptr)
             for (const auto& name : type->getDeviceNames(false))
@@ -130,6 +180,8 @@ std::vector<AudioDeviceInfo> AudioRuntime::outputDevices() {
 
 std::vector<AudioDeviceInfo> AudioRuntime::inputDevices() {
     std::vector<AudioDeviceInfo> result;
+    if (isHosted())
+        return result;
     for (const auto* type : manager_.getAvailableDeviceTypes())
         if (type != nullptr)
             for (const auto& name : type->getDeviceNames(true))
@@ -144,6 +196,8 @@ std::vector<juce::MidiDeviceInfo> AudioRuntime::midiInputDevices() {
 
 void AudioRuntime::setMidiInputEnabled(const juce::String& identifier, const bool enabled,
                                        juce::MidiInputCallback* const callback) {
+    if (isHosted())
+        return;
     if (activeMidiIdentifier_.isNotEmpty() && activeMidiCallback_ != nullptr) {
         manager_.removeMidiInputDeviceCallback(activeMidiIdentifier_, activeMidiCallback_);
         manager_.setMidiInputDeviceEnabled(activeMidiIdentifier_, false);
@@ -160,6 +214,12 @@ void AudioRuntime::setMidiInputEnabled(const juce::String& identifier, const boo
 
 AudioSettings AudioRuntime::currentSettings() const {
     AudioSettings settings;
+    if (isHosted()) {
+        settings.outputDeviceIdentifier = "Plug-in host";
+        settings.sampleRate = activeSampleRate_;
+        settings.bufferSize = hostedBufferSize_.load(std::memory_order_acquire);
+        return settings;
+    }
     const auto setup = manager_.getAudioDeviceSetup();
     settings.outputDeviceIdentifier = setup.outputDeviceName;
     settings.inputDeviceIdentifier = setup.inputDeviceName;
@@ -174,6 +234,13 @@ AudioSettings AudioRuntime::currentSettings() const {
 
 AudioRuntimeStatus AudioRuntime::status() {
     AudioRuntimeStatus value;
+    if (isHosted()) {
+        value.deviceOpen = hostedPrepared_.load(std::memory_order_acquire);
+        value.deviceName = "Plug-in host";
+        value.sampleRate = activeSampleRate_;
+        value.bufferSize = hostedBufferSize_.load(std::memory_order_acquire);
+        return value;
+    }
     const auto* device = manager_.getCurrentAudioDevice();
     value.deviceOpen = device != nullptr && !deviceError_.load(std::memory_order_acquire);
     if (device != nullptr) {
@@ -247,6 +314,14 @@ void AudioRuntime::audioDeviceIOCallbackWithContext(
     float* const* const outputChannelData, const int numOutputChannels, const int numSamples,
     const juce::AudioIODeviceCallbackContext& context) {
     juce::ignoreUnused(context);
+    processAudio(inputChannelData, numInputChannels, outputChannelData, numOutputChannels,
+                 numSamples, {});
+}
+
+void AudioRuntime::processAudio(const float* const* const inputChannelData,
+                                const int numInputChannels, float* const* const outputChannelData,
+                                const int numOutputChannels, const int numSamples,
+                                const std::span<const AudioCommand> hostCommands) noexcept {
     if (numSamples > 0)
         capture_.processInput(inputChannelData,
                               static_cast<std::uint32_t>(std::max(0, numInputChannels)),
@@ -275,8 +350,44 @@ void AudioRuntime::audioDeviceIOCallbackWithContext(
             engine_.panic();
         scheduler_.processBlock(transport_.snapshot(), static_cast<std::size_t>(count),
                                 scheduledCommands_);
+        combinedCommands_.clear();
+        auto appendForChunk = [this, offset, count](const AudioCommand& source) noexcept {
+            const auto absoluteOffset = static_cast<int>(source.frameOffset);
+            if (absoluteOffset < offset || absoluteOffset >= offset + count)
+                return;
+            if (combinedCommands_.size >= combinedCommands_.commands.size()) {
+                ++combinedCommands_.dropped;
+                return;
+            }
+            auto command = source;
+            command.frameOffset = static_cast<std::uint32_t>(absoluteOffset - offset);
+            combinedCommands_.commands[combinedCommands_.size++] = command;
+        };
+        for (const auto& command : scheduledCommands_.view()) {
+            auto adjusted = command;
+            adjusted.frameOffset += static_cast<std::uint32_t>(offset);
+            appendForChunk(adjusted);
+        }
+        for (const auto& command : hostCommands)
+            appendForChunk(command);
+        std::sort(combinedCommands_.commands.begin(),
+                  combinedCommands_.commands.begin() +
+                      static_cast<std::ptrdiff_t>(combinedCommands_.size),
+                  [](const AudioCommand& leftCommand, const AudioCommand& rightCommand) noexcept {
+                      if (leftCommand.frameOffset != rightCommand.frameOffset)
+                          return leftCommand.frameOffset < rightCommand.frameOffset;
+                      const auto leftRank =
+                          leftCommand.type == AudioCommandType::releaseSource ? 0U : 1U;
+                      const auto rightRank =
+                          rightCommand.type == AudioCommandType::releaseSource ? 0U : 1U;
+                      if (leftRank != rightRank)
+                          return leftRank < rightRank;
+                      if (leftCommand.sequenceOrder != rightCommand.sequenceOrder)
+                          return leftCommand.sequenceOrder < rightCommand.sequenceOrder;
+                      return leftCommand.generation < rightCommand.generation;
+                  });
         engine_.processBlock(left, right, static_cast<std::size_t>(count),
-                             scheduledCommands_.view());
+                             combinedCommands_.view());
         preview_.processAdd(left, right, static_cast<std::size_t>(count));
         transport_.processMetronomeAdd(left, right, static_cast<std::size_t>(count));
 
