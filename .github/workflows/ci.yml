@@ -121,14 +121,27 @@ jobs:
           .\build\windows-release\bin\PadFlow.exe --headless-smoke-test --no-audio-device
       - name: Validate VST3 with pluginval strictness 10
         shell: powershell
+        timeout-minutes: 10
         run: |
           $archive = "$env:RUNNER_TEMP\pluginval_Windows.zip"
           Invoke-WebRequest -Uri "https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_Windows.zip" -OutFile $archive
           $expected = "c08e61ce3b96db41636f8ec7e76f4c7e2c13ebdac7fa1b5a1f52b4f32ec715ab"
           if ((Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) { throw "pluginval checksum mismatch" }
           Expand-Archive -LiteralPath $archive -DestinationPath "$env:RUNNER_TEMP\pluginval"
-          & "$env:RUNNER_TEMP\pluginval\pluginval.exe" --validate-in-process --strictness-level 10 --output-dir artifacts\pluginval build\windows-release\lib\VST3\PadFlow.vst3
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item -ItemType Directory -Force -Path artifacts\pluginval | Out-Null
+          $arguments = @(
+            "--validate-in-process",
+            "--strictness-level", "10",
+            "--output-dir", (Resolve-Path artifacts\pluginval).Path,
+            (Resolve-Path build\windows-release\lib\VST3\PadFlow.vst3).Path
+          )
+          $validation = Start-Process -FilePath "$env:RUNNER_TEMP\pluginval\pluginval.exe" -ArgumentList $arguments -PassThru -Wait
+          if ($validation.ExitCode -ne 0) { exit $validation.ExitCode }
+          $logs = @(Get-ChildItem -LiteralPath artifacts\pluginval -Filter *.txt -File)
+          if ($logs.Count -ne 1) { throw "expected one completed pluginval log, found $($logs.Count)" }
+          if ($logs[0].Length -eq 0 -or -not (Select-String -LiteralPath $logs[0].FullName -Pattern '^SUCCESS$' -Quiet)) {
+            throw "pluginval did not produce a completed SUCCESS log"
+          }
       - name: Upload Milestone 4 UI evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
@@ -219,4 +232,7 @@ jobs:
           name: macos-development
           path: artifacts/macos
       - name: Verify all development artifacts
-        run: python3 scripts/verify-artifacts.py --mode milestone1 --platform all
+        run: |
+          find artifacts -maxdepth 4 -type f -print | sort
+          python3 scripts/verify-artifacts.py --mode milestone1 --platform windows --root artifacts/windows
+          python3 scripts/verify-artifacts.py --mode milestone1 --platform macos --root artifacts/macos

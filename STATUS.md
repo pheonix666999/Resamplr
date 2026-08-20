@@ -33,6 +33,16 @@ shared module. `REGRESSION-CI-015` enables CMake position-independent code globa
 objects. The same run completed the macOS universal and Intel jobs successfully before being
 superseded; the correction requires a fresh full hosted run before final status is claimed.
 
+[Hosted run 32362062010](https://github.com/pheonix666999/Resamplr/actions/runs/32362062010)
+passed Linux validation, Windows x64, macOS Universal (including `auval`), and macOS Intel. Both
+platform development artifacts were uploaded and independently pass their artifact verifier after
+download. Its final combined artifact job nevertheless exited 1 without retaining layout
+diagnostics. The Windows plug-in validator artifact was also empty because PowerShell returned
+before the GUI-subsystem validator process finished. `REGRESSION-CI-016` now waits for the real
+validator process and requires a non-empty `SUCCESS` log; `REGRESSION-CI-017` records artifact
+layout and verifies each platform under an explicit download root. A fresh hosted run is required
+before overall CI success is claimed.
+
 ## Current milestone
 
 Milestone 4 — transport and sequencing: **ready for review on
